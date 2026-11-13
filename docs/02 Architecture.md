@@ -7,10 +7,10 @@ created: 2026-11-12
 ## Tech stack
 | Concern | Choice | Notes |
 |---------|--------|-------|
-| Framework | Flutter (stable), Dart 3 | Android target first; `minSdk 26` |
+| Framework | Flutter 3.50 (stable), Dart 3.14 | Android target first; `minSdk 26`. Widgets come from `package:material_ui` (Material split out of the framework in 3.50) |
 | State / DI | `flutter_riverpod` + `riverpod_annotation` | Providers compose streams from the data layer; the plan is a derived provider |
-| Persistence | `drift` (SQLite) | Type-safe schema, migrations, reactive `watch()` queries, in-memory DB for tests |
-| Models | `freezed` | Immutable entities with `copyWith`, equality; `json_serializable` for backup export |
+| Persistence | `drift` (SQLite; native library via `sqlite3` 3.x build hooks, no `sqlite3_flutter_libs`) | Type-safe schema, migrations, reactive `watch()` queries, in-memory DB for tests |
+| Models | `freezed` | Immutable entities with `copyWith`, equality. Backup JSON is a data-layer concern (T-502); `json_serializable` deferred, see ADR-8 |
 | Navigation | `go_router` | 4 top-level tabs + task editor route |
 | Codegen | `build_runner` | drift_dev, freezed, riverpod_generator |
 | Dates | own `LocalDate` value object | Avoid timezone bugs: a task is due on a *calendar day*, never a `DateTime` |
@@ -18,7 +18,7 @@ created: 2026-11-12
 | Theme | Material 3 `ColorScheme.fromSeed`, `themeModeProvider` | system / light / dark (D13); both themes checked on every screen |
 | Device prefs | `shared_preferences` | locale, theme, showReasons, notification time |
 | Notifications (v0.2) | `flutter_local_notifications` | Morning summary |
-| Lint | `flutter_lints` + stricter rules in `analysis_options.yaml` | `strict-casts`, `strict-raw-types` |
+| Lint | `flutter_lints` + stricter rules in `analysis_options.yaml` | `strict-casts`, `strict-inference`, `strict-raw-types`; `test/domain/domain_purity_test.dart` enforces the domain import rule |
 | Tests | `test`, `flutter_test`, `integration_test` | Planner: table-driven unit tests |
 
 ## Layers
@@ -110,3 +110,5 @@ Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRe
 - ADR-5 (2026-11-13): the Today queue is a planner output (`Plan.todayQueue`), not a UI filter, so widgets/notifications get it for free. Supersedes the "Critical tier" idea from 2026-11-12.
 - ADR-6 (2026-11-13): localisation via ARB from the first screen; no string literal in widgets. Ukrainian and English are both first-class; English is the source language of the ARB files and the docs.
 - ADR-7 (2026-11-13): no "dropped" status; removal is a soft delete that doubles as Trash and sync tombstone (D14).
+- ADR-8 (2026-11-13): `json_serializable` removed from M0 dependencies. Version 6.15.x fails on freezed 4.0.3 output ("Could not resolve annotation for `int get hashCode`"), and older versions conflict with `build_runner` 2.17. Domain entities do not need JSON; backup (T-502) will either re-add it once fixed upstream or use hand-written mappers in `data/`.
+- ADR-9 (2026-11-13): `kotlin.incremental=false` in `android/gradle.properties`, because the project (D:) and the pub cache (C:) are on different drives and Kotlin incremental caches fail to close.

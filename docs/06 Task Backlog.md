@@ -9,9 +9,12 @@ Format: `- [ ] **T-xxx Title** — what / definition of done. _depends:_ …
 ## M0 — Environment & skeleton
 - [ ] **T-001 Install toolchain** — Flutter stable, Android SDK (cmdline-tools or Android Studio), JDK 17, platform-tools; accept licences. DoD: `flutter doctor` shows no errors for Android; a phone with USB debugging appears in `flutter devices`.
 - [ ] **T-002 Create project** — `flutter create --platforms=android --org <org> tasks_order`; set `minSdk 26`; `git init`, `.gitignore`, first commit. DoD: default counter app runs on the phone. _depends:_ T-001
-- [ ] **T-003 Dependencies & tooling** — add `flutter_riverpod`, `riverpod_annotation`, `drift`, `sqlite3_flutter_libs`, `path_provider`, `go_router`, `freezed_annotation`, `uuid`, `flutter_localizations`, `intl`, `shared_preferences`; dev: `build_runner`, `drift_dev`, `freezed`, `riverpod_generator`, `flutter_lints`. Strict `analysis_options.yaml`. VS Code task / script for `build_runner watch`. DoD: `flutter analyze` clean, codegen runs. _depends:_ T-002
-- [ ] **T-004 Skeleton & docs** — create folder structure from [[02 Architecture]], empty `domain/`, `data/`, `features/`; `README.md` pointing to `docs/`. DoD: structure in place, app still runs. _depends:_ T-003
+- [x] **T-003 Dependencies & tooling** — add `flutter_riverpod`, `riverpod_annotation`, `drift`, `sqlite3_flutter_libs`, `path_provider`, `go_router`, `freezed_annotation`, `uuid`, `flutter_localizations`, `intl`, `shared_preferences`; dev: `build_runner`, `drift_dev`, `freezed`, `riverpod_generator`, `flutter_lints`. Strict `analysis_options.yaml`. VS Code task / script for `build_runner watch`. DoD: `flutter analyze` clean, codegen runs. _depends:_ T-002
+  - _Notes (2026-11-13):_ `sqlite3_flutter_libs` dropped (obsolete with `sqlite3` 3.x); `json_serializable` deferred to T-502 (ADR-8 in [[02 Architecture]]); `build_runner` 2.17 removed `--delete-conflicting-outputs`. Scripts: `tool/gen.sh`, `tool/gen.ps1`, VS Code tasks.
+- [x] **T-004 Skeleton & docs** — create folder structure from [[02 Architecture]], empty `domain/`, `data/`, `features/`; `README.md` pointing to `docs/`. DoD: structure in place, app still runs. _depends:_ T-003
+  - _Notes (2026-11-13):_ empty folders hold `.gitkeep`; `test/domain/domain_purity_test.dart` enforces "no flutter/drift in lib/domain".
 - [ ] **T-005 CI (optional)** — GitHub Actions: `flutter analyze` + `flutter test` on push. DoD: green badge. _depends:_ T-003
+  - _Notes (2026-11-13):_ postponed by owner: no GitHub remote yet. Not blocking M0.
 
 ## M1 — Domain core (pure Dart, no Flutter imports)
 - [ ] **T-101 LocalDate** — value object: constructors, `addDays`, `daysUntil`, `weekday` (Mon=0..Sun=6), `compareTo`, ISO parse/format, equality. DoD: `local_date_test.dart` covers month/year rollovers and leap day.
