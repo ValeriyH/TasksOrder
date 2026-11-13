@@ -82,23 +82,60 @@ void main() {
     });
   });
 
+  group('remap (T-406)', () {
+    List<int> all(int from, int to) => [
+      for (var p = 1; p <= from; p++)
+        PriorityLabels.remap(p, from: from, to: to),
+    ];
+
+    test('10 to 5 halves, rounding to the lower priority', () {
+      expect(all(10, 5), [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
+    });
+
+    test('10 to 3 and 5 to 3 squeeze in proportion', () {
+      expect(all(10, 3), [1, 1, 1, 2, 2, 2, 3, 3, 3, 3]);
+      expect(all(5, 3), [1, 2, 2, 3, 3]);
+    });
+
+    test('a bigger or equal scale keeps the values', () {
+      expect(all(3, 10), [1, 2, 3]);
+      expect(all(5, 10), [1, 2, 3, 4, 5]);
+      expect(all(5, 5), [1, 2, 3, 4, 5]);
+    });
+
+    test('the order of the tasks is kept and the ends stay the ends', () {
+      for (final (from, to) in [(10, 5), (10, 3), (5, 3)]) {
+        final mapped = all(from, to);
+        expect(mapped.first, 1);
+        expect(mapped.last, to);
+        for (var i = 1; i < mapped.length; i++) {
+          expect(mapped[i], greaterThanOrEqualTo(mapped[i - 1]));
+        }
+      }
+    });
+
+    test('a value above the old scale becomes the last level', () {
+      expect(PriorityLabels.remap(9, from: 5, to: 3), 3);
+    });
+  });
+
   group('color', () {
-    test('endpoints are red and grey on every scale', () {
+    test('endpoints are red and blue on every scale', () {
       for (final scale in PriorityLabels.scales) {
         expect(PriorityLabels.color(1, scale), PriorityLabels.highestColor);
         expect(PriorityLabels.color(scale, scale), PriorityLabels.lowestColor);
       }
     });
 
-    test('the middle of an odd scale is amber', () {
+    test('the middle of an odd scale is green', () {
       expect(PriorityLabels.color(2, 3), PriorityLabels.middleColor);
       expect(PriorityLabels.color(3, 5), PriorityLabels.middleColor);
     });
 
-    test('anchor colours are opaque red, amber and grey', () {
+    test('anchor colours are opaque red, green and blue', () {
       expect(PriorityLabels.highestColor, 0xFFD32F2F);
-      expect(PriorityLabels.middleColor, 0xFFFFA000);
-      expect(PriorityLabels.lowestColor, 0xFF9E9E9E);
+      expect(PriorityLabels.middleColor, 0xFF388E3C);
+      expect(PriorityLabels.lowestColor, 0xFF1976D2);
     });
 
     test('every colour is opaque and unique within its scale', () {
@@ -113,11 +150,37 @@ void main() {
       }
     });
 
-    test('interpolates channel by channel between anchors', () {
-      // Scale 5, priority 2: halfway from red D32F2F to amber FFA000.
-      expect(PriorityLabels.color(2, 5), 0xFFE96817);
-      // Scale 5, priority 4: halfway from amber FFA000 to grey 9E9E9E.
-      expect(PriorityLabels.color(4, 5), 0xFFCE9F4F);
+    test('scale 5 is the five anchors: red, orange, green, teal, blue', () {
+      expect(
+        [for (var p = 1; p <= 5; p++) PriorityLabels.color(p, 5)],
+        [
+          PriorityLabels.highestColor,
+          PriorityLabels.raisedColor,
+          PriorityLabels.middleColor,
+          PriorityLabels.loweredColor,
+          PriorityLabels.lowestColor,
+        ],
+      );
+      expect(PriorityLabels.raisedColor, 0xFFF57C00);
+      expect(PriorityLabels.loweredColor, 0xFF0097A7);
+    });
+
+    test('scale 10 runs through the steps between the anchors', () {
+      expect(
+        [for (var p = 1; p <= 10; p++) PriorityLabels.color(p, 10)],
+        [
+          0xFFD32F2F,
+          0xFFE2491C,
+          0xFFF17006,
+          0xFFCFD31C,
+          0xFF54A533,
+          0xFF2D944A,
+          0xFF159F7C,
+          0xFF0294AC,
+          0xFF0D86BF,
+          0xFF1976D2,
+        ],
+      );
     });
 
     test('throws for a priority outside the scale or an unknown scale', () {

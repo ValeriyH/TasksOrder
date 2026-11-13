@@ -1,0 +1,646 @@
+{
+  "@@locale": "en",
+  "appTitle": "TasksOrder",
+  "@appTitle": {
+    "description": "Name of the app in the task switcher and the browser tab"
+  },
+  "tabToday": "Today",
+  "@tabToday": {
+    "description": "Bottom navigation: what to do today"
+  },
+  "tabPlan": "Plan",
+  "@tabPlan": {
+    "description": "Bottom navigation: the coming days"
+  },
+  "tabTasks": "Tasks",
+  "@tabTasks": {
+    "description": "Bottom navigation: all tasks"
+  },
+  "tabSettings": "Settings",
+  "@tabSettings": {
+    "description": "Bottom navigation: settings"
+  },
+  "taskNewTitle": "New task",
+  "@taskNewTitle": {
+    "description": "Title of the editor when it creates a task"
+  },
+  "taskEditTitle": "Edit task",
+  "@taskEditTitle": {
+    "description": "Title of the editor when it changes a task"
+  },
+  "actionSave": "Save",
+  "@actionSave": {
+    "description": "Button: store the changes"
+  },
+  "actionDelete": "Delete",
+  "@actionDelete": {
+    "description": "Button or tooltip: move the task to the Trash"
+  },
+  "actionUndo": "Undo",
+  "@actionUndo": {
+    "description": "Snackbar action: take the last action back"
+  },
+  "actionClear": "Clear",
+  "@actionClear": {
+    "description": "Tooltip: remove the chosen date"
+  },
+  "dateToday": "Today",
+  "@dateToday": {
+    "description": "Shortcut button that chooses the current day"
+  },
+  "dateNotSet": "Not set",
+  "@dateNotSet": {
+    "description": "Shown instead of a date when none is chosen"
+  },
+  "taskTitleLabel": "Title",
+  "@taskTitleLabel": {
+    "description": "Editor field: what to do"
+  },
+  "taskTitleRequired": "Enter a title",
+  "@taskTitleRequired": {
+    "description": "Validation error for an empty title"
+  },
+  "taskNotesLabel": "Notes",
+  "@taskNotesLabel": {
+    "description": "Editor field: free text"
+  },
+  "taskPriorityLabel": "Priority",
+  "@taskPriorityLabel": {
+    "description": "Editor field: importance of the task"
+  },
+  "taskDueDateLabel": "Due date",
+  "@taskDueDateLabel": {
+    "description": "Editor field: the deadline"
+  },
+  "taskFocusLabel": "Focus",
+  "@taskFocusLabel": {
+    "description": "Editor switch: the Focus mark"
+  },
+  "taskFocusHint": "Keep in sight on the Today screen",
+  "@taskFocusHint": {
+    "description": "Explains the Focus switch"
+  },
+  "taskPinDateLabel": "Do on this day",
+  "@taskPinDateLabel": {
+    "description": "Editor field: the day the user fixes the task to"
+  },
+  "taskMovedToTrash": "Moved to Trash",
+  "@taskMovedToTrash": {
+    "description": "Snackbar after deleting a task"
+  },
+  "taskNotFound": "Task not found",
+  "@taskNotFound": {
+    "description": "Editor opened for a task that does not exist or is in the Trash"
+  },
+  "priorityWithNumber": "{label} ({number})",
+  "@priorityWithNumber": {
+    "description": "A priority as it is always shown: its name and its number, 1 is the highest (D1)",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "priorityS3P1": "Critical",
+  "@priorityS3P1": {
+    "description": "Priority 1 on the scale of 3 (D1)"
+  },
+  "priorityS3P2": "Normal",
+  "@priorityS3P2": {
+    "description": "Priority 2 on the scale of 3 (D1)"
+  },
+  "priorityS3P3": "Low",
+  "@priorityS3P3": {
+    "description": "Priority 3 on the scale of 3 (D1)"
+  },
+  "priorityS5P1": "Critical",
+  "@priorityS5P1": {
+    "description": "Priority 1 on the scale of 5 (D1)"
+  },
+  "priorityS5P2": "High",
+  "@priorityS5P2": {
+    "description": "Priority 2 on the scale of 5 (D1)"
+  },
+  "priorityS5P3": "Normal",
+  "@priorityS5P3": {
+    "description": "Priority 3 on the scale of 5 (D1)"
+  },
+  "priorityS5P4": "Low",
+  "@priorityS5P4": {
+    "description": "Priority 4 on the scale of 5 (D1)"
+  },
+  "priorityS5P5": "Someday",
+  "@priorityS5P5": {
+    "description": "Priority 5 on the scale of 5 (D1)"
+  },
+  "priorityS10P1": "Catastrophic",
+  "@priorityS10P1": {
+    "description": "Priority 1 on the scale of 10 (D1)"
+  },
+  "priorityS10P2": "Critical",
+  "@priorityS10P2": {
+    "description": "Priority 2 on the scale of 10 (D1)"
+  },
+  "priorityS10P3": "High",
+  "@priorityS10P3": {
+    "description": "Priority 3 on the scale of 10 (D1)"
+  },
+  "priorityS10P4": "Elevated",
+  "@priorityS10P4": {
+    "description": "Priority 4 on the scale of 10 (D1)"
+  },
+  "priorityS10P5": "Normal",
+  "@priorityS10P5": {
+    "description": "Priority 5 on the scale of 10 (D1)"
+  },
+  "priorityS10P6": "Minor",
+  "@priorityS10P6": {
+    "description": "Priority 6 on the scale of 10 (D1)"
+  },
+  "priorityS10P7": "Low",
+  "@priorityS10P7": {
+    "description": "Priority 7 on the scale of 10 (D1)"
+  },
+  "priorityS10P8": "Someday",
+  "@priorityS10P8": {
+    "description": "Priority 8 on the scale of 10 (D1)"
+  },
+  "priorityS10P9": "Whenever",
+  "@priorityS10P9": {
+    "description": "Priority 9 on the scale of 10 (D1)"
+  },
+  "priorityS10P10": "Never",
+  "@priorityS10P10": {
+    "description": "Priority 10 on the scale of 10 (D1)"
+  },
+  "errorLoading": "Could not load the data",
+  "@errorLoading": {
+    "description": "Shown instead of a screen when the database failed"
+  },
+  "todayPlannedHeader": "Planned {count}/{capacity}",
+  "@todayPlannedHeader": {
+    "description": "Today: header of today's list, tasks left and the capacity of the day",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "capacity": {
+        "type": "int"
+      }
+    }
+  },
+  "todayDoneCount": "Done today: {count}",
+  "@todayDoneCount": {
+    "description": "Today: how many tasks of today's list are done",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todayOverloaded": "More than planned: {count} tasks, capacity {capacity}",
+  "@todayOverloaded": {
+    "description": "Today: banner when deadlines put more tasks on today than its capacity",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "capacity": {
+        "type": "int"
+      }
+    }
+  },
+  "todayAtRisk": "{count, plural, =1{1 task will not make its deadline} other{{count} tasks will not make their deadline}}",
+  "@todayAtRisk": {
+    "description": "Today: warning banner, opens the list of these tasks (D16)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "todayEmpty": "Nothing planned for today",
+  "@todayEmpty": {
+    "description": "Today: empty state"
+  },
+  "todayAllDone": "All done for today",
+  "@todayAllDone": {
+    "description": "Today: empty state after today's tasks were completed"
+  },
+  "todayEmptyHint": "Add tasks on the Tasks tab",
+  "@todayEmptyHint": {
+    "description": "Today: hint in the empty state when there are no tasks at all"
+  },
+  "focusMore": "+{count} more",
+  "@focusMore": {
+    "description": "Focus strip: how many focus tasks are not shown",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "plannedFor": "Planned for {date}",
+  "@plannedFor": {
+    "description": "Badge: the day the plan puts the task on",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "plannedLater": "Later",
+  "@plannedLater": {
+    "description": "Badge: the task does not fit the planning horizon"
+  },
+  "dueOn": "Due {date}",
+  "@dueOn": {
+    "description": "Badge: the due date of a task",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dueToday": "Due today",
+  "@dueToday": {
+    "description": "Badge: the task is due today"
+  },
+  "overdueBy": "{days, plural, =1{Overdue by 1 day} other{Overdue by {days} days}}",
+  "@overdueBy": {
+    "description": "Badge: the due date has passed (D18)",
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "reasonPinned": "Pinned",
+  "@reasonPinned": {
+    "description": "Badge: the user fixed the task to this day"
+  },
+  "reasonDeadline": "Deadline",
+  "@reasonDeadline": {
+    "description": "Badge: the task is on this day because of its due date"
+  },
+  "reasonOverflow": "Extra",
+  "@reasonOverflow": {
+    "description": "Badge: the task is above the capacity of the day"
+  },
+  "reasonAtRisk": "At risk",
+  "@reasonAtRisk": {
+    "description": "Badge and list title: the task will be late"
+  },
+  "taskCompleted": "Task completed",
+  "@taskCompleted": {
+    "description": "Snackbar after ticking a task"
+  },
+  "dueDateMove": "Move due date",
+  "@dueDateMove": {
+    "description": "Menu of an overdue task"
+  },
+  "dueDateClear": "Remove due date",
+  "@dueDateClear": {
+    "description": "Menu of an overdue task"
+  },
+  "filterAll": "All",
+  "@filterAll": {
+    "description": "Tasks: filter chip, every active task"
+  },
+  "filterDue": "With due date",
+  "@filterDue": {
+    "description": "Tasks: filter chip, tasks that have a due date"
+  },
+  "tasksEmpty": "No tasks here",
+  "@tasksEmpty": {
+    "description": "Tasks: empty list, also for a filter without matches"
+  },
+  "plannedToday": "Planned for today",
+  "@plannedToday": {
+    "description": "Badge: the plan puts the task on today"
+  },
+  "focusOn": "Added to Focus",
+  "@focusOn": {
+    "description": "Snackbar after the Focus mark was set by a swipe"
+  },
+  "focusOff": "Removed from Focus",
+  "@focusOff": {
+    "description": "Snackbar after the Focus mark was cleared by a swipe"
+  },
+  "settingsAppearance": "Appearance",
+  "@settingsAppearance": {
+    "description": "Settings: section with the settings of this device"
+  },
+  "settingsLanguage": "Language",
+  "@settingsLanguage": {
+    "description": "Settings: language of the app"
+  },
+  "languageSystem": "Device language",
+  "@languageSystem": {
+    "description": "Language option: follow the device"
+  },
+  "languageUk": "Українська",
+  "@languageUk": {
+    "description": "Language option, always written in Ukrainian"
+  },
+  "languageEn": "English",
+  "@languageEn": {
+    "description": "Language option, always written in English"
+  },
+  "settingsTheme": "Theme",
+  "@settingsTheme": {
+    "description": "Settings: light or dark look"
+  },
+  "themeSystem": "As on the device",
+  "@themeSystem": {
+    "description": "Theme option: follow the device"
+  },
+  "themeLight": "Light",
+  "@themeLight": {
+    "description": "Theme option"
+  },
+  "themeDark": "Dark",
+  "@themeDark": {
+    "description": "Theme option"
+  },
+  "settingsShowReasons": "Show why a task is planned",
+  "@settingsShowReasons": {
+    "description": "Settings: switch for the reason badges"
+  },
+  "settingsShowReasonsHint": "Badges: Pinned, Deadline, Extra",
+  "@settingsShowReasonsHint": {
+    "description": "Explains the reasons switch"
+  },
+  "settingsPlanning": "Planning",
+  "@settingsPlanning": {
+    "description": "Settings: section with the planning settings"
+  },
+  "settingsPriorityScale": "Priority levels",
+  "@settingsPriorityScale": {
+    "description": "Settings: size of the priority scale, 3, 5 or 10"
+  },
+  "plainNumber": "{value}",
+  "@plainNumber": {
+    "description": "A number on its own, in the number format of the language",
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsWeeklyCapacity": "Tasks per day",
+  "@settingsWeeklyCapacity": {
+    "description": "Settings: header of the seven weekday capacities"
+  },
+  "capacityRestDay": "Rest day",
+  "@capacityRestDay": {
+    "description": "Shown for a weekday with capacity 0"
+  },
+  "weekdayMon": "Monday",
+  "@weekdayMon": {
+    "description": "Weekday"
+  },
+  "weekdayTue": "Tuesday",
+  "@weekdayTue": {
+    "description": "Weekday"
+  },
+  "weekdayWed": "Wednesday",
+  "@weekdayWed": {
+    "description": "Weekday"
+  },
+  "weekdayThu": "Thursday",
+  "@weekdayThu": {
+    "description": "Weekday"
+  },
+  "weekdayFri": "Friday",
+  "@weekdayFri": {
+    "description": "Weekday"
+  },
+  "weekdaySat": "Saturday",
+  "@weekdaySat": {
+    "description": "Weekday"
+  },
+  "weekdaySun": "Sunday",
+  "@weekdaySun": {
+    "description": "Weekday"
+  },
+  "settingsOverflow": "Extra tasks for deadlines",
+  "@settingsOverflow": {
+    "description": "Settings: how far a day may go above its capacity"
+  },
+  "settingsOverflowHint": "How many tasks above its capacity a day may take when deadlines require it",
+  "@settingsOverflowHint": {
+    "description": "Explains the overflow setting"
+  },
+  "overflowValue": "+{count}",
+  "@overflowValue": {
+    "description": "Overflow option: so many extra tasks",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsHorizon": "Plan ahead for",
+  "@settingsHorizon": {
+    "description": "Settings: planning horizon, followed by a number of days"
+  },
+  "daysCount": "{count, plural, =1{1 day} other{{count} days}}",
+  "@daysCount": {
+    "description": "A number of days",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsFocusLimit": "Tasks shown in Focus",
+  "@settingsFocusLimit": {
+    "description": "Settings: size of the Focus strip on Today"
+  },
+  "settingsDayStart": "Day starts at",
+  "@settingsDayStart": {
+    "description": "Settings: hour at which today rolls over"
+  },
+  "settingsDayStartHint": "Tasks done before this hour count for the previous day",
+  "@settingsDayStartHint": {
+    "description": "Explains the day start"
+  },
+  "settingsAdvanced": "Advanced",
+  "@settingsAdvanced": {
+    "description": "Settings: section that is closed by default"
+  },
+  "settingsUrgencySoon": "Raise the priority by one level when due within",
+  "@settingsUrgencySoon": {
+    "description": "Settings: first urgency threshold, followed by a number of days"
+  },
+  "settingsUrgencyNear": "Raise the priority by two levels when due within",
+  "@settingsUrgencyNear": {
+    "description": "Settings: second urgency threshold, followed by a number of days"
+  },
+  "actionIncrease": "More",
+  "@actionIncrease": {
+    "description": "Tooltip of the plus button of a number"
+  },
+  "actionDecrease": "Less",
+  "@actionDecrease": {
+    "description": "Tooltip of the minus button of a number"
+  },
+  "filterDone": "Done",
+  "@filterDone": {
+    "description": "Tasks: filter chip, completed tasks by day"
+  },
+  "dateYesterday": "Yesterday",
+  "@dateYesterday": {
+    "description": "Header of the day before today"
+  },
+  "actionAdd": "Add",
+  "@actionAdd": {
+    "description": "Button of the quick-add sheet: create the task"
+  },
+  "dateTomorrow": "Tomorrow",
+  "@dateTomorrow": {
+    "description": "Header of the day after today"
+  },
+  "planDayCount": "{count}/{capacity}",
+  "@planDayCount": {
+    "description": "Plan: tasks on a day and the capacity of the day",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "capacity": {
+        "type": "int"
+      }
+    }
+  },
+  "planAtRisk": "{count, plural, =1{1 task at risk} other{{count} tasks at risk}}",
+  "@planAtRisk": {
+    "description": "Plan: banner, tasks that will miss their deadline; opens their list",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planLater": "Later ({count})",
+  "@planLater": {
+    "description": "Plan: header of the tasks that do not fit the planning horizon",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "planOverloaded": "More than planned",
+  "@planOverloaded": {
+    "description": "Plan: tooltip of the marker of a day that holds more tasks than its capacity"
+  },
+  "planChangedCapacity": "Capacity changed for this day",
+  "@planChangedCapacity": {
+    "description": "Plan: tooltip of the marker of a day with its own capacity"
+  },
+  "actionEdit": "Edit",
+  "@actionEdit": {
+    "description": "Menu item: open the task editor"
+  },
+  "actionCancel": "Cancel",
+  "@actionCancel": {
+    "description": "Dialog button: close without changes"
+  },
+  "pinMove": "Move to a day…",
+  "@pinMove": {
+    "description": "Menu of a planned task: fix it to a date the user picks"
+  },
+  "pinRemove": "Unpin",
+  "@pinRemove": {
+    "description": "Menu of a pinned task: let the planner place it again"
+  },
+  "overrideTitle": "Tasks on {date}",
+  "@overrideTitle": {
+    "description": "Title of the dialog that sets the capacity of one date",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "overrideNoteLabel": "Note",
+  "@overrideNoteLabel": {
+    "description": "Dialog field: why this day is different, for example holiday"
+  },
+  "overrideReset": "As the weekday",
+  "@overrideReset": {
+    "description": "Dialog button: remove the capacity of this date, the weekday capacity applies again"
+  },
+  "atRiskAddCapacity": "One more task today",
+  "@atRiskAddCapacity": {
+    "description": "Action for an at-risk task: raise the capacity of today by one"
+  },
+  "trashTitle": "Trash",
+  "@trashTitle": {
+    "description": "Title of the screen with deleted tasks, and tooltip of the button that opens it"
+  },
+  "trashEmpty": "The Trash is empty",
+  "@trashEmpty": {
+    "description": "Trash: empty state"
+  },
+  "trashHint": "Deleted tasks are removed for good after {days} days",
+  "@trashHint": {
+    "description": "Trash: note on top of the list",
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "trashDeletedOn": "Deleted {date}",
+  "@trashDeletedOn": {
+    "description": "Trash: when the task was deleted",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "actionRestore": "Restore",
+  "@actionRestore": {
+    "description": "Trash: take the task back"
+  },
+  "trashDeleteForever": "Delete forever",
+  "@trashDeleteForever": {
+    "description": "Trash: remove the task for good; also the confirm button"
+  },
+  "trashDeleteConfirm": "Delete \"{title}\" forever? This cannot be undone.",
+  "@trashDeleteConfirm": {
+    "description": "Trash: question before a task is removed for good",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "scaleShrinkTitle": "Fewer priority levels",
+  "@scaleShrinkTitle": {
+    "description": "Settings: title of the question before the priority scale gets smaller"
+  },
+  "scaleShrinkBody": "{count, plural, =1{1 task gets} other{{count} tasks get}} a new priority on the scale of {scale}. The order of the tasks stays.",
+  "@scaleShrinkBody": {
+    "description": "Settings: what happens to the tasks when the scale gets smaller",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "scale": {
+        "type": "int"
+      }
+    }
+  },
+  "actionChange": "Change",
+  "@actionChange": {
+    "description": "Dialog button: confirm the change"
+  }
+}

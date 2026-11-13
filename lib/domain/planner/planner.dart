@@ -268,6 +268,22 @@ class Planner {
     return _compareAge(x, y);
   }
 
+  /// Order of a plain task list: the pool order without the urgency boost.
+  /// Priority, then due date (none and overdue last, as the planner treats
+  /// an overdue task as one without a date, D18), then age.
+  static int compareForList(Task a, Task b, {required LocalDate today}) {
+    num? dueOffset(Task task) {
+      final due = task.dueDate;
+      return due == null || due < today ? null : today.daysUntil(due);
+    }
+
+    var c = a.priority.compareTo(b.priority);
+    if (c != 0) return c;
+    c = _compareNullsLast<num>(dueOffset(a), dueOffset(b));
+    if (c != 0) return c;
+    return _compareAge(a, b);
+  }
+
   /// Pool order: effective priority, original priority (a boosted task joins
   /// a tier but does not overtake that tier's own tasks), due date (none
   /// last), then age.

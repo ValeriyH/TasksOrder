@@ -29,6 +29,12 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 - **Scope creep**: parking lot in [[01 Brainstorm]] exists for a reason.
 
 ## Retro
+### M4 — 2026-11-14
+- **Done:** T-401 … T-406: Plan screen, pin from the plan, capacity of single days, ways out for at-risk tasks, Trash with a 30-day purge, priority remap for a smaller scale; 414 tests.
+- **Demo:** web build in Chrome (Plan with five tasks over the days). Not on a phone yet.
+- **Changed decisions:** M4 was done before the M3 device walkthrough (T-308 postponed until the app is in everyday use); priority colours are red, orange, green, teal, blue (D1); agent rules moved from `CLAUDE.md` to `AGENTS.md`.
+- **New backlog items:** none.
+- **Learned:** two `FloatingActionButton`s in a tab stack need their own `heroTag`; a widget field cannot be called `override`; a drift call awaited by a widget test itself needs `tester.runAsync`; a `Dismissible` that only triggers an action should return false from `confirmDismiss`.
 ### M2 — 2026-11-13
 - **Done:** T-201 … T-206. drift schema v1 with converters, `TaskRepository` / `SettingsRepository` / `DayOverrideRepository` on drift, `DeviceSettings` in SharedPreferences, Riverpod providers up to `planProvider`, `todayProvider` with a day-start timer, SQLite wasm files for the browser; 302 tests.
 - **Demo:** none on screen (the app is still the template counter); provider tests run the whole chain database → streams → plan. In Chrome the database survives a reload and a browser restart (IndexedDB).
@@ -43,7 +49,7 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 - **Learned:** freezed constructors with method-calling assertions cannot be `const`; on Windows, building from `d:\` and `D:\` (drive-letter case) wipes `windows/flutter/ephemeral` for each other, so always build from one casing (`tool/run_windows.cmd` normalises it).
 ### M0 — 2026-11-13
 - **Done:** T-001 … T-006. CI + GitHub Pages: https://valeriyh.github.io/TasksOrder/
-- **Demo:** default app runs on Windows desktop and in Chrome; debug APK builds. Phone run moved to T-308 (test phone on Android 7.1 needs a clean-up first).
+- **Demo:** default app runs on Windows desktop and in Chrome; debug APK builds. Phone run moved to T-308.
 - **Changed decisions:** develop on Windows/web first (ADR-10); `minSdk 24`; storage is an adapter, backend left open; `json_serializable` deferred (ADR-8); `kotlin.incremental=false` (ADR-9).
 - **New backlog items:** T-006 Windows & web targets, T-206 web storage setup.
 - **Learned:** Flutter 3.50 moved Material widgets to `package:material_ui`; `build_runner` 2.17 dropped `--delete-conflicting-outputs`; Windows plugin builds need Developer Mode (symlinks).

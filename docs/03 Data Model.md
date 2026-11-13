@@ -157,6 +157,8 @@ abstract interface class TaskRepository {
   Future<void> setFocus(String id, bool value, DateTime now);
   Future<void> delete(String id, DateTime now);  // soft delete: sets deletedAt (Trash)
   Future<void> restore(String id, DateTime now); // clears deletedAt
+  Future<void> deleteForever(String id);         // "Delete forever" in the Trash
+  Future<int> remapPriorities(int Function(int priority) remap, DateTime now); // smaller scale (T-406)
   Future<int> purgeDeleted(Duration olderThan, DateTime now); // housekeeping, 30 days
 }
 abstract interface class SettingsRepository {

@@ -1,8 +1,10 @@
 {
   "version": "0.2.0",
   "configurations": [
-    { "name": "TasksOrder (Windows)", "request": "launch", "type": "dart", "deviceId": "windows" },
-    { "name": "TasksOrder (Chrome)", "request": "launch", "type": "dart", "deviceId": "chrome" },
-    { "name": "TasksOrder (Android)", "request": "launch", "type": "dart" }
+    // "program" is set on purpose: without it F5 runs the file that is open
+    // in the editor, and for a file from test/ that means the tests.
+    { "name": "TasksOrder (Windows)", "request": "launch", "type": "dart", "program": "lib/main.dart", "deviceId": "windows" },
+    { "name": "TasksOrder (Chrome)", "request": "launch", "type": "dart", "program": "lib/main.dart", "deviceId": "chrome" },
+    { "name": "TasksOrder (Android)", "request": "launch", "type": "dart", "program": "lib/main.dart" }
   ]
 }

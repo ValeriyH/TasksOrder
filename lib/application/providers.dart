@@ -56,6 +56,11 @@ DayOverrideRepository dayOverrideRepository(Ref ref) =>
 Stream<List<Task>> allTasks(Ref ref) =>
     ref.watch(taskRepositoryProvider).watchAll();
 
+/// Deleted tasks, the most recently deleted first (D14).
+@riverpod
+Stream<List<Task>> trash(Ref ref) =>
+    ref.watch(taskRepositoryProvider).watchTrash();
+
 /// Tasks still to do, oldest first.
 @Riverpod(keepAlive: true)
 AsyncValue<List<Task>> activeTasks(Ref ref) => ref
