@@ -27,3 +27,11 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 - **Codegen friction** (`build_runner` for drift/freezed/riverpod): set up a `tool/gen.sh` / VS Code task early (T-003).
 - **Planner edge cases**: keep the test table as the contract; every bug found in the UI becomes a new row before it is fixed.
 - **Scope creep**: parking lot in [[01 Brainstorm]] exists for a reason.
+
+## Retro
+### M0 — 2026-11-13
+- **Done:** T-001 … T-004, T-006. T-005 (CI) postponed: no GitHub remote yet.
+- **Demo:** default app runs on Windows desktop and in Chrome; debug APK builds. Phone run moved to T-308 (test phone on Android 7.1 needs a clean-up first).
+- **Changed decisions:** develop on Windows/web first (ADR-10); `minSdk 24`; storage is an adapter, backend left open; `json_serializable` deferred (ADR-8); `kotlin.incremental=false` (ADR-9).
+- **New backlog items:** T-006 Windows & web targets, T-206 web storage setup.
+- **Learned:** Flutter 3.50 moved Material widgets to `package:material_ui`; `build_runner` 2.17 dropped `--delete-conflicting-outputs`; Windows plugin builds need Developer Mode (symlinks).

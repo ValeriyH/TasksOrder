@@ -7,15 +7,17 @@ created: 2026-11-12
 Format: `- [ ] **T-xxx Title** — what / definition of done. _depends:_ …
 
 ## M0 — Environment & skeleton
-- [ ] **T-001 Install toolchain** — Flutter stable, Android SDK (cmdline-tools or Android Studio), JDK 17, platform-tools; accept licences. DoD: `flutter doctor` clean for Android and Windows. (Phone check moved to T-308, ADR-10.)
-- [ ] **T-002 Create project** — `flutter create --platforms=android --org <org> tasks_order`; set `minSdk 24`; `git init`, `.gitignore`, first commit. DoD: default counter app builds as a debug APK and runs on Windows (phone run moved to T-308). _depends:_ T-001
+- [x] **T-001 Install toolchain** — Flutter stable, Android SDK (cmdline-tools or Android Studio), JDK 17, platform-tools; accept licences. DoD: `flutter doctor` clean for Android and Windows. (Phone check moved to T-308, ADR-10.)
+  - _Notes (2026-11-13):_ Flutter 3.50.0 in `C:devlutter`, Microsoft OpenJDK 17, Android cmdline-tools + platform 36 / build-tools 36 in `%LOCALAPPDATA%AndroidSdk`, VS Build Tools 2022 (C++). Analytics disabled. In PowerShell `sdkmanager --licenses` ignores piped input, use Git Bash `yes |`.
+- [x] **T-002 Create project** — `flutter create --platforms=android --org <org> tasks_order`; set `minSdk 24`; `git init`, `.gitignore`, first commit. DoD: default counter app builds as a debug APK and runs on Windows (phone run moved to T-308). _depends:_ T-001
+  - _Notes (2026-11-13):_ created in the repo root (`com.vhalakhov.tasks_order`); `minSdk` lowered to 24 for the 7.1 test phone; first Gradle build ~6 min, then 6–16 s.
 - [x] **T-003 Dependencies & tooling** — add `flutter_riverpod`, `riverpod_annotation`, `drift`, `sqlite3_flutter_libs`, `path_provider`, `go_router`, `freezed_annotation`, `uuid`, `flutter_localizations`, `intl`, `shared_preferences`; dev: `build_runner`, `drift_dev`, `freezed`, `riverpod_generator`, `flutter_lints`. Strict `analysis_options.yaml`. VS Code task / script for `build_runner watch`. DoD: `flutter analyze` clean, codegen runs. _depends:_ T-002
   - _Notes (2026-11-13):_ `sqlite3_flutter_libs` dropped (obsolete with `sqlite3` 3.x); `json_serializable` deferred to T-502 (ADR-8 in [[02 Architecture]]); `build_runner` 2.17 removed `--delete-conflicting-outputs`. Scripts: `tool/gen.sh`, `tool/gen.ps1`, VS Code tasks.
 - [x] **T-004 Skeleton & docs** — create folder structure from [[02 Architecture]], empty `domain/`, `data/`, `features/`; `README.md` pointing to `docs/`. DoD: structure in place, app still runs. _depends:_ T-003
   - _Notes (2026-11-13):_ empty folders hold `.gitkeep`; `test/domain/domain_purity_test.dart` enforces "no flutter/drift in lib/domain".
 - [ ] **T-005 CI (optional)** — GitHub Actions: `flutter analyze` + `flutter test` on push. DoD: green badge. _depends:_ T-003
   - _Notes (2026-11-13):_ postponed by owner: no GitHub remote yet. Not blocking M0.
-- [ ] **T-006 Windows & web targets** — VS Build Tools 2022 (C++), Windows Developer Mode, `flutter create --platforms=windows,web .`, app title "TasksOrder". DoD: default app runs via `flutter run -d windows` and `flutter run -d chrome`. _depends:_ T-002
+- [x] **T-006 Windows & web targets** — VS Build Tools 2022 (C++), Windows Developer Mode, `flutter create --platforms=windows,web .`, app title "TasksOrder". DoD: default app runs via `flutter run -d windows` and `flutter run -d chrome`. _depends:_ T-002
   - _Notes (2026-11-13):_ added after owner decided to develop on desktop/web first; device testing moves to M3 (ADR-10 in [[02 Architecture]]).
 
 ## M1 — Domain core (pure Dart, no Flutter imports)
