@@ -7,14 +7,16 @@ created: 2026-11-12
 Format: `- [ ] **T-xxx Title** — what / definition of done. _depends:_ …
 
 ## M0 — Environment & skeleton
-- [ ] **T-001 Install toolchain** — Flutter stable, Android SDK (cmdline-tools or Android Studio), JDK 17, platform-tools; accept licences. DoD: `flutter doctor` shows no errors for Android; a phone with USB debugging appears in `flutter devices`.
-- [ ] **T-002 Create project** — `flutter create --platforms=android --org <org> tasks_order`; set `minSdk 24`; `git init`, `.gitignore`, first commit. DoD: default counter app runs on the phone. _depends:_ T-001
+- [ ] **T-001 Install toolchain** — Flutter stable, Android SDK (cmdline-tools or Android Studio), JDK 17, platform-tools; accept licences. DoD: `flutter doctor` shows no errors for Android; `flutter doctor` clean for Android and Windows. (Phone check moved to T-308, ADR-10.)
+- [ ] **T-002 Create project** — `flutter create --platforms=android --org <org> tasks_order`; set `minSdk 24`; `git init`, `.gitignore`, first commit. DoD: default counter app builds as a debug APK and runs on Windows (phone run moved to T-308). _depends:_ T-001
 - [x] **T-003 Dependencies & tooling** — add `flutter_riverpod`, `riverpod_annotation`, `drift`, `sqlite3_flutter_libs`, `path_provider`, `go_router`, `freezed_annotation`, `uuid`, `flutter_localizations`, `intl`, `shared_preferences`; dev: `build_runner`, `drift_dev`, `freezed`, `riverpod_generator`, `flutter_lints`. Strict `analysis_options.yaml`. VS Code task / script for `build_runner watch`. DoD: `flutter analyze` clean, codegen runs. _depends:_ T-002
   - _Notes (2026-11-13):_ `sqlite3_flutter_libs` dropped (obsolete with `sqlite3` 3.x); `json_serializable` deferred to T-502 (ADR-8 in [[02 Architecture]]); `build_runner` 2.17 removed `--delete-conflicting-outputs`. Scripts: `tool/gen.sh`, `tool/gen.ps1`, VS Code tasks.
 - [x] **T-004 Skeleton & docs** — create folder structure from [[02 Architecture]], empty `domain/`, `data/`, `features/`; `README.md` pointing to `docs/`. DoD: structure in place, app still runs. _depends:_ T-003
   - _Notes (2026-11-13):_ empty folders hold `.gitkeep`; `test/domain/domain_purity_test.dart` enforces "no flutter/drift in lib/domain".
 - [ ] **T-005 CI (optional)** — GitHub Actions: `flutter analyze` + `flutter test` on push. DoD: green badge. _depends:_ T-003
   - _Notes (2026-11-13):_ postponed by owner: no GitHub remote yet. Not blocking M0.
+- [ ] **T-006 Windows & web targets** — VS Build Tools 2022 (C++), Windows Developer Mode, `flutter create --platforms=windows,web .`, app title "TasksOrder". DoD: default app runs via `flutter run -d windows` and `flutter run -d chrome`. _depends:_ T-002
+  - _Notes (2026-11-13):_ added after owner decided to develop on desktop/web first; device testing moves to M3 (ADR-10 in [[02 Architecture]]).
 
 ## M1 — Domain core (pure Dart, no Flutter imports)
 - [ ] **T-101 LocalDate** — value object: constructors, `addDays`, `daysUntil`, `weekday` (Mon=0..Sun=6), `compareTo`, ISO parse/format, equality. DoD: `local_date_test.dart` covers month/year rollovers and leap day.
@@ -29,11 +31,12 @@ Format: `- [ ] **T-xxx Title** — what / definition of done. _depends:_ …
 - [ ] **T-110 Planner: performance & determinism** — scenario 19 (500 tasks < 50 ms), 18. Precompute capacity prefix sums. DoD: benchmark test passes on desktop. _depends:_ T-109
 
 ## M2 — Data layer
-- [ ] **T-201 Drift schema v1** — tables `tasks`, `settings`, `day_overrides` from [[03 Data Model]] incl. `updated_at`/`deleted_at` (D12); `AppDatabase` with `NativeDatabase` + in-memory constructor for tests; seed settings row on create. DoD: codegen OK, schema test. _depends:_ T-003, T-101
+- [ ] **T-201 Drift schema v1** — open the DB via `drift_flutter` (`driftDatabase(name: ...)`) so native and web share one code path; tables `tasks`, `settings`, `day_overrides` from [[03 Data Model]] incl. `updated_at`/`deleted_at` (D12); `AppDatabase` with `NativeDatabase` + in-memory constructor for tests; seed settings row on create. DoD: codegen OK, schema test. _depends:_ T-003, T-101
 - [ ] **T-202 TaskRepository (drift)** — mapper row ↔ `Task`; `watchActive`, `watchAll`, `watchTrash`, `upsert`, `complete`, `uncomplete`, `setToday`, soft `delete`, `restore`, `purgeDeleted`; every write bumps `updatedAt`; queries filter `deleted_at IS NULL`. DoD: tests on in-memory DB, stream emits on each write. _depends:_ T-201, T-102
 - [ ] **T-203 Settings, DayOverride & DeviceSettings** — `watch`/`save`, `watchAll`/`upsert`/`remove` (soft); defaults when row missing; `DeviceSettings` (locale, theme, show reasons) in SharedPreferences with `localeProvider`/`themeModeProvider`. DoD: tests. _depends:_ T-201, T-103
 - [ ] **T-204 Providers & planProvider** — `databaseProvider`, repository providers, `settingsProvider`, `activeTasksProvider`, `dayOverridesProvider`, `planProvider` combining them + `completedTodayCount` (non-flagged tasks with `completedAt` on today, respecting `dayStartHour`), debounced 50 ms. DoD: provider test with `ProviderContainer` and in-memory DB. _depends:_ T-202, T-203, T-109
 - [ ] **T-205 Today provider** — `todayProvider` emitting `LocalDate` now and at the next `dayStartHour` boundary (timer, re-armed when the setting changes), injectable clock for tests. DoD: unit test with fake timer at midnight and at 04:00. _depends:_ T-101, T-103
+- [ ] **T-206 Web storage setup** — add `sqlite3.wasm` and `drift_worker.js` to `web/`, `DriftWebOptions` in `driftDatabase`, check data survives reload in Chrome; document that clearing site data wipes tasks (until sync/backup). DoD: add task in Chrome, reload, task is still there. _depends:_ T-201
 
 ## M3 — MVP UI (v0.1)
 - [ ] **T-301 App shell, l10n & themes** — `MaterialApp.router` with `localizationsDelegates` (uk, en) driven by `localeProvider`, Material 3 light/dark driven by `themeModeProvider`, `go_router` with bottom nav: Today, Plan, Tasks, Settings; routes `/task/:id`, `/task/new`. ARB files with the tab names; lint rule/convention: no string literals in widgets. DoD: navigation works on device; switching system language and theme is reflected. _depends:_ T-004, T-203

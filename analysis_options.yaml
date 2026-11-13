@@ -16,6 +16,8 @@ analyzer:
     - "lib/l10n/generated/**"
     - "build/**"
     - android/**
+    - windows/**
+    - web/**
 
 linter:
   rules:

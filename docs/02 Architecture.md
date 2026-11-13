@@ -21,6 +21,13 @@ created: 2026-11-12
 | Lint | `flutter_lints` + stricter rules in `analysis_options.yaml` | `strict-casts`, `strict-inference`, `strict-raw-types`; `test/domain/domain_purity_test.dart` enforces the domain import rule |
 | Tests | `test`, `flutter_test`, `integration_test` | Planner: table-driven unit tests |
 
+## Platforms
+| Platform | Role |
+|----------|------|
+| Windows desktop | Main development target from M0 (fast run, hot reload, native SQLite like Android). Needs VS Build Tools 2022 (C++) and Windows Developer Mode (symlinks for plugins). |
+| Web (Chrome) | Second target: quick demos, candidate client for future sync. drift uses SQLite wasm + a worker (T-206). Browser storage can be cleared by the user. |
+| Android | Product target. Device testing from M3 on the 7.1 test phone (`minSdk 24`). |
+
 ## Layers
 ```
 presentation  (features/*: screens, widgets, controllers)      Flutter + Riverpod
@@ -34,6 +41,7 @@ data          (drift Database, DAOs, repository impls, mappers) drift
 Rules:
 - `lib/domain` must not import `package:flutter` or `package:drift`. It is the product core and is tested with plain `dart test`.
 - Repositories expose `Stream<List<Task>>`, `Stream<Settings>`; the UI never touches drift rows.
+- **Storage is an adapter, not a dependency.** Two independent adapters sit behind domain interfaces: the *local store* (always present, offline-first; drift today: native SQLite on Android/Windows, SQLite wasm in the browser, opened via `drift_flutter`) and, later, a *remote data source* used by a `SyncEngine`. The remote side is backend-agnostic (SQL, NoSQL, even a Google Sheet): it only needs to store rows keyed by UUID with `updatedAt`/`deletedAt`. Replacing either adapter must not touch domain, providers or UI.
 - `planProvider` = `Planner.plan(tasks, settings, overrides, today)` recomputed whenever any input stream emits. See [[04 Planner Algorithm]].
 - A `todayProvider` emits a new `LocalDate` when the local time crosses `settings.dayStartHour` (default midnight, D15) so the plan rolls over without restart. "Today" for a `DateTime` = calendar date of `(now - dayStartHour)`.
 
@@ -99,7 +107,7 @@ Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRe
 
 ## Non-goals (for now) and how the design keeps them possible
 - **Backend, accounts, sync, family group** — not built. Kept possible by D12: UUID ids, `updatedAt`, soft delete, repository interfaces, planning settings separated from device settings. A future `SyncEngine` would observe the same repositories and push/pull rows; the UI would not change.
-- iOS build (kept possible, not tested)
+- iOS and macOS builds (kept possible, not tested)
 - Time-of-day scheduling (the unit is a day, not an hour)
 
 ## Architecture decisions log
@@ -112,3 +120,4 @@ Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRe
 - ADR-7 (2026-11-13): no "dropped" status; removal is a soft delete that doubles as Trash and sync tombstone (D14).
 - ADR-8 (2026-11-13): `json_serializable` removed from M0 dependencies. Version 6.15.x fails on freezed 4.0.3 output ("Could not resolve annotation for `int get hashCode`"), and older versions conflict with `build_runner` 2.17. Domain entities do not need JSON; backup (T-502) will either re-add it once fixed upstream or use hand-written mappers in `data/`.
 - ADR-9 (2026-11-13): `kotlin.incremental=false` in `android/gradle.properties`, because the project (D:) and the pub cache (C:) are on different drives and Kotlin incremental caches fail to close.
+- ADR-10 (2026-11-13): develop on Windows desktop and web in addition to Android; Android device testing starts at M3. Logic is platform-independent and verified by `flutter test`; platform differences are confined to the local-store adapter.

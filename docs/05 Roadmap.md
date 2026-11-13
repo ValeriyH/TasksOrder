@@ -8,7 +8,7 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 
 | Milestone | Goal | Outcome | Tasks |
 |-----------|------|---------|-------|
-| **M0 — Environment & skeleton** | Toolchain works, empty app runs on the phone | `flutter doctor` clean, project with lint, folder structure, git | T-001 … T-005 |
+| **M0 — Environment & skeleton** | Toolchain works, empty app runs on Windows and in Chrome, Android APK builds | `flutter doctor` clean, project with lint, folder structure, git | T-001 … T-006 |
 | **M1 — Domain core** | The planner exists and is proven by tests | `LocalDate`, `Task`, `Settings`, `Planner` (Today queue, forcing, overflow, urgency boost, pins) with the full test table from [[04 Planner Algorithm]] | T-101 … T-110 |
 | **M2 — Data layer** | Tasks and settings survive restarts, streams drive a live plan | drift schema v1, repositories, device settings, `planProvider`, day-start clock | T-201 … T-205 |
 | **M3 — MVP UI (v0.1)** | Daily usable app, uk/en, light/dark | Today (queue + planned), Tasks, Add/Edit, Settings, Done; debug APK on device | T-301 … T-308 |
