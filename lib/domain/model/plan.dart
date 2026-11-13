@@ -21,11 +21,12 @@ abstract class Plan with _$Plan {
   const factory Plan({
     required LocalDate today,
 
-    /// Flagged and overdue tasks in queue order (D11, D7); outside capacity.
-    @Default(<TodayEntry>[]) List<TodayEntry> todayQueue,
+    /// The Focus view (D17): focused and overdue tasks in focus order. It is
+    /// a second look at tasks that are also in [days] or [laterTaskIds].
+    @Default(<FocusEntry>[]) List<FocusEntry> focus,
 
-    /// How many [todayQueue] entries the UI shows at once.
-    required int todayVisibleLimit,
+    /// How many entries the Focus strip shows at once.
+    required int focusVisibleLimit,
 
     /// One entry per day, from [today] to the end of the horizon.
     @Default(<PlannedDay>[]) List<PlannedDay> days,
@@ -43,31 +44,39 @@ abstract class Plan with _$Plan {
   /// UI highlights this so the user can choose what matters (D16).
   bool get hasAtRisk => atRiskTaskIds.isNotEmpty;
 
-  /// The part of [todayQueue] shown on the Today screen.
-  List<TodayEntry> get visibleToday =>
-      todayQueue.take(todayVisibleLimit).toList();
+  /// The Focus strip of the Today screen: the first [focusVisibleLimit]
+  /// focus entries that are not on today's list already.
+  List<FocusEntry> get visibleFocus =>
+      _focusOffToday.take(focusVisibleLimit).toList();
 
-  /// Size of the "+N more" counter: queued entries that are not shown yet.
-  int get hiddenTodayCount => todayQueue.length > todayVisibleLimit
-      ? todayQueue.length - todayVisibleLimit
-      : 0;
+  /// Size of the "+N more" counter of the Focus strip.
+  int get hiddenFocusCount {
+    final hidden = _focusOffToday.length - focusVisibleLimit;
+    return hidden > 0 ? hidden : 0;
+  }
+
+  Iterable<FocusEntry> get _focusOffToday =>
+      focus.where((e) => e.plannedDate != today);
 }
 
-/// A task in the Today queue.
+/// A task in the Focus view.
 @freezed
-abstract class TodayEntry with _$TodayEntry {
+abstract class FocusEntry with _$FocusEntry {
   @Assert('overdueDays >= 0', 'overdueDays must not be negative')
-  const factory TodayEntry({
+  const factory FocusEntry({
     required String taskId,
 
-    /// The user set the Today flag (otherwise the task is here as overdue).
-    required bool flagged,
+    /// The user set the Focus mark (otherwise the task is here as overdue).
+    required bool focused,
 
     /// 0 when not overdue; above 0 the UI shows "overdue by N days".
     @Default(0) int overdueDays,
-  }) = _TodayEntry;
 
-  const TodayEntry._();
+    /// The day the plan puts the task on; `null` when it is "later".
+    LocalDate? plannedDate,
+  }) = _FocusEntry;
+
+  const FocusEntry._();
 
   bool get isOverdue => overdueDays > 0;
 }

@@ -7,11 +7,11 @@ void main() {
   final t1 = DateTime.utc(2026, 11, 13, 18, 30);
   final t2 = DateTime.utc(2026, 11, 14, 8);
 
-  Task newTask({bool isToday = false}) => Task.create(
+  Task newTask({bool isFocused = false}) => Task.create(
     title: 'Pay rent',
     priority: 2,
     now: t0,
-    isToday: isToday,
+    isFocused: isFocused,
     id: 'id-1',
   );
 
@@ -26,8 +26,9 @@ void main() {
       expect(task.status, TaskStatus.active);
       expect(task.isDone, isFalse);
       expect(task.isDeleted, isFalse);
-      expect(task.isToday, isFalse);
-      expect(task.todayFlaggedAt, isNull);
+      expect(task.isFocused, isFalse);
+      expect(task.focusedAt, isNull);
+      expect(task.completedOnPlan, isFalse);
       expect(task.notes, isNull);
       expect(task.dueDate, isNull);
       expect(task.pinnedDate, isNull);
@@ -88,10 +89,10 @@ void main() {
       );
     });
 
-    test('flagged for Today records when it was flagged', () {
-      final task = newTask(isToday: true);
-      expect(task.isToday, isTrue);
-      expect(task.todayFlaggedAt, t0);
+    test('created focused records when it was focused', () {
+      final task = newTask(isFocused: true);
+      expect(task.isFocused, isTrue);
+      expect(task.focusedAt, t0);
     });
 
     test('stores instants in UTC', () {
@@ -100,11 +101,11 @@ void main() {
         title: 'x',
         priority: 1,
         now: local,
-        isToday: true,
+        isFocused: true,
       );
       expect(task.createdAt.isUtc, isTrue);
       expect(task.updatedAt.isUtc, isTrue);
-      expect(task.todayFlaggedAt!.isUtc, isTrue);
+      expect(task.focusedAt!.isUtc, isTrue);
       expect(task.createdAt, local.toUtc());
     });
   });
@@ -126,9 +127,13 @@ void main() {
       expect(() => newTask().copyWith(completedAt: t1), isAssertionError);
     });
 
-    test('todayFlaggedAt is set exactly when isToday is true', () {
-      expect(() => newTask().copyWith(isToday: true), isAssertionError);
-      expect(() => newTask().copyWith(todayFlaggedAt: t1), isAssertionError);
+    test('focusedAt is set exactly when isFocused is true', () {
+      expect(() => newTask().copyWith(isFocused: true), isAssertionError);
+      expect(() => newTask().copyWith(focusedAt: t1), isAssertionError);
+    });
+
+    test('completedOnPlan needs a done task', () {
+      expect(() => newTask().copyWith(completedOnPlan: true), isAssertionError);
     });
   });
 
@@ -152,7 +157,7 @@ void main() {
 
   group('complete / uncomplete', () {
     test('complete marks the task done and bumps updatedAt', () {
-      final done = newTask().complete(t1);
+      final done = newTask().complete(t1, onPlan: true);
       expect(done.status, TaskStatus.done);
       expect(done.isDone, isTrue);
       expect(done.completedAt, t1);
@@ -160,21 +165,27 @@ void main() {
       expect(done.createdAt, t0);
     });
 
-    test('complete keeps the Today flag', () {
-      final done = newTask(isToday: true).complete(t1);
-      expect(done.isToday, isTrue);
-      expect(done.todayFlaggedAt, t0);
+    test('complete records whether the task was on the list of today', () {
+      expect(newTask().complete(t1, onPlan: true).completedOnPlan, isTrue);
+      expect(newTask().complete(t1, onPlan: false).completedOnPlan, isFalse);
+    });
+
+    test('complete keeps the Focus mark', () {
+      final done = newTask(isFocused: true).complete(t1, onPlan: false);
+      expect(done.isFocused, isTrue);
+      expect(done.focusedAt, t0);
     });
 
     test('completing a done task changes nothing', () {
-      final done = newTask().complete(t1);
-      expect(done.complete(t2), same(done));
+      final done = newTask().complete(t1, onPlan: true);
+      expect(done.complete(t2, onPlan: false), same(done));
     });
 
     test('uncomplete returns the task to active', () {
-      final active = newTask().complete(t1).uncomplete(t2);
+      final active = newTask().complete(t1, onPlan: true).uncomplete(t2);
       expect(active.status, TaskStatus.active);
       expect(active.completedAt, isNull);
+      expect(active.completedOnPlan, isFalse);
       expect(active.updatedAt, t2);
     });
 
@@ -184,30 +195,30 @@ void main() {
     });
 
     test('converts the instant to UTC', () {
-      final done = newTask().complete(DateTime(2026, 11, 13, 20));
+      final done = newTask().complete(DateTime(2026, 11, 13, 20), onPlan: true);
       expect(done.completedAt!.isUtc, isTrue);
       expect(done.updatedAt.isUtc, isTrue);
     });
   });
 
-  group('setToday', () {
-    test('flags the task and records the instant', () {
-      final flagged = newTask().setToday(true, t1);
-      expect(flagged.isToday, isTrue);
-      expect(flagged.todayFlaggedAt, t1);
-      expect(flagged.updatedAt, t1);
+  group('setFocus', () {
+    test('focuses the task and records the instant', () {
+      final focused = newTask().setFocus(true, t1);
+      expect(focused.isFocused, isTrue);
+      expect(focused.focusedAt, t1);
+      expect(focused.updatedAt, t1);
     });
 
-    test('unflags the task and clears the instant', () {
-      final task = newTask(isToday: true).setToday(false, t1);
-      expect(task.isToday, isFalse);
-      expect(task.todayFlaggedAt, isNull);
+    test('removes the mark and clears the instant', () {
+      final task = newTask(isFocused: true).setFocus(false, t1);
+      expect(task.isFocused, isFalse);
+      expect(task.focusedAt, isNull);
       expect(task.updatedAt, t1);
     });
 
-    test('flagging again keeps the place in the queue', () {
-      final flagged = newTask().setToday(true, t1);
-      expect(flagged.setToday(true, t2), same(flagged));
+    test('focusing again keeps the place in the Focus view', () {
+      final focused = newTask().setFocus(true, t1);
+      expect(focused.setFocus(true, t2), same(focused));
     });
   });
 

@@ -18,13 +18,13 @@ void main() {
   final noBoost = Settings(urgencySoonDays: 0, urgencyNearDays: 0);
 
   /// A task whose id doubles as its title. [age] orders `createdAt`: a lower
-  /// value is an older task. [flagged] is the minute the Today flag was set.
+  /// value is an older task. [focused] is the minute the Focus mark was set.
   Task task(
     String id,
     int priority, {
     required int age,
     LocalDate? due,
-    int? flagged,
+    int? focused,
   }) {
     final t = Task.create(
       id: id,
@@ -33,9 +33,9 @@ void main() {
       dueDate: due,
       now: epoch.add(Duration(minutes: age)),
     );
-    return flagged == null
+    return focused == null
         ? t
-        : t.setToday(true, epoch.add(Duration(days: 1, minutes: flagged)));
+        : t.setFocus(true, epoch.add(Duration(days: 1, minutes: focused)));
   }
 
   Plan plan(
@@ -58,9 +58,17 @@ void main() {
         day.date.toIso(): [for (final e in day.entries) e.taskId],
   };
 
-  List<String> queueIds(Plan plan) => [
-    for (final e in plan.todayQueue) e.taskId,
+  /// The whole Focus view, in its order.
+  List<String> focusIds(Plan plan) => [for (final e in plan.focus) e.taskId];
+
+  /// The Focus strip: what is not on today's list, up to the visible limit.
+  List<String> stripIds(Plan plan) => [
+    for (final e in plan.visibleFocus) e.taskId,
   ];
+
+  PlanEntry entryOf(Plan plan, String id) =>
+      [for (final day in plan.days) ...day.entries]
+          .singleWhere((e) => e.taskId == id);
 
   List<String> plannedIds(Plan plan) => [
     for (final day in plan.days)
@@ -68,7 +76,7 @@ void main() {
   ];
 
   group('shape of the plan', () {
-    test('1. empty pool: every day empty, no later, no queue', () {
+    test('1. empty pool: every day empty, no later, no focus', () {
       final p = plan([]);
 
       expect(p.today, today);
@@ -78,7 +86,7 @@ void main() {
       expect(p.days.every((d) => d.entries.isEmpty), isTrue);
       expect(p.laterTaskIds, isEmpty);
       expect(p.atRiskTaskIds, isEmpty);
-      expect(p.todayQueue, isEmpty);
+      expect(p.focus, isEmpty);
     });
 
     test('days are consecutive and carry their capacity', () {
@@ -91,10 +99,10 @@ void main() {
       expect([for (final d in p.days) d.capacity], [1, 1, 1, 1, 1, 3, 0, 1]);
     });
 
-    test('todayVisibleLimit comes from the settings', () {
-      expect(plan([]).todayVisibleLimit, 3);
+    test('focusVisibleLimit comes from the settings', () {
+      expect(plan([]).focusVisibleLimit, 3);
       expect(
-        plan([], settings: Settings(todayVisibleLimit: 5)).todayVisibleLimit,
+        plan([], settings: Settings(focusVisibleLimit: 5)).focusVisibleLimit,
         5,
       );
     });
@@ -205,10 +213,10 @@ void main() {
       expect(p.laterTaskIds, ['a', 'b']);
     });
 
-    test('a task due today stays in the pool', () {
+    test('a task due today is not overdue', () {
       final p = plan([task('a', 3, age: 1, due: today)]);
 
-      expect(p.todayQueue, isEmpty);
+      expect(p.focus, isEmpty);
       expect(schedule(p), {
         '2026-11-16': ['a'],
       });
@@ -217,14 +225,20 @@ void main() {
     test('done and deleted tasks are ignored', () {
       final now = epoch.add(const Duration(days: 2));
       final p = plan([
-        task('done', 1, age: 1).complete(now),
+        task('done', 1, age: 1).complete(now, onPlan: true),
         task('deleted', 1, age: 2).trash(now),
-        task('flagged-done', 1, age: 3, flagged: 1).complete(now),
-        task('active', 3, age: 4),
+        task(
+          'focused-done',
+          1,
+          age: 3,
+          focused: 1,
+        ).complete(now, onPlan: false),
+        task('overdue-deleted', 1, age: 4, due: today.addDays(-2)).trash(now),
+        task('active', 3, age: 5),
       ]);
 
       expect(plannedIds(p), ['active']);
-      expect(p.todayQueue, isEmpty);
+      expect(p.focus, isEmpty);
       expect(p.laterTaskIds, isEmpty);
     });
   });
@@ -270,125 +284,229 @@ void main() {
     });
   });
 
-  group('Today queue', () {
-    test('10. an overdue task waits in the queue, outside capacity', () {
+  group('overdue tasks (D18)', () {
+    test('10. an overdue task is planned by priority only and is in Focus', () {
       final p = plan([
         task('overdue', 4, age: 1, due: today.addDays(-1)),
         task('plain', 3, age: 2),
       ]);
 
-      expect(p.todayQueue, [
-        const TodayEntry(taskId: 'overdue', flagged: false, overdueDays: 1),
+      expect(schedule(p), {
+        '2026-11-16': ['plain'],
+        '2026-11-17': ['overdue'],
+      });
+      expect(p.focus, [
+        FocusEntry(
+          taskId: 'overdue',
+          focused: false,
+          overdueDays: 1,
+          plannedDate: today.addDays(1),
+        ),
       ]);
-      expect(plannedIds(p), ['plain']);
       expect(p.days.first.capacity, 1);
-      expect(schedule(p)['2026-11-16'], ['plain']);
+    });
+
+    test('10. it is not forced, not boosted and never at risk', () {
+      final p = plan([
+        task('high-1', 1, age: 1),
+        task('high-2', 1, age: 2),
+        task('normal', 3, age: 3),
+        task('overdue-low', 4, age: 4, due: today.addDays(-3)),
+      ], settings: Settings(weeklyCapacity: everyDayOne));
+
+      expect(plannedIds(p), ['high-1', 'high-2', 'normal', 'overdue-low']);
+      final entry = entryOf(p, 'overdue-low');
+      expect(entry.reason, PlanReason.priority);
+      expect(entry.atRisk, isFalse);
+      expect(entry.overflow, isFalse);
+      expect(p.atRiskTaskIds, isEmpty);
+      expect(p.days.any((d) => d.isOverloaded), isFalse);
+    });
+
+    test('within a priority it is ordered like a task without a due date', () {
+      final p = plan([
+        task('plain-old', 3, age: 1),
+        task('overdue', 3, age: 2, due: today.addDays(-4)),
+        task('plain-new', 3, age: 3),
+        task('due-far', 3, age: 4, due: today.addDays(40)),
+      ], settings: Settings(weeklyCapacity: everyDayOne));
+
+      expect(plannedIds(p), ['due-far', 'plain-old', 'overdue', 'plain-new']);
     });
 
     test('10. overdueDays counts the days since the due date', () {
       final p = plan([task('old', 3, age: 1, due: today.addDays(-12))]);
 
-      expect(p.todayQueue.single.overdueDays, 12);
-      expect(p.todayQueue.single.isOverdue, isTrue);
+      expect(p.focus.single.overdueDays, 12);
+      expect(p.focus.single.isOverdue, isTrue);
     });
 
-    test('10. moving the due date forward returns the task to the pool', () {
+    test('10. moving the due date forward takes the task out of Focus', () {
       final p = plan([task('moved', 4, age: 1, due: today.addDays(1))]);
 
-      expect(p.todayQueue, isEmpty);
+      expect(p.focus, isEmpty);
       expect(plannedIds(p), ['moved']);
     });
 
-    test('a flagged task that is not overdue has overdueDays 0', () {
+    test('an overdue task that does not fit the horizon is later and has no '
+        'planned date', () {
       final p = plan([
-        task('no-due', 3, age: 1, flagged: 1),
-        task('due-today', 3, age: 2, flagged: 2, due: today),
-        task('due-later', 3, age: 3, flagged: 3, due: today.addDays(5)),
+        task('high', 1, age: 1),
+        task('overdue', 4, age: 2, due: today.addDays(-1)),
+      ], settings: Settings(planningHorizonDays: 1));
+
+      expect(plannedIds(p), ['high']);
+      expect(p.laterTaskIds, ['overdue']);
+      expect(p.focus.single.plannedDate, isNull);
+      expect(stripIds(p), ['overdue']);
+    });
+
+    test('a pinned overdue task keeps its pin and is not at risk', () {
+      final wednesday = today.addDays(2);
+      final p = plan([
+        task(
+          'pinned',
+          3,
+          age: 1,
+          due: today.addDays(-1),
+        ).copyWith(pinnedDate: wednesday),
       ]);
 
-      expect(p.todayQueue, hasLength(3));
-      for (final e in p.todayQueue) {
-        expect(e.flagged, isTrue);
+      expect(schedule(p), {
+        '2026-11-18': ['pinned'],
+      });
+      expect(entryOf(p, 'pinned').reason, PlanReason.pinned);
+      expect(p.atRiskTaskIds, isEmpty);
+      expect(p.focus.single.plannedDate, wednesday);
+    });
+  });
+
+  group('Focus (D17)', () {
+    test('a focused task keeps its place in the plan', () {
+      List<Task> tasks({required bool focused}) => [
+        task('high', 2, age: 1),
+        task('normal', 3, age: 2, focused: focused ? 1 : null),
+        task('low', 4, age: 3),
+      ];
+
+      final marked = plan(tasks(focused: true));
+      expect(schedule(marked), schedule(plan(tasks(focused: false))));
+      expect(marked.focus, [
+        FocusEntry(
+          taskId: 'normal',
+          focused: true,
+          plannedDate: today.addDays(1),
+        ),
+      ]);
+    });
+
+    test('a focused task on today\'s list is not in the strip', () {
+      final p = plan([
+        task('no-due', 3, age: 1, focused: 1),
+        task('due-today', 3, age: 2, focused: 2, due: today),
+        task('due-later', 3, age: 3, focused: 3, due: today.addDays(5)),
+      ]);
+
+      expect(schedule(p)['2026-11-16'], ['due-today']);
+      expect(focusIds(p), ['due-today', 'due-later', 'no-due']);
+      expect(stripIds(p), ['due-later', 'no-due']);
+      for (final e in p.focus) {
+        expect(e.focused, isTrue);
         expect(e.overdueDays, 0);
+        expect(e.plannedDate, isNotNull);
       }
     });
 
-    test('a flagged overdue task is both flagged and overdue', () {
+    test('a focused overdue task is both focused and overdue', () {
       final p = plan([
-        task('a', 3, age: 1, flagged: 1, due: today.addDays(-3)),
+        task('a', 3, age: 1, focused: 1, due: today.addDays(-3)),
       ]);
 
-      expect(p.todayQueue, [
-        const TodayEntry(taskId: 'a', flagged: true, overdueDays: 3),
+      expect(p.focus, [
+        FocusEntry(
+          taskId: 'a',
+          focused: true,
+          overdueDays: 3,
+          plannedDate: today,
+        ),
       ]);
+      expect(stripIds(p), isEmpty);
     });
 
-    test('15. five flagged tasks: all queued in (priority, due, flaggedAt) '
-        'order, none planned, capacity untouched', () {
+    test('15. five focused tasks: Focus order is (priority, due, focusedAt), '
+        'all stay planned, the strip shows three that are not on today', () {
       final tasks = [
-        task('normal-flagged-late', 3, age: 1, flagged: 9),
-        task('high-no-due', 2, age: 2, flagged: 5),
-        task('normal-flagged-early', 3, age: 3, flagged: 2),
-        task('high-due', 2, age: 4, flagged: 7, due: today.addDays(3)),
-        task('critical', 1, age: 5, flagged: 8),
+        task('normal-focused-late', 3, age: 1, focused: 9),
+        task('high-no-due', 2, age: 2, focused: 5),
+        task('normal-focused-early', 3, age: 3, focused: 2),
+        task('high-due', 2, age: 4, focused: 7, due: today.addDays(3)),
+        task('critical', 1, age: 5, focused: 8),
         task('plain-1', 2, age: 6),
         task('plain-2', 2, age: 7),
       ];
       final p = plan(tasks);
 
-      expect(queueIds(p), [
+      expect(focusIds(p), [
         'critical',
         'high-due',
         'high-no-due',
-        'normal-flagged-early',
-        'normal-flagged-late',
+        'normal-focused-early',
+        'normal-focused-late',
       ]);
-      expect(plannedIds(p), ['plain-1', 'plain-2']);
+      // Pool order: the Focus mark does not count, age does.
+      expect(plannedIds(p), [
+        'critical',
+        'high-due',
+        'high-no-due',
+        'plain-1',
+        'plain-2',
+        'normal-focused-late',
+        'normal-focused-early',
+      ]);
       expect(p.days.first.capacity, 1);
-      expect(schedule(p)['2026-11-16'], ['plain-1']);
-      expect(p.visibleToday.map((e) => e.taskId), [
-        'critical',
-        'high-due',
-        'high-no-due',
-      ]);
-      expect(p.hiddenTodayCount, 2);
+      expect(stripIds(p), ['high-due', 'high-no-due', 'normal-focused-early']);
+      expect(p.hiddenFocusCount, 1);
     });
 
-    test('15. completing one keeps the order of the rest (refill)', () {
+    test('15. completing one keeps the order of the rest', () {
       final tasks = [
-        task('normal-late', 3, age: 1, flagged: 9),
-        task('high', 2, age: 2, flagged: 5),
-        task('normal-early', 3, age: 3, flagged: 2),
-        task('low', 4, age: 4, flagged: 1),
-        task('critical', 1, age: 5, flagged: 8),
+        task('normal-late', 3, age: 1, focused: 9),
+        task('high', 2, age: 2, focused: 5),
+        task('normal-early', 3, age: 3, focused: 2),
+        task('low', 4, age: 4, focused: 1),
+        task('critical', 1, age: 5, focused: 8),
       ];
       final remaining = tasks.where((t) => t.id != 'high').toList();
       final p = plan(remaining);
 
-      expect(queueIds(p), ['critical', 'normal-early', 'normal-late', 'low']);
-      expect(p.visibleToday.map((e) => e.taskId), [
-        'critical',
-        'normal-early',
-        'normal-late',
-      ]);
+      expect(focusIds(p), ['critical', 'normal-early', 'normal-late', 'low']);
+      expect(stripIds(p), ['normal-early', 'normal-late', 'low']);
+      expect(p.hiddenFocusCount, 0);
     });
 
-    test('15b. mixed queue: priority wins, overdue leads only within a '
-        'priority', () {
+    test('15b. focused and overdue together: priority wins, overdue leads '
+        'only within a priority', () {
       final p = plan([
-        task('normal-flagged', 3, age: 1, flagged: 1),
+        task('normal-focused', 3, age: 1, focused: 1),
         task('low-overdue', 4, age: 2, due: today.addDays(-5)),
         task('high-overdue', 2, age: 3, due: today.addDays(-1)),
         task('normal-overdue', 3, age: 4, due: today.addDays(-2)),
       ]);
 
-      expect(queueIds(p), [
+      expect(focusIds(p), [
         'high-overdue',
         'normal-overdue',
-        'normal-flagged',
+        'normal-focused',
         'low-overdue',
       ]);
-      expect(plannedIds(p), isEmpty);
+      // In the plan the overdue date is ignored: priority, then age.
+      expect(plannedIds(p), [
+        'high-overdue',
+        'normal-focused',
+        'normal-overdue',
+        'low-overdue',
+      ]);
+      expect(p.atRiskTaskIds, isEmpty);
     });
 
     test('equal overdue tasks keep their age order', () {
@@ -397,13 +515,42 @@ void main() {
         task('older', 3, age: 1, due: today.addDays(-2)),
       ]);
 
-      expect(queueIds(p), ['older', 'newer']);
+      expect(focusIds(p), ['older', 'newer']);
+    });
+
+    test('a focused task keeps its deadline forcing', () {
+      final p = plan([
+        task('focused-due-today', 5, age: 1, focused: 1, due: today),
+        task('plain', 3, age: 2),
+      ]);
+
+      expect(schedule(p), {
+        '2026-11-16': ['focused-due-today'],
+        '2026-11-17': ['plain'],
+      });
+      expect(entryOf(p, 'focused-due-today').reason, PlanReason.deadline);
+      expect(focusIds(p), ['focused-due-today']);
+      expect(stripIds(p), isEmpty);
+    });
+
+    test('a focused pinned task keeps its pin', () {
+      final wednesday = today.addDays(2);
+      final p = plan([
+        task('focused', 3, age: 1, focused: 1).copyWith(pinnedDate: wednesday),
+      ]);
+
+      expect(schedule(p), {
+        '2026-11-18': ['focused'],
+      });
+      expect(entryOf(p, 'focused').reason, PlanReason.pinned);
+      expect(p.focus.single.plannedDate, wednesday);
+      expect(stripIds(p), ['focused']);
     });
   });
 
   /// Worked example 1 in docs/04 Planner Algorithm.md.
   List<Task> example1() => [
-    task('K', 3, age: 1, flagged: 1),
+    task('K', 3, age: 1, focused: 1),
     task('A', 2, age: 2),
     task('F', 2, age: 3),
     task('B', 3, age: 4),
@@ -413,23 +560,23 @@ void main() {
   ];
 
   group('deadline forcing', () {
-    PlanEntry entryOf(Plan plan, String id) =>
-        [for (final day in plan.days) ...day.entries]
-            .singleWhere((e) => e.taskId == id);
-
     test('6. worked example 1 without boost: a Low task with a deadline '
         'pushes a High one', () {
       final p = plan(example1(), settings: noBoost);
 
-      expect(queueIds(p), ['K']);
       expect(schedule(p), {
         '2026-11-16': ['A'], // Mon
         '2026-11-17': ['C'], // Tue, forced
         '2026-11-18': ['D'], // Wed, forced
         '2026-11-19': ['F'], // Thu
         '2026-11-20': ['E'], // Fri
-        '2026-11-21': ['B'], // Sat, two slots stay empty
+        '2026-11-21': ['K', 'B'], // Sat, one slot stays empty
       });
+      // K is focused: planned on Saturday like any Normal task, and in the
+      // strip until then.
+      expect(stripIds(p), ['K']);
+      expect(p.focus.single.plannedDate, LocalDate(2026, 11, 21));
+      expect(entryOf(p, 'K').reason, PlanReason.priority);
       expect(entryOf(p, 'A').reason, PlanReason.priority);
       expect(entryOf(p, 'C').reason, PlanReason.deadline);
       expect(entryOf(p, 'D').reason, PlanReason.deadline);
@@ -474,7 +621,7 @@ void main() {
         task('moved', 4, age: 3, due: today.addDays(1)),
       ]);
 
-      expect(p.todayQueue, isEmpty);
+      expect(p.focus, isEmpty);
       expect(schedule(p), {
         '2026-11-16': ['high-1'],
         '2026-11-17': ['moved'],
@@ -549,19 +696,6 @@ void main() {
         '2026-11-19': ['high-1'],
         '2026-11-20': ['high-2'],
       });
-    });
-
-    test('flagged tasks are ignored by the deadline math', () {
-      final p = plan([
-        task('flagged-due-today', 5, age: 1, flagged: 1, due: today),
-        task('plain', 3, age: 2),
-      ]);
-
-      expect(queueIds(p), ['flagged-due-today']);
-      expect(schedule(p), {
-        '2026-11-16': ['plain'],
-      });
-      expect(entryOf(p, 'plain').reason, PlanReason.priority);
     });
 
     test('a due date decades away does not slow the plan down', () {
@@ -647,14 +781,14 @@ void main() {
         'before its deadline', () {
       final p = plan(example1());
 
-      expect(queueIds(p), ['K']);
+      expect(focusIds(p), ['K']);
       expect(schedule(p), {
         '2026-11-16': ['A'], // C is boosted to tier 2 but A, F are its own
         '2026-11-17': ['C'], // forced
         '2026-11-18': ['D'], // forced
         '2026-11-19': ['E'], // slack 2: Normal 3 -> 1, ahead of High F
         '2026-11-20': ['F'],
-        '2026-11-21': ['B'],
+        '2026-11-21': ['K', 'B'],
       });
       expect(p.atRiskTaskIds, isEmpty);
     });
@@ -1081,7 +1215,7 @@ void main() {
         '2026-11-17': ['high'],
       });
       expect(p.days.first.entries.single.reason, PlanReason.pinned);
-      expect(p.todayQueue, isEmpty);
+      expect(p.focus, isEmpty);
     });
 
     test('a pinned task is not pulled earlier into free slots', () {
@@ -1208,20 +1342,25 @@ void main() {
       expect(p.laterTaskIds, ['far']);
     });
 
-    test('the Today flag wins over a pin', () {
+    test('a pin in the past is on today\'s list, so not in the strip', () {
       final p = plan([
-        pin(task('flagged', 3, age: 1, flagged: 1), wednesday),
+        pin(task('focused', 3, age: 1, focused: 1), today.addDays(-2)),
+        pin(task('other', 3, age: 2, focused: 2), wednesday),
       ], settings: settings);
 
-      expect(queueIds(p), ['flagged']);
-      expect(plannedIds(p), isEmpty);
+      expect(focusIds(p), ['focused', 'other']);
+      expect(stripIds(p), ['other']);
     });
   });
 
   group('countCompletedToday', () {
     // Completion instants are given in local time, as the user lives them.
-    Task doneAt(String id, DateTime local, {int? flagged}) =>
-        task(id, 3, age: 1, flagged: flagged).complete(local);
+    Task doneAt(
+      String id,
+      DateTime local, {
+      bool onPlan = true,
+      int? focused,
+    }) => task(id, 3, age: 1, focused: focused).complete(local, onPlan: onPlan);
 
     int count(List<Task> tasks, {int dayStartHour = 0}) =>
         Planner.countCompletedToday(
@@ -1251,14 +1390,67 @@ void main() {
       );
     });
 
-    test('14. ignores Today-flagged tasks', () {
+    test('14. counts only completions from today\'s list (D19)', () {
       expect(
         count([
-          doneAt('flagged', DateTime(2026, 11, 16, 10), flagged: 1),
+          doneAt('ahead', DateTime(2026, 11, 16, 10), onPlan: false),
           doneAt('planned', DateTime(2026, 11, 16, 11)),
         ]),
         1,
       );
+    });
+
+    test('the Focus mark does not matter', () {
+      expect(
+        count([
+          doneAt('from-list', DateTime(2026, 11, 16, 10), focused: 1),
+          doneAt(
+            'from-strip',
+            DateTime(2026, 11, 16, 11),
+            onPlan: false,
+            focused: 2,
+          ),
+        ]),
+        1,
+      );
+    });
+
+    test('14. a task done ahead of its day leaves today as it is; one done '
+        'from today\'s list is not replaced', () {
+      final settings = Settings(weeklyCapacity: [2, 2, 2, 2, 2, 2, 2]);
+      final noon = DateTime(2026, 11, 16, 12);
+      final tasks = [for (var i = 1; i <= 6; i++) task('t$i', 3, age: i)];
+      Plan planFor(List<Task> all) => plan(
+        all,
+        settings: settings,
+        completedTodayCount: Planner.countCompletedToday(
+          all,
+          today: today,
+          dayStartHour: 0,
+        ),
+      );
+      List<Task> withDone(String id, {required bool onPlan}) => [
+        for (final t in tasks)
+          t.id == id ? t.complete(noon, onPlan: onPlan) : t,
+      ];
+
+      expect(schedule(planFor(tasks)), {
+        '2026-11-16': ['t1', 't2'],
+        '2026-11-17': ['t3', 't4'],
+        '2026-11-18': ['t5', 't6'],
+      });
+      // t4 was Tuesday's: Monday keeps both tasks, the rest moves up.
+      expect(schedule(planFor(withDone('t4', onPlan: false))), {
+        '2026-11-16': ['t1', 't2'],
+        '2026-11-17': ['t3', 't5'],
+        '2026-11-18': ['t6'],
+      });
+      // t1 was Monday's: its slot stays empty.
+      expect(schedule(planFor(withDone('t1', onPlan: true))), {
+        '2026-11-16': ['t2'],
+        '2026-11-17': ['t3', 't4'],
+        '2026-11-18': ['t5', 't6'],
+      });
     });
 
     test('respects the day start hour', () {
@@ -1280,7 +1472,7 @@ void main() {
   });
 
   group('performance', () {
-    /// 500 tasks of every kind: plain, due (near, far, overdue), flagged
+    /// 500 tasks of every kind: plain, due (near, far, overdue), focused
     /// and pinned.
     List<Task> manyTasks() => [
       for (var i = 0; i < 500; i++)
@@ -1290,7 +1482,7 @@ void main() {
             1 + i % 5,
             age: i,
             due: i % 3 == 0 ? today.addDays(i % 120 - 5) : null,
-            flagged: i % 41 == 0 ? i : null,
+            focused: i % 41 == 0 ? i : null,
           );
           return i % 29 == 0
               ? t.copyWith(pinnedDate: today.addDays(i % 60))
@@ -1324,9 +1516,15 @@ void main() {
       final tasks = manyTasks();
       final p = plan(tasks);
 
-      final seen = [...queueIds(p), ...plannedIds(p), ...p.laterTaskIds];
+      final seen = [...plannedIds(p), ...p.laterTaskIds];
       expect(seen, hasLength(500));
       expect(seen.toSet(), {for (final t in tasks) t.id});
+      // Focus is a second look at the same tasks.
+      expect(seen, containsAll(focusIds(p)));
+      expect(focusIds(p).toSet(), {
+        for (final t in tasks)
+          if (t.isFocused || (t.dueDate != null && t.dueDate! < today)) t.id,
+      });
     });
 
     test('18. the large plan is deterministic and order-independent', () {
@@ -1372,7 +1570,7 @@ void main() {
           1 + i % 5,
           age: i ~/ 3, // several tasks share a createdAt
           due: i % 4 == 0 ? today.addDays(i - 6) : null,
-          flagged: i % 7 == 0 ? i % 3 : null,
+          focused: i % 7 == 0 ? i % 3 : null,
         ),
     ];
 

@@ -15,9 +15,10 @@ enum TaskStatus { active, done }
 /// - [priority] is at least 1 (the upper bound depends on the current scale,
 ///   see [isValidPriority]);
 /// - [completedAt] is set exactly when [status] is [TaskStatus.done];
-/// - [todayFlaggedAt] is set exactly when [isToday] is true.
+/// - [focusedAt] is set exactly when [isFocused] is true;
+/// - [completedOnPlan] is true only for a done task.
 ///
-/// Use [Task.create] and the transition methods ([complete], [setToday],
+/// Use [Task.create] and the transition methods ([complete], [setFocus],
 /// [trash], ...) instead of `copyWith` for those fields: they keep the
 /// invariants and bump [updatedAt], which sync will rely on (D12).
 @freezed
@@ -29,8 +30,12 @@ abstract class Task with _$Task {
     'completedAt must be set exactly when the task is done',
   )
   @Assert(
-    'isToday == (todayFlaggedAt != null)',
-    'todayFlaggedAt must be set exactly when isToday is true',
+    'isFocused == (focusedAt != null)',
+    'focusedAt must be set exactly when isFocused is true',
+  )
+  @Assert(
+    '!completedOnPlan || status == TaskStatus.done',
+    'completedOnPlan needs a done task',
   )
   // Not const: the title assertion calls a method.
   factory Task({
@@ -43,11 +48,12 @@ abstract class Task with _$Task {
     required int priority,
     LocalDate? dueDate,
 
-    /// Today flag (D11): the task sits in the Today queue, outside capacity.
-    @Default(false) bool isToday,
+    /// Focus mark (D17): the task is kept in sight in the Focus view. It is
+    /// planned like any other task.
+    @Default(false) bool isFocused,
 
-    /// UTC instant the flag was set; tie-breaker in the Today queue.
-    DateTime? todayFlaggedAt,
+    /// UTC instant the mark was set; tie-breaker in the Focus view.
+    DateTime? focusedAt,
 
     /// Manual "do it on this day" (v0.2).
     LocalDate? pinnedDate,
@@ -65,6 +71,10 @@ abstract class Task with _$Task {
     /// UTC.
     DateTime? completedAt,
 
+    /// The task was on today's list when it was completed (D19). Only such
+    /// completions use up the capacity of that day; false while active.
+    @Default(false) bool completedOnPlan,
+
     /// UTC; soft delete: Trash (D14) and sync tombstone (D12).
     DateTime? deletedAt,
   }) = _Task;
@@ -81,7 +91,7 @@ abstract class Task with _$Task {
     required DateTime now,
     LocalDate? dueDate,
     String? notes,
-    bool isToday = false,
+    bool isFocused = false,
     String? id,
   }) {
     final trimmed = title.trim();
@@ -98,8 +108,8 @@ abstract class Task with _$Task {
       notes: notes,
       priority: priority,
       dueDate: dueDate,
-      isToday: isToday,
-      todayFlaggedAt: isToday ? utc : null,
+      isFocused: isFocused,
+      focusedAt: isFocused ? utc : null,
       createdAt: utc,
       updatedAt: utc,
     );
@@ -113,12 +123,21 @@ abstract class Task with _$Task {
   /// Whether [priority] fits the given priority [scale] (3, 5 or 10).
   bool isValidPriority(int scale) => PriorityLabels.isValid(priority, scale);
 
-  /// Marks the task done at [now]. The Today flag is kept, so the planner can
-  /// tell flagged completions from planned ones (D3, D11).
-  Task complete(DateTime now) {
+  /// Marks the task done at [now].
+  ///
+  /// [onPlan] tells whether the task was on today's list of the plan at that
+  /// moment. The plan is not stored, so the caller has to say it: a completion
+  /// from today's list leaves its slot empty, any other one (from the Focus
+  /// strip, a later day, the task list) leaves today as it is (D3, D19).
+  Task complete(DateTime now, {required bool onPlan}) {
     if (isDone) return this;
     final utc = now.toUtc();
-    return copyWith(status: TaskStatus.done, completedAt: utc, updatedAt: utc);
+    return copyWith(
+      status: TaskStatus.done,
+      completedAt: utc,
+      completedOnPlan: onPlan,
+      updatedAt: utc,
+    );
   }
 
   /// Returns a done task to the active pool.
@@ -127,18 +146,19 @@ abstract class Task with _$Task {
     return copyWith(
       status: TaskStatus.active,
       completedAt: null,
+      completedOnPlan: false,
       updatedAt: now.toUtc(),
     );
   }
 
-  /// Sets or clears the Today flag. Re-flagging an already flagged task keeps
-  /// its place in the queue.
-  Task setToday(bool value, DateTime now) {
-    if (value == isToday) return this;
+  /// Sets or clears the Focus mark. Focusing an already focused task keeps
+  /// its place in the Focus view.
+  Task setFocus(bool value, DateTime now) {
+    if (value == isFocused) return this;
     final utc = now.toUtc();
     return copyWith(
-      isToday: value,
-      todayFlaggedAt: value ? utc : null,
+      isFocused: value,
+      focusedAt: value ? utc : null,
       updatedAt: utc,
     );
   }

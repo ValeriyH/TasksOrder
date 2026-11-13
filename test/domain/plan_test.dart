@@ -71,63 +71,80 @@ void main() {
     });
   });
 
-  group('TodayEntry', () {
+  group('FocusEntry', () {
     test('is overdue when overdueDays is above 0', () {
-      expect(const TodayEntry(taskId: 'a', flagged: true).isOverdue, isFalse);
+      expect(const FocusEntry(taskId: 'a', focused: true).isOverdue, isFalse);
       expect(
-        const TodayEntry(taskId: 'a', flagged: false, overdueDays: 2).isOverdue,
+        const FocusEntry(taskId: 'a', focused: false, overdueDays: 2).isOverdue,
         isTrue,
       );
     });
 
     test('overdueDays must not be negative', () {
       expect(
-        () => TodayEntry(taskId: 'a', flagged: true, overdueDays: -1),
+        () => FocusEntry(taskId: 'a', focused: true, overdueDays: -1),
         isAssertionError,
       );
+    });
+
+    test('has no planned date unless one is given', () {
+      expect(const FocusEntry(taskId: 'a', focused: true).plannedDate, isNull);
     });
   });
 
   group('Plan', () {
-    List<TodayEntry> queue(int n) => [
-      for (var i = 0; i < n; i++) TodayEntry(taskId: 't$i', flagged: true),
+    /// [n] focus entries planned for the days after today.
+    List<FocusEntry> focus(int n) => [
+      for (var i = 0; i < n; i++)
+        FocusEntry(
+          taskId: 't$i',
+          focused: true,
+          plannedDate: today.addDays(i + 1),
+        ),
     ];
 
     test('an empty plan has empty lists', () {
-      final plan = Plan(today: today, todayVisibleLimit: 3);
-      expect(plan.todayQueue, isEmpty);
+      final plan = Plan(today: today, focusVisibleLimit: 3);
+      expect(plan.focus, isEmpty);
       expect(plan.days, isEmpty);
       expect(plan.laterTaskIds, isEmpty);
       expect(plan.atRiskTaskIds, isEmpty);
-      expect(plan.visibleToday, isEmpty);
-      expect(plan.hiddenTodayCount, 0);
+      expect(plan.visibleFocus, isEmpty);
+      expect(plan.hiddenFocusCount, 0);
     });
 
-    test('shows the first todayVisibleLimit queue entries', () {
-      final plan = Plan(
-        today: today,
-        todayVisibleLimit: 3,
-        todayQueue: queue(5),
-      );
-      expect(plan.visibleToday.map((e) => e.taskId), ['t0', 't1', 't2']);
-      expect(plan.hiddenTodayCount, 2);
+    test('the strip shows the first focusVisibleLimit entries', () {
+      final plan = Plan(today: today, focusVisibleLimit: 3, focus: focus(5));
+      expect(plan.visibleFocus.map((e) => e.taskId), ['t0', 't1', 't2']);
+      expect(plan.hiddenFocusCount, 2);
     });
 
-    test('a queue within the limit is fully visible', () {
+    test('entries within the limit are all visible', () {
+      final plan = Plan(today: today, focusVisibleLimit: 3, focus: focus(3));
+      expect(plan.visibleFocus, hasLength(3));
+      expect(plan.hiddenFocusCount, 0);
+    });
+
+    test('the strip skips entries that are on the list of today', () {
       final plan = Plan(
         today: today,
-        todayVisibleLimit: 3,
-        todayQueue: queue(3),
+        focusVisibleLimit: 2,
+        focus: [
+          FocusEntry(taskId: 'on-today', focused: true, plannedDate: today),
+          ...focus(2),
+          const FocusEntry(taskId: 'later', focused: false, overdueDays: 4),
+        ],
       );
-      expect(plan.visibleToday, hasLength(3));
-      expect(plan.hiddenTodayCount, 0);
+      expect(plan.focus, hasLength(4));
+      expect(plan.visibleFocus.map((e) => e.taskId), ['t0', 't1']);
+      expect(plan.hiddenFocusCount, 1); // 'later'; 'on-today' is not counted
     });
 
     test('plans with the same content are equal', () {
       Plan build() => Plan(
         today: today,
-        todayVisibleLimit: 3,
-        todayQueue: queue(2),
+        focusVisibleLimit: 3,
+        focus: focus(2),
         days: [
           PlannedDay(date: today, capacity: 1, entries: [entry('a')]),
           PlannedDay(date: today.addDays(1), capacity: 1),
@@ -142,7 +159,7 @@ void main() {
     test('plans that differ in one entry are not equal', () {
       Plan build(String id) => Plan(
         today: today,
-        todayVisibleLimit: 3,
+        focusVisibleLimit: 3,
         days: [
           PlannedDay(date: today, capacity: 1, entries: [entry(id)]),
         ],

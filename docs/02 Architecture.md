@@ -81,19 +81,21 @@ tasks_order/
 TaskEditScreen → `TaskRepository.upsert(task)` → drift emits new task list → `planProvider` recomputes → Today/Plan screens rebuild.
 
 ### Complete task
-Checkbox → `TaskRepository.complete(id, now)` → task leaves the active pool → plan recomputes. A planned slot is not refilled today (D3): the planner receives `completedTodayCount` (tasks completed today that were **not** Today-flagged) and reduces today's capacity by that amount. Completing a Today-flagged task does not affect capacity; the queue simply shows the next flagged task (D11).
+Checkbox → `TaskRepository.complete(id, now, onPlan: ...)` → task leaves the active pool → plan recomputes. `onPlan` = the task is in `plan.days.first.entries` at that moment; the UI knows it, the stored task remembers it as `completedOnPlan` (D19).
+- From today's list (`onPlan: true`): the slot is not refilled today (D3). The planner receives `completedTodayCount` (tasks completed today with `completedOnPlan`) and reduces today's capacity by that amount.
+- From anywhere else: Focus strip, Plan, Tasks (`onPlan: false`): today's list does not change; the slot the task held on a later day is planned again.
 
-### Today flag
-Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRepository.setToday(id, true, now)` → task moves from the pool into `plan.todayQueue`. Unflagging moves it back and the planner places it again.
+### Focus
+Toggle "Focus" on a task (editor, list swipe action) → `TaskRepository.setFocus(id, true, now)` → the task stays where the planner put it and also appears in `plan.focus`. Removing the mark changes nothing in the plan (D17).
 
 ### Today screen composition
-1. Section **Today** — `plan.todayQueue.take(todayVisibleLimit)`, sorted by priority, counter "+N more" when the queue is longer; overdue entries carry a red "overdue by N days" badge with *move due date / clear due date* actions. Empty section is hidden.
-2. Section **Planned n/capacity** — `plan.days.first.entries` with reason badges, overflow banner when overloaded. Deadline-forced entries refill after completion, priority entries do not (D16).
+1. Section **Focus** — `plan.visibleFocus`: focused and overdue tasks that are not on today's list, sorted by priority, counter "+N more" (`plan.hiddenFocusCount`), a "planned for <day>" hint from `plannedDate`; overdue entries carry a red "overdue by N days" badge with *move due date / clear due date* actions. Empty section is hidden.
+2. Section **Planned n/capacity** — `plan.days.first.entries` with reason badges, the focus mark and the overdue badge where they apply, overflow banner when overloaded. Deadline-forced entries refill after completion, priority entries do not (D16).
    - When `plan.hasAtRisk`: a warning banner "N tasks will not make their deadline" that opens the list of `plan.atRiskTaskIds`, so the user can pick what matters (D16).
 3. Empty state when both are empty.
 
 ### Day rollover
-`todayProvider` emits a new `LocalDate` → plan recomputes from the new today; unfinished planned tasks return to the pool; tasks whose due date is now in the past appear in the Today queue with an overdue badge (D7). Nothing is written to the database at rollover.
+`todayProvider` emits a new `LocalDate` → plan recomputes from the new today; unfinished planned tasks return to the pool; tasks whose due date is now in the past are planned as tasks without a date and appear in Focus with an overdue badge (D18). Nothing is written to the database at rollover.
 
 ## Error handling and edge cases
 - Priority outside the current scale (after scale change) → clamp on read, offer migration (T-406).
@@ -103,7 +105,7 @@ Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRe
 ## Testing strategy
 1. **Planner** — table-driven tests from [[04 Planner Algorithm]] (`test/domain/planner_test.dart`). Each scenario: inputs → expected day/task map + flags. Must run under 1 s total.
 2. **Repositories** — drift in-memory DB (`NativeDatabase.memory()`), verify streams emit on change.
-3. **Widgets** — Today screen renders the Today queue (3 visible + counter), reasons and the overloaded banner; editor validates priority. Golden/widget tests run in both `uk` and `en` and both themes for the Today screen.
+3. **Widgets** — Today screen renders the Focus strip (3 visible + counter), reasons and the overloaded banner; editor validates priority. Golden/widget tests run in both `uk` and `en` and both themes for the Today screen.
 4. **Integration** — one happy path: add 3 tasks, set capacity, verify Today, complete one, verify Plan.
 
 ## Non-goals (for now) and how the design keeps them possible
@@ -122,4 +124,5 @@ Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRe
 - ADR-8 (2026-11-13): `json_serializable` removed from M0 dependencies. Version 6.15.x fails on freezed 4.0.3 output ("Could not resolve annotation for `int get hashCode`"), and older versions conflict with `build_runner` 2.17. Domain entities do not need JSON; backup (T-502) will either re-add it once fixed upstream or use hand-written mappers in `data/`.
 - ADR-9 (2026-11-13): `kotlin.incremental=false` in `android/gradle.properties`, because the project (D:) and the pub cache (C:) are on different drives and Kotlin incremental caches fail to close.
 - ADR-11 (2026-11-13): priority presentation data lives in the domain without Flutter types. `PriorityLabels.color` returns a plain ARGB `int` (the UI wraps it in `Color`), and `PriorityLabels.key` returns a dotted logical key (`priority.s10.4`). ARB message names must be Dart identifiers, so the UI maps each key to its `AppLocalizations` getter (T-303); a test over `PriorityLabels.allKeys` keeps that mapping complete.
+- ADR-12 (2026-11-13): Focus replaces the Today queue (D17–D19 in [[01 Brainstorm]]); supersedes ADR-5 in part. The planner no longer splits a queue off the pool: every active task is planned, an overdue one as a task without a date. Focus is still a planner output (`Plan.focus`, built after the day loop from `isFocused` or overdue, with the day each task landed on), so widgets and notifications get it for free; the strip is that list minus today's entries. `Task.completedOnPlan` replaces the role of the kept Today flag in `completedTodayCount`. Implemented by T-111.
 - ADR-10 (2026-11-13): develop on Windows desktop and web in addition to Android; Android device testing starts at M3. Logic is platform-independent and verified by `flutter test`; platform differences are confined to the local-store adapter.

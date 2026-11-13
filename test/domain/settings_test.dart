@@ -16,7 +16,7 @@ void main() {
       expect(s.planningHorizonDays, 90);
       expect(s.urgencySoonDays, 7);
       expect(s.urgencyNearDays, 2);
-      expect(s.todayVisibleLimit, 3);
+      expect(s.focusVisibleLimit, 3);
       expect(s.dayStartHour, 0);
     });
 
@@ -90,8 +90,8 @@ void main() {
     });
 
     test('today visible limit is at least 1', () {
-      expect(Settings(todayVisibleLimit: 1).todayVisibleLimit, 1);
-      expect(() => Settings(todayVisibleLimit: 0), isAssertionError);
+      expect(Settings(focusVisibleLimit: 1).focusVisibleLimit, 1);
+      expect(() => Settings(focusVisibleLimit: 0), isAssertionError);
     });
 
     test('day start hour is 0..23', () {

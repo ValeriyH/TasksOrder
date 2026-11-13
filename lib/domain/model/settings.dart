@@ -30,7 +30,7 @@ abstract class Settings with _$Settings {
     'urgencyNearDays >= 0 && urgencyNearDays <= urgencySoonDays',
     'urgency thresholds must satisfy 0 <= near <= soon',
   )
-  @Assert('todayVisibleLimit >= 1', 'todayVisibleLimit must be at least 1')
+  @Assert('focusVisibleLimit >= 1', 'focusVisibleLimit must be at least 1')
   @Assert(
     'dayStartHour >= 0 && dayStartHour <= 23',
     'dayStartHour must be in 0..23',
@@ -57,8 +57,8 @@ abstract class Settings with _$Settings {
     /// Due within this many days: two priority levels higher (D10).
     @Default(2) int urgencyNearDays,
 
-    /// How many Today-queue tasks are shown at once (D11).
-    @Default(3) int todayVisibleLimit,
+    /// How many tasks the Focus strip shows at once (D17).
+    @Default(3) int focusVisibleLimit,
 
     /// Hour at which "today" rolls over; 0 = midnight (D15).
     @Default(0) int dayStartHour,

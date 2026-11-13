@@ -17,8 +17,8 @@ class Planner {
   /// days (today included).
   ///
   /// [overrides] are keyed by their date. [completedTodayCount] is the number
-  /// of planned (not Today-flagged) tasks already completed today; it lowers
-  /// today's capacity so that a finished slot is not refilled (D3).
+  /// of tasks completed today from today's list (see [countCompletedToday]);
+  /// it lowers today's capacity so that a finished slot is not refilled (D3).
   /// Done and deleted tasks in [activeTasks] are ignored.
   Plan plan({
     required List<Task> activeTasks,
@@ -27,7 +27,8 @@ class Planner {
     required LocalDate today,
     int completedTodayCount = 0,
   }) {
-    final queue = <Task>[];
+    // Focused and overdue tasks: a view over planned tasks (D17).
+    final focus = <_Candidate>[];
     // Not placed yet; put in effective-priority order by each day that fills.
     final pool = <_Candidate>[];
     // Pinned tasks by the day offset they are fixed to. They wait outside
@@ -37,11 +38,11 @@ class Planner {
       if (task.isDone || task.isDeleted) continue;
       final due = task.dueDate;
       final dueOffset = due == null ? null : today.daysUntil(due);
-      if (task.isToday || (dueOffset != null && dueOffset < 0)) {
-        queue.add(task); // flagged by the user (D11) or overdue (D7)
-        continue;
-      }
-      final candidate = _Candidate(task, dueOffset);
+      final overdue = dueOffset != null && dueOffset < 0;
+      // A missed deadline has nothing left to protect: the task is planned
+      // as one without a due date and stays in Focus instead (D18).
+      final candidate = _Candidate(task, overdue ? null : dueOffset);
+      if (task.isFocused || overdue) focus.add(candidate);
       final pin = task.pinnedDate;
       if (pin == null) {
         pool.add(candidate);
@@ -51,7 +52,7 @@ class Planner {
         (pinned[pinOffset] ??= []).add(candidate);
       }
     }
-    queue.sort(_compareQueue);
+    focus.sort(_compareFocus);
     for (final sameDay in pinned.values) {
       sameDay.sort(_comparePool);
     }
@@ -122,6 +123,7 @@ class Planner {
         final dueOffset = picked[i].dueOffset;
         final late = dueOffset != null && offset > dueOffset;
         if (late) atRisk.add(picked[i].task.id);
+        picked[i].plannedDate = date;
         entries.add(
           PlanEntry(
             taskId: picked[i].task.id,
@@ -152,15 +154,16 @@ class Planner {
 
     return Plan(
       today: today,
-      todayQueue: [
-        for (final task in queue)
-          TodayEntry(
-            taskId: task.id,
-            flagged: task.isToday,
-            overdueDays: _overdueDays(task, today),
+      focus: [
+        for (final candidate in focus)
+          FocusEntry(
+            taskId: candidate.task.id,
+            focused: candidate.task.isFocused,
+            overdueDays: _overdueDays(candidate.task, today),
+            plannedDate: candidate.plannedDate,
           ),
       ],
-      todayVisibleLimit: settings.todayVisibleLimit,
+      focusVisibleLimit: settings.focusVisibleLimit,
       days: days,
       laterTaskIds: [for (final c in pool) c.task.id],
       atRiskTaskIds: atRisk,
@@ -168,8 +171,9 @@ class Planner {
   }
 
   /// The `completedTodayCount` for [plan]: tasks completed on the planning
-  /// day [today] that were not Today-flagged. Flagged tasks live outside
-  /// capacity, so finishing one frees no planned slot (D11).
+  /// day [today] from that day's list (`Task.completedOnPlan`). A task done
+  /// ahead of its day, from the Focus strip or the task list, held no slot
+  /// of today, so today's list does not change (D19).
   ///
   /// A completion belongs to the day given by its local time and
   /// [dayStartHour] (D15). Tasks deleted after completion still count: the
@@ -182,7 +186,7 @@ class Planner {
     var count = 0;
     for (final task in tasks) {
       final completedAt = task.completedAt;
-      if (completedAt == null || task.isToday) continue;
+      if (completedAt == null || !task.completedOnPlan) continue;
       final day = LocalDate.todayFor(completedAt.toLocal(), dayStartHour);
       if (day == today) count++;
     }
@@ -250,16 +254,18 @@ class Planner {
     return due == null ? 0 : _atLeastZero(due.daysUntil(today));
   }
 
-  /// Queue order: priority, due date (none last, so overdue tasks lead within
-  /// a priority), when it was flagged (unflagged last), then age.
-  static int _compareQueue(Task a, Task b) {
-    var c = a.priority.compareTo(b.priority);
+  /// Focus order: priority, due date (none last, so overdue tasks lead
+  /// within a priority), when it was focused (overdue-only last), then age.
+  static int _compareFocus(_Candidate a, _Candidate b) {
+    final x = a.task;
+    final y = b.task;
+    var c = x.priority.compareTo(y.priority);
     if (c != 0) return c;
-    c = _compareNullsLast(a.dueDate, b.dueDate);
+    c = _compareNullsLast(x.dueDate, y.dueDate);
     if (c != 0) return c;
-    c = _compareNullsLast(a.todayFlaggedAt, b.todayFlaggedAt);
+    c = _compareNullsLast(x.focusedAt, y.focusedAt);
     if (c != 0) return c;
-    return _compareAge(a, b);
+    return _compareAge(x, y);
   }
 
   /// Pool order: effective priority, original priority (a boosted task joins
@@ -301,15 +307,18 @@ class Planner {
   static int _atLeastZero(int value) => value < 0 ? 0 : value;
 }
 
-/// A pool task with its due date as a day offset from today.
+/// A task to plan, with its due date as a day offset from today.
 class _Candidate {
   _Candidate(this.task, this.dueOffset) : effectivePriority = task.priority;
 
   final Task task;
 
-  /// Days from today to the due date; `null` without one. Never negative,
-  /// because overdue tasks go to the Today queue.
+  /// Days from today to the due date; `null` without one and for an overdue
+  /// task, whose due date no longer counts (D18). Never negative.
   final int? dueOffset;
+
+  /// The day the task was placed on; `null` until then.
+  LocalDate? plannedDate;
 
   /// The priority after the urgency boost for the day being filled.
   int effectivePriority;
