@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "codegen: build",
+      "type": "shell",
+      "command": "dart run build_runner build",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "codegen: watch",
+      "type": "shell",
+      "command": "dart run build_runner watch",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "analyze",
+      "type": "shell",
+      "command": "flutter analyze",
+      "problemMatcher": "$dart-flutter-analyze"
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "flutter test",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
