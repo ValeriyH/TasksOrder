@@ -7,7 +7,7 @@ created: 2026-11-12
 ## Tech stack
 | Concern | Choice | Notes |
 |---------|--------|-------|
-| Framework | Flutter 3.50 (stable), Dart 3.14 | Android target first; `minSdk 26`. Widgets come from `package:material_ui` (Material split out of the framework in 3.50) |
+| Framework | Flutter 3.50 (stable), Dart 3.14 | Android target first; `minSdk 24` (Android 7.0, test phone on 7.1). Widgets come from `package:material_ui` (Material split out of the framework in 3.50) |
 | State / DI | `flutter_riverpod` + `riverpod_annotation` | Providers compose streams from the data layer; the plan is a derived provider |
 | Persistence | `drift` (SQLite; native library via `sqlite3` 3.x build hooks, no `sqlite3_flutter_libs`) | Type-safe schema, migrations, reactive `watch()` queries, in-memory DB for tests |
 | Models | `freezed` | Immutable entities with `copyWith`, equality. Backup JSON is a data-layer concern (T-502); `json_serializable` deferred, see ADR-8 |
