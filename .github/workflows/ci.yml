@@ -23,7 +23,7 @@ jobs:
     name: Analyze, test, build web
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Caches the Flutter SDK and the pub cache.
       - uses: subosito/flutter-action@v2
@@ -37,7 +37,7 @@ jobs:
       # Incremental build_runner state: exact hit when nothing changed,
       # otherwise the newest cache for the same lockfile is restored and only
       # changed inputs are regenerated.
-      - uses: actions/cache@v5
+      - uses: actions/cache@v6
         with:
           path: .dart_tool/build
           key: build-runner-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}-${{ hashFiles('lib/**/*.dart', 'test/**/*.dart', 'build.yaml') }}
@@ -55,7 +55,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
           path: build/web
@@ -73,4 +73,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
