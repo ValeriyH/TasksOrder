@@ -139,7 +139,9 @@ CREATE TABLE day_overrides (
   deleted_at  INTEGER
 );
 ```
-Schema version 1. Migrations handled by drift `MigrationStrategy`; every schema change gets a test with the drift schema verifier.
+Schema version 1 (snapshot: `drift_schemas/drift_schema_v1.json`). Migrations handled by drift `MigrationStrategy`; every schema change gets a test with the drift schema verifier.
+
+The `settings` row is seeded when the database is created, with the column defaults and `updated_at = 0`: the epoch marks a row the user never changed, so it loses any last-write-wins merge. Drift row classes are named `TaskRow`, `SettingsRow`, `DayOverrideRow`; they stay inside `lib/data`.
 
 ## Repository interfaces (domain)
 ```dart

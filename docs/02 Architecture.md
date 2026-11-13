@@ -57,7 +57,7 @@ tasks_order/
       planner/      # planner.dart (+ helpers: capacity_resolver.dart, deadline_forcing.dart)
       repository/   # abstract TaskRepository, SettingsRepository, DayOverrideRepository
     data/
-      db/           # database.dart (drift tables), migrations
+      db/           # database.dart (drift tables, migrations), converters.dart
       repository/   # drift implementations + mappers
     application/
       providers.dart   # database, repositories, clock, planProvider
@@ -104,7 +104,7 @@ Toggle "Focus" on a task (editor, list swipe action) → `TaskRepository.setFocu
 
 ## Testing strategy
 1. **Planner** — table-driven tests from [[04 Planner Algorithm]] (`test/domain/planner_test.dart`). Each scenario: inputs → expected day/task map + flags. Must run under 1 s total.
-2. **Repositories** — drift in-memory DB (`NativeDatabase.memory()`), verify streams emit on change.
+2. **Repositories** — drift in-memory DB (`newTestDatabase()` in `test/data/test_database.dart`, a `NativeDatabase.memory()`), verify streams emit on change.
 3. **Widgets** — Today screen renders the Focus strip (3 visible + counter), reasons and the overloaded banner; editor validates priority. Golden/widget tests run in both `uk` and `en` and both themes for the Today screen.
 4. **Integration** — one happy path: add 3 tasks, set capacity, verify Today, complete one, verify Plan.
 
