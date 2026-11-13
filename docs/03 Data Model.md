@@ -46,8 +46,8 @@ Planning settings above would sync per user in the future. **Device settings** s
 
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
-| `locale` | `enum` | `system` | `system` (device language, fallback en), `uk`, `en`; user-selectable (D13) |
-| `themeMode` | `enum` | `system` | `system` (device light/dark), `light`, `dark`; user-selectable (D13) |
+| `locale` | `AppLocale` | `system` | `system` (device language, fallback en), `uk`, `en`; user-selectable (D13) |
+| `themeMode` | `AppThemeMode` | `system` | `system` (device light/dark), `light`, `dark`; user-selectable (D13) |
 | `showReasons` | `bool` | true | badges "due / pinned / overflow" |
 | `notificationTime` | `TimeOfDay?` | null | v0.2 |
 
@@ -145,27 +145,32 @@ The `settings` row is seeded when the database is created, with the column defau
 
 ## Repository interfaces (domain)
 ```dart
-abstract class TaskRepository {
-  Stream<List<Task>> watchAll();                 // all statuses
-  Stream<List<Task>> watchActive();
-  Future<Task?> getById(String id);
-  Future<void> upsert(Task task);
+// Every write takes `now` and stamps it on updatedAt; an unknown id is ignored.
+abstract interface class TaskRepository {
+  Stream<List<Task>> watchAll();                 // active + done, no Trash; oldest first
+  Stream<List<Task>> watchActive();              // oldest first
+  Stream<List<Task>> watchTrash();               // latest deletion first
+  Future<Task?> getById(String id);              // also finds a task in the Trash
+  Future<void> upsert(Task task, DateTime now);
   Future<void> complete(String id, DateTime now, {required bool onPlan}); // D19
-  Future<void> uncomplete(String id);
+  Future<void> uncomplete(String id, DateTime now);
   Future<void> setFocus(String id, bool value, DateTime now);
-  Future<void> delete(String id);      // soft delete: sets deletedAt (Trash)
-  Future<void> restore(String id);     // clears deletedAt
-  Stream<List<Task>> watchTrash();
-  Future<void> purgeDeleted(Duration olderThan); // housekeeping, 30 days
+  Future<void> delete(String id, DateTime now);  // soft delete: sets deletedAt (Trash)
+  Future<void> restore(String id, DateTime now); // clears deletedAt
+  Future<int> purgeDeleted(Duration olderThan, DateTime now); // housekeeping, 30 days
 }
-abstract class SettingsRepository {
-  Stream<Settings> watch();
-  Future<void> save(Settings settings);
+abstract interface class SettingsRepository {
+  Stream<Settings> watch();                      // defaults when nothing is stored
+  Future<void> save(Settings settings, DateTime now);
 }
-abstract class DayOverrideRepository {
+abstract interface class DayOverrideRepository {
   Stream<Map<LocalDate, DayOverride>> watchAll();
-  Future<void> upsert(DayOverride o);
-  Future<void> remove(LocalDate date);
+  Future<void> upsert(DayOverride override, DateTime now);
+  Future<void> remove(LocalDate date, DateTime now); // soft delete
+}
+abstract interface class DeviceSettingsRepository { // SharedPreferences, never syncs
+  DeviceSettings load();                         // defaults for anything missing
+  Future<void> save(DeviceSettings settings);
 }
 ```
 

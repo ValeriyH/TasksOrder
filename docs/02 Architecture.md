@@ -25,7 +25,7 @@ created: 2026-11-12
 | Platform | Role |
 |----------|------|
 | Windows desktop | Main development target from M0 (fast run, hot reload, native SQLite like Android). Needs VS Build Tools 2022 (C++) and Windows Developer Mode (symlinks for plugins). |
-| Web (Chrome) | Second target: quick demos, candidate client for future sync. drift uses SQLite wasm + a worker (T-206). Browser storage can be cleared by the user. |
+| Web (Chrome) | Second target: quick demos, candidate client for future sync. drift uses SQLite wasm + a worker (`web/sqlite3.wasm`, `web/drift_worker.js`, refreshed by `dart run tool/web_assets.dart` after a `drift`/`sqlite3` upgrade, T-206). Data lives in the browser's storage for the site: IndexedDB on GitHub Pages and under `flutter run -d chrome` (no COOP/COEP headers, so no OPFS). **Clearing the site data in the browser deletes all tasks**, and another browser or profile starts empty, until backup (T-502) or sync exists. |
 | Android | Product target. Device testing from M3 on the 7.1 test phone (`minSdk 24`). |
 
 ## Layers
@@ -43,7 +43,7 @@ Rules:
 - Repositories expose `Stream<List<Task>>`, `Stream<Settings>`; the UI never touches drift rows.
 - **Storage is an adapter, not a dependency.** Two independent adapters sit behind domain interfaces: the *local store* (always present, offline-first; drift today: native SQLite on Android/Windows, SQLite wasm in the browser, opened via `drift_flutter`) and, later, a *remote data source* used by a `SyncEngine`. The remote side is backend-agnostic (SQL, NoSQL, even a Google Sheet): it only needs to store rows keyed by UUID with `updatedAt`/`deletedAt`. Replacing either adapter must not touch domain, providers or UI.
 - `planProvider` = `Planner.plan(tasks, settings, overrides, today)` recomputed whenever any input stream emits. See [[04 Planner Algorithm]].
-- A `todayProvider` emits a new `LocalDate` when the local time crosses `settings.dayStartHour` (default midnight, D15) so the plan rolls over without restart. "Today" for a `DateTime` = calendar date of `(now - dayStartHour)`.
+- A `todayProvider` emits a new `LocalDate` when the local time crosses `settings.dayStartHour` (default midnight, D15) so the plan rolls over without restart. "Today" for a `DateTime` = calendar date of `(now - dayStartHour)`. It is a self-invalidating provider with one timer for the next day start (T-205); the app shell also invalidates it on resume, because timers do not run while the app is suspended.
 
 ## Project structure
 ```
@@ -53,14 +53,15 @@ tasks_order/
     l10n/           # app_en.arb, app_uk.arb (generated AppLocalizations)
     app/            # MaterialApp, theme, router, bottom navigation
     domain/
-      model/        # task.dart, settings.dart, day_override.dart, plan.dart, local_date.dart
+      model/        # task.dart, settings.dart, device_settings.dart, day_override.dart, plan.dart, local_date.dart
       planner/      # planner.dart (+ helpers: capacity_resolver.dart, deadline_forcing.dart)
-      repository/   # abstract TaskRepository, SettingsRepository, DayOverrideRepository
+      repository/   # abstract TaskRepository, SettingsRepository, DayOverrideRepository, DeviceSettingsRepository
     data/
       db/           # database.dart (drift tables, migrations), converters.dart
-      repository/   # drift implementations + mappers
+      repository/   # drift implementations + mappers, SharedPreferences device settings
     application/
-      providers.dart   # database, repositories, clock, planProvider
+      device_settings_providers.dart   # sharedPreferences, deviceSettings, locale, themeMode
+      providers.dart   # clock, database, repositories, tasks/settings/overrides streams, today, planProvider
     features/
       today/        # today_screen.dart, widgets
       plan/         # plan_screen.dart (upcoming days)
@@ -78,7 +79,7 @@ tasks_order/
 
 ## Key flows
 ### Add task
-TaskEditScreen → `TaskRepository.upsert(task)` → drift emits new task list → `planProvider` recomputes → Today/Plan screens rebuild.
+TaskEditScreen → `TaskRepository.upsert(task, now)` → drift emits new task list → `planProvider` recomputes → Today/Plan screens rebuild.
 
 ### Complete task
 Checkbox → `TaskRepository.complete(id, now, onPlan: ...)` → task leaves the active pool → plan recomputes. `onPlan` = the task is in `plan.days.first.entries` at that moment; the UI knows it, the stored task remembers it as `completedOnPlan` (D19).
@@ -100,7 +101,7 @@ Toggle "Focus" on a task (editor, list swipe action) → `TaskRepository.setFocu
 ## Error handling and edge cases
 - Priority outside the current scale (after scale change) → clamp on read, offer migration (T-406).
 - Empty capacity everywhere → every task is "Later"; Today shows an explanatory empty state.
-- Hundreds of tasks → planner is O(days × tasks log tasks); recompute is debounced (50 ms) in `planProvider`.
+- Hundreds of tasks → planner is O(days × tasks log tasks) and takes about 2 ms for 500 tasks × 90 days, so `planProvider` recomputes on every change without a debounce (ADR-13).
 
 ## Testing strategy
 1. **Planner** — table-driven tests from [[04 Planner Algorithm]] (`test/domain/planner_test.dart`). Each scenario: inputs → expected day/task map + flags. Must run under 1 s total.
@@ -125,4 +126,5 @@ Toggle "Focus" on a task (editor, list swipe action) → `TaskRepository.setFocu
 - ADR-9 (2026-11-13): `kotlin.incremental=false` in `android/gradle.properties`, because the project (D:) and the pub cache (C:) are on different drives and Kotlin incremental caches fail to close.
 - ADR-11 (2026-11-13): priority presentation data lives in the domain without Flutter types. `PriorityLabels.color` returns a plain ARGB `int` (the UI wraps it in `Color`), and `PriorityLabels.key` returns a dotted logical key (`priority.s10.4`). ARB message names must be Dart identifiers, so the UI maps each key to its `AppLocalizations` getter (T-303); a test over `PriorityLabels.allKeys` keeps that mapping complete.
 - ADR-12 (2026-11-13): Focus replaces the Today queue (D17–D19 in [[01 Brainstorm]]); supersedes ADR-5 in part. The planner no longer splits a queue off the pool: every active task is planned, an overdue one as a task without a date. Focus is still a planner output (`Plan.focus`, built after the day loop from `isFocused` or overdue, with the day each task landed on), so widgets and notifications get it for free; the strip is that list minus today's entries. `Task.completedOnPlan` replaces the role of the kept Today flag in `completedTodayCount`. Implemented by T-111.
+- ADR-13 (2026-11-13): `planProvider` is a synchronous combination of its inputs with no 50 ms debounce (T-204). The planner needs about 2 ms (T-110) and Riverpod already recomputes a provider once per flush, however many inputs changed; a timer would only delay the answer to a checkbox tap and put fake time into tests. It returns `AsyncValue<Plan>`: loading until tasks, settings, overrides and today have all arrived, then data on every change with no loading state in between. Active and done tasks come from one stream (`allTasksProvider`), so a completion reaches the planner as a single change: the task leaves the pool and `completedTodayCount` grows in the same recompute, and the freed slot cannot be refilled for a moment. To revisit if the done history grows large enough to make that stream slow (then: a query for today's on-plan completions only).
 - ADR-10 (2026-11-13): develop on Windows desktop and web in addition to Android; Android device testing starts at M3. Logic is platform-independent and verified by `flutter test`; platform differences are confined to the local-store adapter.
