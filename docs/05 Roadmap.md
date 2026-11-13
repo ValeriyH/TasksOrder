@@ -30,7 +30,7 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 
 ## Retro
 ### M0 — 2026-11-13
-- **Done:** T-001 … T-004, T-006. T-005 (CI) postponed: no GitHub remote yet.
+- **Done:** T-001 … T-004, T-006. T-005 (CI + GitHub Pages deploy of the web app) workflow written, waits for the GitHub repo.
 - **Demo:** default app runs on Windows desktop and in Chrome; debug APK builds. Phone run moved to T-308 (test phone on Android 7.1 needs a clean-up first).
 - **Changed decisions:** develop on Windows/web first (ADR-10); `minSdk 24`; storage is an adapter, backend left open; `json_serializable` deferred (ADR-8); `kotlin.incremental=false` (ADR-9).
 - **New backlog items:** T-006 Windows & web targets, T-206 web storage setup.
