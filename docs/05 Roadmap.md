@@ -29,6 +29,12 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 - **Scope creep**: parking lot in [[01 Brainstorm]] exists for a reason.
 
 ## Retro
+### M1 — 2026-11-13
+- **Done:** T-101 … T-110. `lib/domain` holds `LocalDate`, `Task`, `PriorityLabels`, `Settings`, `DayOverride`, `Plan`, `CapacityResolver`, `Planner`; 208 tests, planner scenarios 1–21 from [[04 Planner Algorithm]].
+- **Demo:** none on screen (pure Dart); the test table is the demo. 500 tasks × 90 days plan in about 2 ms.
+- **Changed decisions:** D16 — deadline-forced slots refill and an unachievable plan is highlighted on Today; ADR-11 — priority colours as ARGB ints and logical label keys; horizon counts today (≥ 1 day); `maxOverflowPerDay` 0 allowed in the domain; pins are honoured on rest days; worked example 1 corrected (the boost puts E before F on Thursday).
+- **New backlog items:** at-risk banner added to T-302.
+- **Learned:** freezed constructors with method-calling assertions cannot be `const`; on Windows, building from `d:\` and `D:\` (drive-letter case) wipes `windows/flutter/ephemeral` for each other, so always build from one casing (`tool/run_windows.cmd` normalises it).
 ### M0 — 2026-11-13
 - **Done:** T-001 … T-006. CI + GitHub Pages: https://valeriyh.github.io/TasksOrder/
 - **Demo:** default app runs on Windows desktop and in Chrome; debug APK builds. Phone run moved to T-308 (test phone on Android 7.1 needs a clean-up first).

@@ -88,7 +88,8 @@ Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRe
 
 ### Today screen composition
 1. Section **Today** — `plan.todayQueue.take(todayVisibleLimit)`, sorted by priority, counter "+N more" when the queue is longer; overdue entries carry a red "overdue by N days" badge with *move due date / clear due date* actions. Empty section is hidden.
-2. Section **Planned n/capacity** — `plan.days.first.entries` with reason badges, overflow banner when overloaded.
+2. Section **Planned n/capacity** — `plan.days.first.entries` with reason badges, overflow banner when overloaded. Deadline-forced entries refill after completion, priority entries do not (D16).
+   - When `plan.hasAtRisk`: a warning banner "N tasks will not make their deadline" that opens the list of `plan.atRiskTaskIds`, so the user can pick what matters (D16).
 3. Empty state when both are empty.
 
 ### Day rollover
@@ -120,4 +121,5 @@ Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRe
 - ADR-7 (2026-11-13): no "dropped" status; removal is a soft delete that doubles as Trash and sync tombstone (D14).
 - ADR-8 (2026-11-13): `json_serializable` removed from M0 dependencies. Version 6.15.x fails on freezed 4.0.3 output ("Could not resolve annotation for `int get hashCode`"), and older versions conflict with `build_runner` 2.17. Domain entities do not need JSON; backup (T-502) will either re-add it once fixed upstream or use hand-written mappers in `data/`.
 - ADR-9 (2026-11-13): `kotlin.incremental=false` in `android/gradle.properties`, because the project (D:) and the pub cache (C:) are on different drives and Kotlin incremental caches fail to close.
+- ADR-11 (2026-11-13): priority presentation data lives in the domain without Flutter types. `PriorityLabels.color` returns a plain ARGB `int` (the UI wraps it in `Color`), and `PriorityLabels.key` returns a dotted logical key (`priority.s10.4`). ARB message names must be Dart identifiers, so the UI maps each key to its `AppLocalizations` getter (T-303); a test over `PriorityLabels.allKeys` keeps that mapping complete.
 - ADR-10 (2026-11-13): develop on Windows desktop and web in addition to Android; Android device testing starts at M3. Logic is platform-independent and verified by `flutter test`; platform differences are confined to the local-store adapter.

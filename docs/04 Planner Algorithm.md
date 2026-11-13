@@ -28,7 +28,7 @@ Priority 1 ("Critical") is an ordinary level: it wins the priority fill but wait
 
 ## Inputs and derived values
 - `capacity(d)` = `overrides[d]?.capacity ?? settings.weeklyCapacity[d.weekday]`. For `today`, subtract `completedTodayCount` (floor 0) so Today stays stable after ticking tasks (D3).
-- `hardLimit(d)` = `capacity(d) == 0 ? 0 : capacity(d) + settings.maxOverflowPerDay` (rest days never receive tasks, D6).
+- Rest days never receive tasks (D6). `hardLimit(d)` = `baseCapacity(d) == 0 ? 0 : baseCapacity(d) + settings.maxOverflowPerDay`, where `baseCapacity` is the value **before** `completedTodayCount` is subtracted. So `completedTodayCount` only limits the priority fill; deadline-forced tasks keep refilling up to the hard limit (D16): capacity 2, overflow 1, five tasks due today → three shown, and each completion pulls in the next one.
 - `effDue(t)` = `t.dueDate` — overdue tasks never reach the pool (they are in the Today queue, D7), so no clamping is needed; a task due *today* is simply forced today.
 - `effPriority(t, d)` — urgency boost (D10):
   ```
@@ -52,13 +52,15 @@ todayQueue = activeTasks where isToday or dueDate < today,
              -> TodayEntry(taskId, flagged: isToday, overdueDays: max(0, today - dueDate))
 pool       = activeTasks - todayQueue
 
-for d in today .. today + horizon:
+for d in today .. today + horizon - 1:                // horizon counts today
     day = PlannedDay(d, capacity(d))
-    if hardLimit(d) == 0: continue                    // rest day
 
-    // 1. Pinned
-    for t in pool where t.pinnedDate == d or (t.pinnedDate < today and d == today):
+    // 1. Pinned: kept outside the pool until their day, placed whatever the
+    //    capacity (also on a rest day: an explicit pin beats D6), never trimmed
+    for t in pinned where t.pinnedDate == d or (t.pinnedDate < today and d == today):
         place(t, reason: pinned)
+
+    if hardLimit(d) == 0: continue                    // rest day
 
     // 2. Deadline-forced (minimum needed to keep every deadline feasible)
     for t in forcedToday(pool, d):
@@ -107,7 +109,7 @@ Forcing alone meets deadlines but is *lazy*: with comfortable capacity it leaves
 | `reason = deadline` | placed because of a due date, possibly pushing a higher priority later | badge "due" |
 | `reason = pinned` | user fixed the date | badge "pinned" |
 | `overflow` | above the day's capacity | day banner "1 extra because of deadlines" |
-| `atRisk` | placed after its due date (impossible with current capacity) | red badge + Plan header "N tasks at risk" |
+| `atRisk` | placed after its due date (impossible with current capacity) | red badge + Plan header "N tasks at risk"; Today screen banner "N tasks will not make their deadline" opening the list (`Plan.hasAtRisk`, D16) |
 
 ## Worked example 1 — priority vs deadline (tight capacity)
 Settings: scale 5, capacity Mon–Fri 1, Sat 3, Sun 0, overflow 1, boost thresholds 7 / 2. Today = Mon 2026-11-16.
@@ -128,12 +130,14 @@ Result:
 | Mon 16 | **K** (Today queue, outside capacity) + A | forced = 0 (C fits Tue, D fits Wed, E fits by Sat). C is boosted to tier 2 (slack 1) but A, F are originals of tier 2 → **A** by `createdAt`. K never enters the pool. |
 | Tue 17 | C *(due)* | need(17)=1, avail=0 → forced. **F (High) is pushed by C (Low).** |
 | Wed 18 | D *(due)* | need(18)=1, avail=0 → forced. |
-| Thu 19 | F | priority |
-| Fri 20 | E | E boosted (slack 1) to tier 2, orig 3; B orig 3 tier 3 → E first |
+| Thu 19 | E | E is due in 2 days → boost 2 → tier 1 (3 − 2), ahead of F (High, tier 2) |
+| Fri 20 | F | priority |
 | Sat 21 | B | priority; two Sat slots stay empty |
 | Sun 22 | – | rest day |
 
-With capacity this tight the result is the same with or without the boost: forcing alone already spreads the deadlines. The boost matters when there is spare capacity (example 2).
+Without the boost (thresholds 0 / 0) only Thu and Fri swap: **F** on Thu by priority, **E** on Fri (same priority as B, but it has a due date). Forcing alone already spreads the deadlines here; the boost only decides who goes first among the tasks that are not forced. It matters more when there is spare capacity (example 2).
+
+_Corrected 2026-11-13 (T-108): the first version of this table kept E in tier 2 on Thu/Fri, which contradicts the `effPriority` formula; the formula is the rule._
 
 ## Worked example 2 — urgency boost with spare capacity (D10b)
 Capacity 2/day Mon–Fri. Today Mon. Tasks: A, F (High), B, G, H (Normal) without due; L (Low) due Thu.
@@ -164,7 +168,7 @@ Capacity Sun 0. Task due Sun. On Sat: need(Sun)=1, avail(Sun)=0 → forced on Sa
 3. Capacity per weekday respected; Sun 0 skipped.
 4. DayOverride replaces weekday capacity for that date only.
 5. Worked example 2 → boosted result (L on Tue); with thresholds 0/0 → forcing-only result (L on Wed).
-6. Worked example 1 → exact day/task map; identical with thresholds 0/0.
+6. Worked example 1 → exact day/task map (Thu E, Fri F); with thresholds 0/0 → Thu F, Fri E.
 7. Worked example 3 → 2/1/1 spread; overflow flag on Q.
 8. Worked example 3 with overflow 0 → S on Thu with `atRisk`, listed in `atRiskTaskIds`.
 9. Two tasks due today, capacity 1, overflow 1 → both today, second `overflow`.
@@ -179,6 +183,8 @@ Capacity Sun 0. Task due Sun. On Sat: need(Sun)=1, avail(Sun)=0 → forced on Sa
 17. Horizon 7, 20 tasks, capacity 1 → 7 scheduled, 13 in `later`.
 18. Determinism: same input twice → identical plan.
 19. Performance: 500 tasks, horizon 90 → under 50 ms.
+20. Deadline refill (D16): capacity 2, overflow 1, five tasks due today → 3 today, 2 `atRisk`. One completed (`completedTodayCount = 1`, four left) → still 3 today, 1 `atRisk`. Plain tasks in the same setup: one completed → 1 today, no refill.
+21. Same with overflow 0 → 2 today, 3 `atRisk`; one completed → 2 today, 2 `atRisk`.
 
 ## Complexity
 Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomputed once per plan. Effective priority depends on `d`, so the pool is re-sorted per day (T log T). Total O(H × T log T) with H = horizon days. For H = 90, T = 500 this is trivially fast on a phone.

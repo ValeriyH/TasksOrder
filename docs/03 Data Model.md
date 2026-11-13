@@ -33,8 +33,8 @@ Sync-readiness (D12): `id` is a UUID, every write bumps `updatedAt`, delete is s
 |-------|------|---------|-------|
 | `priorityScale` | `int` | 5 | allowed 3, 5, 10 |
 | `weeklyCapacity` | `List<int>` (7) | `[1,1,1,1,1,3,0]` Mon..Sun | tasks per weekday, 0 = rest day |
-| `maxOverflowPerDay` | `int` | 1 | extra tasks a deadline may add to a day: 1, 2 or 3 (D5) |
-| `planningHorizonDays` | `int` | 90 | tasks beyond are "Later" |
+| `maxOverflowPerDay` | `int` | 1 | extra tasks a deadline may add to a day: 1, 2 or 3 in the UI (D5); the domain also accepts 0 = no overflow |
+| `planningHorizonDays` | `int` | 90 | number of planned days including today (≥ 1); tasks beyond are "Later" |
 | `urgencySoonDays` | `int` | 7 | due within → +1 priority level (D10) |
 | `urgencyNearDays` | `int` | 2 | due within → +2 priority levels (D10) |
 | `todayVisibleLimit` | `int` | 3 | how many Today-queue tasks are shown at once (D11) |
@@ -57,7 +57,7 @@ Planning settings above would sync per user in the future. **Device settings** s
 | `note` | `String?` | "holiday", "trip" |
 
 ### LocalDate (value object)
-Year/month/day only. Operations: `today(clock)`, `addDays`, `daysUntil`, `weekday`, `compareTo`, ISO parse/format. Never converted to `DateTime` inside the planner.
+Year/month/day only. Operations: `todayFor(now, dayStartHour)`, `addDays`, `daysUntil`, `weekday`, `compareTo`, ISO parse/format. Never converted to `DateTime` inside the planner.
 
 ## Derived model (not persisted) — output of the planner
 ```dart
@@ -65,7 +65,7 @@ class Plan {
   final LocalDate today;
   final List<TodayEntry> todayQueue;  // flagged + overdue tasks in queue order (D11, D7)
   final int todayVisibleLimit;        // UI shows todayQueue.take(todayVisibleLimit); the rest is "+N more"
-  final List<PlannedDay> days;        // today .. today + horizon
+  final List<PlannedDay> days;        // today .. today + horizon - 1
   final List<String> laterTaskIds;    // did not fit the horizon
   final List<String> atRiskTaskIds;   // deadline cannot be met
 }
