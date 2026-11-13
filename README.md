@@ -1,5 +1,7 @@
 # TasksOrder
 
+[![CI](https://github.com/ValeriyH/TasksOrder/actions/workflows/ci.yml/badge.svg)](https://github.com/ValeriyH/TasksOrder/actions/workflows/ci.yml) · Web build: <https://valeriyh.github.io/TasksOrder/>
+
 Android app that takes a pile of tasks with a priority and an optional due date and plans
 how many of them to do each day, based on a configurable weekly capacity.
 
