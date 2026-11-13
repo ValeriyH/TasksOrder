@@ -1,0 +1,112 @@
+---
+tags: [architecture]
+created: 2026-11-12
+---
+# 02 Architecture
+
+## Tech stack
+| Concern | Choice | Notes |
+|---------|--------|-------|
+| Framework | Flutter (stable), Dart 3 | Android target first; `minSdk 26` |
+| State / DI | `flutter_riverpod` + `riverpod_annotation` | Providers compose streams from the data layer; the plan is a derived provider |
+| Persistence | `drift` (SQLite) | Type-safe schema, migrations, reactive `watch()` queries, in-memory DB for tests |
+| Models | `freezed` | Immutable entities with `copyWith`, equality; `json_serializable` for backup export |
+| Navigation | `go_router` | 4 top-level tabs + task editor route |
+| Codegen | `build_runner` | drift_dev, freezed, riverpod_generator |
+| Dates | own `LocalDate` value object | Avoid timezone bugs: a task is due on a *calendar day*, never a `DateTime` |
+| Localisation | `flutter_localizations` + `intl` (ARB: `lib/l10n/app_en.arb`, `app_uk.arb`) | Ukrainian and English; `localeProvider` overrides the system locale (D13). No hard-coded UI strings. |
+| Theme | Material 3 `ColorScheme.fromSeed`, `themeModeProvider` | system / light / dark (D13); both themes checked on every screen |
+| Device prefs | `shared_preferences` | locale, theme, showReasons, notification time |
+| Notifications (v0.2) | `flutter_local_notifications` | Morning summary |
+| Lint | `flutter_lints` + stricter rules in `analysis_options.yaml` | `strict-casts`, `strict-raw-types` |
+| Tests | `test`, `flutter_test`, `integration_test` | Planner: table-driven unit tests |
+
+## Layers
+```
+presentation  (features/*: screens, widgets, controllers)      Flutter + Riverpod
+      |  reads providers, dispatches intents
+application   (providers: repositories, planProvider, clock)   Riverpod
+      |  calls
+domain        (entities, settings, Planner, LocalDate)         pure Dart, NO flutter imports
+      ^  implemented by
+data          (drift Database, DAOs, repository impls, mappers) drift
+```
+Rules:
+- `lib/domain` must not import `package:flutter` or `package:drift`. It is the product core and is tested with plain `dart test`.
+- Repositories expose `Stream<List<Task>>`, `Stream<Settings>`; the UI never touches drift rows.
+- `planProvider` = `Planner.plan(tasks, settings, overrides, today)` recomputed whenever any input stream emits. See [[04 Planner Algorithm]].
+- A `todayProvider` emits a new `LocalDate` when the local time crosses `settings.dayStartHour` (default midnight, D15) so the plan rolls over without restart. "Today" for a `DateTime` = calendar date of `(now - dayStartHour)`.
+
+## Project structure
+```
+tasks_order/
+  lib/
+    main.dart
+    l10n/           # app_en.arb, app_uk.arb (generated AppLocalizations)
+    app/            # MaterialApp, theme, router, bottom navigation
+    domain/
+      model/        # task.dart, settings.dart, day_override.dart, plan.dart, local_date.dart
+      planner/      # planner.dart (+ helpers: capacity_resolver.dart, deadline_forcing.dart)
+      repository/   # abstract TaskRepository, SettingsRepository, DayOverrideRepository
+    data/
+      db/           # database.dart (drift tables), migrations
+      repository/   # drift implementations + mappers
+    application/
+      providers.dart   # database, repositories, clock, planProvider
+    features/
+      today/        # today_screen.dart, widgets
+      plan/         # plan_screen.dart (upcoming days)
+      tasks/        # tasks_screen.dart (all / done / trash)
+      task_edit/    # task_edit_screen.dart
+      settings/     # settings_screen.dart, capacity_editor.dart
+    shared/         # common widgets: priority_chip, reason_badge, date_pickers
+  test/
+    domain/         # planner_test.dart (table-driven), local_date_test.dart
+    data/           # repository tests on in-memory drift DB
+    features/       # widget tests
+  integration_test/
+  docs/             # this Obsidian vault
+```
+
+## Key flows
+### Add task
+TaskEditScreen → `TaskRepository.upsert(task)` → drift emits new task list → `planProvider` recomputes → Today/Plan screens rebuild.
+
+### Complete task
+Checkbox → `TaskRepository.complete(id, now)` → task leaves the active pool → plan recomputes. A planned slot is not refilled today (D3): the planner receives `completedTodayCount` (tasks completed today that were **not** Today-flagged) and reduces today's capacity by that amount. Completing a Today-flagged task does not affect capacity; the queue simply shows the next flagged task (D11).
+
+### Today flag
+Checkbox "Today" on a task (editor, list swipe action, Today screen) → `TaskRepository.setToday(id, true, now)` → task moves from the pool into `plan.todayQueue`. Unflagging moves it back and the planner places it again.
+
+### Today screen composition
+1. Section **Today** — `plan.todayQueue.take(todayVisibleLimit)`, sorted by priority, counter "+N more" when the queue is longer; overdue entries carry a red "overdue by N days" badge with *move due date / clear due date* actions. Empty section is hidden.
+2. Section **Planned n/capacity** — `plan.days.first.entries` with reason badges, overflow banner when overloaded.
+3. Empty state when both are empty.
+
+### Day rollover
+`todayProvider` emits a new `LocalDate` → plan recomputes from the new today; unfinished planned tasks return to the pool; tasks whose due date is now in the past appear in the Today queue with an overdue badge (D7). Nothing is written to the database at rollover.
+
+## Error handling and edge cases
+- Priority outside the current scale (after scale change) → clamp on read, offer migration (T-406).
+- Empty capacity everywhere → every task is "Later"; Today shows an explanatory empty state.
+- Hundreds of tasks → planner is O(days × tasks log tasks); recompute is debounced (50 ms) in `planProvider`.
+
+## Testing strategy
+1. **Planner** — table-driven tests from [[04 Planner Algorithm]] (`test/domain/planner_test.dart`). Each scenario: inputs → expected day/task map + flags. Must run under 1 s total.
+2. **Repositories** — drift in-memory DB (`NativeDatabase.memory()`), verify streams emit on change.
+3. **Widgets** — Today screen renders the Today queue (3 visible + counter), reasons and the overloaded banner; editor validates priority. Golden/widget tests run in both `uk` and `en` and both themes for the Today screen.
+4. **Integration** — one happy path: add 3 tasks, set capacity, verify Today, complete one, verify Plan.
+
+## Non-goals (for now) and how the design keeps them possible
+- **Backend, accounts, sync, family group** — not built. Kept possible by D12: UUID ids, `updatedAt`, soft delete, repository interfaces, planning settings separated from device settings. A future `SyncEngine` would observe the same repositories and push/pull rows; the UI would not change.
+- iOS build (kept possible, not tested)
+- Time-of-day scheduling (the unit is a day, not an hour)
+
+## Architecture decisions log
+- ADR-1 (2026-11-12): derived plan, not persisted — see D2 in [[01 Brainstorm]].
+- ADR-2 (2026-11-12): single app package with a `domain` folder instead of a separate Dart package. Can be extracted into `packages/core` later if the planner is reused (CLI, web).
+- ADR-3 (2026-11-12): calendar dates stored as ISO `yyyy-MM-dd` text in SQLite; instants (`createdAt`, `completedAt`) as UTC epoch milliseconds.
+- ADR-4 (2026-11-12): sync-ready rows (UUID, `updatedAt`, `deletedAt`) from schema v1; no sync code until the local app proves useful. See D12 in [[01 Brainstorm]].
+- ADR-5 (2026-11-13): the Today queue is a planner output (`Plan.todayQueue`), not a UI filter, so widgets/notifications get it for free. Supersedes the "Critical tier" idea from 2026-11-12.
+- ADR-6 (2026-11-13): localisation via ARB from the first screen; no string literal in widgets. Ukrainian and English are both first-class; English is the source language of the ARB files and the docs.
+- ADR-7 (2026-11-13): no "dropped" status; removal is a soft delete that doubles as Trash and sync tombstone (D14).
