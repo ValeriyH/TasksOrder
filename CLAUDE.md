@@ -9,4 +9,4 @@
 - Chat with the owner in Ukrainian; code, comments, commit messages and `docs/` in English.
 - `docs/` is an Obsidian vault and the source of truth: next task comes from `docs/06 Task Backlog.md`; record decisions as ADRs in `docs/02 Architecture.md`.
 - `Readme.txt` is the owner's scratchpad: do not edit it.
-- Before calling a task done: `flutter analyze` clean and `flutter test` green.
+- Before calling a task done: `dart format lib test`, `flutter analyze` clean, `flutter test` green (CI checks all three).

@@ -17,12 +17,12 @@ Product and technical docs live in [`docs/`](docs/Home.md) (an Obsidian vault):
 - [05 Roadmap](docs/05%20Roadmap.md) and [06 Task Backlog](docs/06%20Task%20Backlog.md)
 
 ## Getting started
-Requirements: Flutter stable (3.50+), JDK 17, Android SDK (platform 36), a phone with USB debugging.
+Requirements: Flutter stable (3.50+), JDK 17, Android SDK (platform 36). For the Windows target: Visual Studio Build Tools 2022 with "Desktop development with C++" and Windows Developer Mode (plugins need symlinks). Web runs in Chrome.
 
 ```sh
 flutter pub get
 tool/gen.sh            # or tool\gen.ps1 on Windows: code generation (drift, freezed, riverpod)
-flutter run
+flutter run -d windows   # or: -d chrome, or an Android device
 ```
 
 Day-to-day:
@@ -30,6 +30,7 @@ Day-to-day:
 | Command | Purpose |
 |---------|---------|
 | `tool/gen.sh watch` | rebuild generated code on change (VS Code task "codegen: watch") |
+| `dart format lib test` | formatting (CI fails on unformatted code) |
 | `flutter analyze` | static analysis, must be clean |
 | `flutter test` | unit and widget tests |
 | `flutter build apk --debug` | debug APK |

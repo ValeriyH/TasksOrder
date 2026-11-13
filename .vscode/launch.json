@@ -1,0 +1,8 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    { "name": "TasksOrder (Windows)", "request": "launch", "type": "dart", "deviceId": "windows" },
+    { "name": "TasksOrder (Chrome)", "request": "launch", "type": "dart", "deviceId": "chrome" },
+    { "name": "TasksOrder (Android)", "request": "launch", "type": "dart" }
+  ]
+}
