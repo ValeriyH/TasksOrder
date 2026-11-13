@@ -7,7 +7,7 @@ created: 2026-11-12
 Format: `- [ ] **T-xxx Title** — what / definition of done. _depends:_ …
 
 ## M0 — Environment & skeleton
-- [ ] **T-001 Install toolchain** — Flutter stable, Android SDK (cmdline-tools or Android Studio), JDK 17, platform-tools; accept licences. DoD: `flutter doctor` shows no errors for Android; `flutter doctor` clean for Android and Windows. (Phone check moved to T-308, ADR-10.)
+- [ ] **T-001 Install toolchain** — Flutter stable, Android SDK (cmdline-tools or Android Studio), JDK 17, platform-tools; accept licences. DoD: `flutter doctor` clean for Android and Windows. (Phone check moved to T-308, ADR-10.)
 - [ ] **T-002 Create project** — `flutter create --platforms=android --org <org> tasks_order`; set `minSdk 24`; `git init`, `.gitignore`, first commit. DoD: default counter app builds as a debug APK and runs on Windows (phone run moved to T-308). _depends:_ T-001
 - [x] **T-003 Dependencies & tooling** — add `flutter_riverpod`, `riverpod_annotation`, `drift`, `sqlite3_flutter_libs`, `path_provider`, `go_router`, `freezed_annotation`, `uuid`, `flutter_localizations`, `intl`, `shared_preferences`; dev: `build_runner`, `drift_dev`, `freezed`, `riverpod_generator`, `flutter_lints`. Strict `analysis_options.yaml`. VS Code task / script for `build_runner watch`. DoD: `flutter analyze` clean, codegen runs. _depends:_ T-002
   - _Notes (2026-11-13):_ `sqlite3_flutter_libs` dropped (obsolete with `sqlite3` 3.x); `json_serializable` deferred to T-502 (ADR-8 in [[02 Architecture]]); `build_runner` 2.17 removed `--delete-conflicting-outputs`. Scripts: `tool/gen.sh`, `tool/gen.ps1`, VS Code tasks.
