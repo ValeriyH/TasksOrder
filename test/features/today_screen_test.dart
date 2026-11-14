@@ -93,6 +93,22 @@ void main() {
       expect((await app.task('a')).isDone, isFalse);
     });
 
+    testWidgets('the "Task completed" message goes away by itself', (
+      tester,
+    ) async {
+      await AppHarness.start(tester, tasks: [testTask('a')]);
+
+      await tick(tester, 'a');
+      expect(find.text('Task completed'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.text('Task completed'), findsOneWidget);
+      // A snackbar with an action would stay until closed (`persist`).
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(find.text('Task completed'), findsNothing);
+    });
+
     testWidgets('a deadline slot is refilled (D16)', (tester) async {
       await AppHarness.start(
         tester,

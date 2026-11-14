@@ -9,6 +9,7 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/priority_dropdown.dart';
+import 'package:tasks_order/shared/task_actions_ui.dart';
 
 /// Creates a task or changes the one with [taskId].
 class TaskEditScreen extends ConsumerStatefulWidget {
@@ -106,12 +107,10 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(l10n.taskMovedToTrash),
-          action: SnackBarAction(
-            label: l10n.actionUndo,
-            onPressed: () => unawaited(repository.restore(id, clock())),
-          ),
+        undoSnackBar(
+          message: l10n.taskMovedToTrash,
+          undoLabel: l10n.actionUndo,
+          onUndo: () => unawaited(repository.restore(id, clock())),
         ),
       );
   }

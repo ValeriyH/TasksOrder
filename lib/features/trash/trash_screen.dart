@@ -86,14 +86,17 @@ class _TrashTile extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Two shapes and two colours, so the two are not mixed up: an arrow
+          // back for "restore", a red bin for "delete forever".
           IconButton(
-            icon: const Icon(Icons.restore_from_trash_outlined),
+            icon: const Icon(Icons.undo),
             tooltip: l10n.actionRestore,
             onPressed: () =>
                 unawaited(ref.read(taskActionsProvider).restore(task.id)),
           ),
           IconButton(
             icon: const Icon(Icons.delete_forever_outlined),
+            color: Theme.of(context).colorScheme.error,
             tooltip: l10n.trashDeleteForever,
             onPressed: () => unawaited(_deleteForever(context, ref)),
           ),

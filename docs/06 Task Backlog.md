@@ -100,21 +100,24 @@ Format: `- [ ] **T-xxx Title** — what / definition of done. _depends:_ …
 
 ## M5 — Polish & release (v0.3)
 - [ ] **T-501 Morning notification** — `flutter_local_notifications`, daily at configurable time, body = today's task titles; Android 13 permission flow. DoD: notification arrives on device. _depends:_ T-308
-- [ ] **T-502 Backup / restore** — export JSON via share sheet, import from file picker with confirmation. DoD: round-trip test. _depends:_ T-202, T-203
+- [x] **T-502 Backup / restore** — export JSON via share sheet, import from file picker with confirmation. DoD: round-trip test. _depends:_ T-202, T-203
+  - _Notes (2026-11-14):_ done before the first release on a phone, so that the tasks survive a reinstall and a lost signing key (ADR-16 in [[02 Architecture]]). Settings → Backup: "Save a backup" opens the system "save as" dialog (not a share sheet: the file has to land where the user finds it again) with `tasksorder-backup-<date>.json`; "Restore from a backup" picks a file, shows its date and task count next to the count in the app, and replaces everything after a confirmation. A file that is not a backup, a damaged one or one of a newer format is refused with a message and changes nothing. Code: `Backup` (domain), `BackupRepository` / `BackupFileStore` (interfaces), `DriftBackupRepository`, `BackupCodec` (hand-written JSON, format in [[03 Data Model]]), `PickerBackupFileStore` (`file_picker`, new dependency), `BackupService` in `lib/application/backup.dart`. Tests: `test/data/backup_codec_test.dart`, `test/data/drift_backup_repository_test.dart` (the round trip), `test/features/backup_test.dart`. Checked by hand with the release APK on the emulator: save, uninstall, install, restore. Language and theme are not in the backup (device settings).
 - [ ] **T-503 Branding & l10n pass** — app name (localised), icon (`flutter_launcher_icons`), splash, dark theme pass on every screen, review of all uk/en strings, date formats per locale. DoD: looks finished on the launcher in both languages. _depends:_ T-308
 - [ ] **T-504 Tests** — widget tests for Today/Editor/Settings, one integration test happy path. DoD: `flutter test` + `integration_test` green. _depends:_ T-308
 - [ ] **T-505 Release build** — keystore, `key.properties`, R8, `flutter build apk --release`, install. DoD: release APK runs. _depends:_ T-503
+  - _Notes (2026-11-14, in progress):_ done ahead of the rest of M5 to get a first release onto a phone. `android/app/build.gradle.kts` reads `android/key.properties` (not in git: `storeFile`, `storePassword`, `keyAlias`, `keyPassword`) and signs the release with that key; without the file it falls back to the debug key, so CI and a fresh clone still build (ADR-15 in [[02 Architecture]]). The keystore itself lives outside the repository. App label "TasksOrder", version `0.2.0+1`. `flutter build apk --release` gives `build/app/outputs/flutter-apk/app-release.apk`, 59.7 MB (one APK for all CPU types; `--split-per-abi` gives about a third of that per phone), signature verified with `apksigner`. R8 is on by default in a Flutter release build. Rebuilt with the backup (T-502), 59.9 MB; on the emulator (API 36) the release APK starts and works, the backup round trip included. Open: install on a phone.
 - [ ] **T-506 Docs** — user guide page in Obsidian, changelog, update [[02 Architecture]] with anything that drifted. DoD: docs match code. _depends:_ T-505
+
+## Next after the first release
+- [ ] **T-601 Home-screen widget (Android)** — today's tasks on the home screen, without opening the app; a tap opens the app. Needs a plan cache the widget can read (D2), native Android code and the `home_widget` package (to be approved). Asked for by the owner on 2026-11-14: opening the app every time is not convenient. DoD: the widget shows today's list and follows changes made in the app. _depends:_ T-505
 
 ## Parking lot (not scheduled)
 - Sync between devices (SyncEngine behind the existing repositories; LWW on `updatedAt`, tombstones via `deletedAt`)
 - Family group: partner sees my load (n/capacity per day), proposes tasks into my queue (`proposed` status, accept/decline), `ownerId`/`assigneeId`
-- Plan cache for home-screen widget / notification (D2)
 - Not-before / snooze date
 - Recurring tasks
 - Effort estimate and capacity in points
 - Tags / projects, subtasks
 - Stats and streaks
-- Home-screen widget
 - Sync / multi-device
 - "+1 more" button on Today (pull next task after completing)

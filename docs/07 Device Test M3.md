@@ -38,9 +38,9 @@ Default capacity: Mon–Fri 1, Sat 3, Sun 0.
 - [x] Tap a task: the editor opens; back returns to Today.
 
 ## Deadlines (story: warned when deadlines cannot be met)
-- [ ] Add three tasks due today on a day with capacity 1: two are shown (one marked "Extra"), a banner says today holds more than planned, a red banner says one task will not make its deadline.
-- [ ] Tap the red banner: the list of late tasks; tap one: the editor.
-- [ ] Tick one of the two: the third one **does** appear (deadline slots refill).
+- [x] Add three tasks due today on a day with capacity 1: two are shown (one marked "Extra"), a banner says today holds more than planned, a red banner says one task will not make its deadline.
+- [x] Tap the red banner: the list of late tasks; tap one: the editor.
+- [x] Tick one of the two: the third one **does** appear (deadline slots refill).
 
 ## Focus and overdue (stories: Focus, overdue never lost, ahead of time)
 - [ ] Mark a task of another day as Focus (editor switch, or swipe left on Tasks): it is in the Focus section on Today with "Planned for <day>".
@@ -83,3 +83,7 @@ Default capacity: Mon–Fri 1, Sat 3, Sun 0.
 
 ## Findings
 _Write here what went wrong: screen, steps, what you expected._
+
+From the first days with the release APK (0.2.0) on a phone; backup and restore, the dark theme and the language worked:
+- [x] The "Task completed" / "Moved to the Trash" message stayed on screen until something else happened. Cause: in this Flutter version a snackbar with an action persists by default. Fixed in 0.2.1: `undoSnackBar` in `lib/shared/task_actions_ui.dart`, gone after 4 seconds; test in `test/features/today_screen_test.dart`.
+- [x] Trash: the "Restore" and "Delete forever" buttons looked alike (two bins). Fixed in 0.2.1: an arrow back for "Restore", a red bin for "Delete forever".

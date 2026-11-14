@@ -642,5 +642,68 @@
   "actionChange": "Change",
   "@actionChange": {
     "description": "Dialog button: confirm the change"
+  },
+  "settingsBackup": "Backup",
+  "@settingsBackup": {
+    "description": "Settings: section with backup and restore"
+  },
+  "backupSave": "Save a backup",
+  "@backupSave": {
+    "description": "Settings: writes all data to a file the user places"
+  },
+  "backupSaveHint": "All tasks and planning settings in one file",
+  "@backupSaveHint": {
+    "description": "Settings: what a backup holds"
+  },
+  "backupRestore": "Restore from a backup",
+  "@backupRestore": {
+    "description": "Settings: reads a backup file and replaces the data of the app"
+  },
+  "backupRestoreHint": "Replaces everything in the app with the content of a backup file",
+  "@backupRestoreHint": {
+    "description": "Settings: what restoring does"
+  },
+  "backupSaved": "Backup saved",
+  "@backupSaved": {
+    "description": "Message after the backup file was written"
+  },
+  "backupSaveFailed": "Could not save the backup",
+  "@backupSaveFailed": {
+    "description": "Message when writing the backup file failed"
+  },
+  "backupRestoreTitle": "Restore from this backup?",
+  "@backupRestoreTitle": {
+    "description": "Title of the question before the data is replaced"
+  },
+  "backupRestoreBody": "The backup of {date} holds {count, plural, =1{1 task} other{{count} tasks}}. It replaces everything in the app: {current, plural, =1{1 task} other{{current} tasks}}, the Trash and the planning settings.",
+  "@backupRestoreBody": {
+    "description": "What restoring does: date of the backup, tasks in it, tasks in the app now",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      },
+      "current": {
+        "type": "int"
+      }
+    }
+  },
+  "backupRestored": "Restored from the backup",
+  "@backupRestored": {
+    "description": "Message after the data was replaced"
+  },
+  "backupNotABackup": "This file is not a TasksOrder backup",
+  "@backupNotABackup": {
+    "description": "Message when the picked file cannot be read as a backup"
+  },
+  "backupNewerVersion": "This backup was made by a newer version of the app. Update the app first.",
+  "@backupNewerVersion": {
+    "description": "Message when the backup format is newer than the app knows"
+  },
+  "backupReadFailed": "Could not read the file",
+  "@backupReadFailed": {
+    "description": "Message when the picked file could not be opened"
   }
 }

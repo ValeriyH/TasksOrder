@@ -2,11 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tasks_order/app/app.dart';
+import 'package:tasks_order/application/backup.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/domain/repository/backup_repository.dart';
 
 import '../data/test_database.dart';
 
@@ -24,12 +26,14 @@ class AppHarness {
   static final today = LocalDate(2026, 11, 13);
 
   /// Stores [settings] and [tasks], then starts the app and waits for the
-  /// first screen. [stored] are the SharedPreferences of the device.
+  /// first screen. [stored] are the SharedPreferences of the device;
+  /// [backupFiles] stands in for the file dialogs.
   static Future<AppHarness> start(
     WidgetTester tester, {
     List<Task> tasks = const [],
     Settings? settings,
     Map<String, Object> stored = const {},
+    BackupFileStore? backupFiles,
   }) async {
     SharedPreferences.setMockInitialValues(stored);
     final preferences = await SharedPreferences.getInstance();
@@ -39,6 +43,8 @@ class AppHarness {
         sharedPreferencesProvider.overrideWithValue(preferences),
         databaseProvider.overrideWithValue(db),
         clockProvider.overrideWithValue(() => now),
+        if (backupFiles != null)
+          backupFileStoreProvider.overrideWithValue(backupFiles),
       ],
     );
     addTearDown(() async {

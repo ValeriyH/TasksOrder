@@ -131,5 +131,18 @@
   "trashDeleteConfirm": "Видалити «{title}» назавжди? Це не можна скасувати.",
   "scaleShrinkTitle": "Менше рівнів пріоритету",
   "scaleShrinkBody": "{count, plural, one{{count} завдання отримає} few{{count} завдання отримають} many{{count} завдань отримають} other{{count} завдання отримають}} новий пріоритет на шкалі з {scale} рівнів. Порядок завдань збережеться.",
-  "actionChange": "Змінити"
+  "actionChange": "Змінити",
+  "settingsBackup": "Резервна копія",
+  "backupSave": "Зберегти резервну копію",
+  "backupSaveHint": "Усі завдання та налаштування планування в одному файлі",
+  "backupRestore": "Відновити з резервної копії",
+  "backupRestoreHint": "Замінює все в застосунку вмістом файлу резервної копії",
+  "backupSaved": "Резервну копію збережено",
+  "backupSaveFailed": "Не вдалося зберегти резервну копію",
+  "backupRestoreTitle": "Відновити з цієї копії?",
+  "backupRestoreBody": "Копія від {date} містить {count, plural, one{{count} завдання} few{{count} завдання} many{{count} завдань} other{{count} завдання}}. Вона замінить усе в застосунку: {current, plural, one{{current} завдання} few{{current} завдання} many{{current} завдань} other{{current} завдання}}, кошик і налаштування планування.",
+  "backupRestored": "Відновлено з резервної копії",
+  "backupNotABackup": "Цей файл не є резервною копією TasksOrder",
+  "backupNewerVersion": "Цю копію створила новіша версія застосунку. Спершу оновіть застосунок.",
+  "backupReadFailed": "Не вдалося прочитати файл"
 }

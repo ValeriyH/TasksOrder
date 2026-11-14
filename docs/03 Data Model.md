@@ -1,7 +1,7 @@
 ---
 tags: [data-model]
 created: 2026-11-12
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # 03 Data Model
 
@@ -176,5 +176,34 @@ abstract interface class DeviceSettingsRepository { // SharedPreferences, never 
 }
 ```
 
-## Backup format (v0.2)
-Single JSON file: `{ "version": 1, "exportedAt": ..., "settings": {...}, "tasks": [...], "dayOverrides": [...] }`. Import replaces everything after confirmation.
+## Backup format (version 1)
+One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `BackupCodec` (ADR-16 in [[02 Architecture]]):
+```json
+{
+  "app": "TasksOrder",
+  "version": 1,
+  "exportedAt": "2026-11-14T00:28:44.345Z",
+  "settings": { "priorityScale": 5, "weeklyCapacity": [1,1,1,1,1,3,0], "maxOverflowPerDay": 1,
+                "planningHorizonDays": 90, "urgencySoonDays": 7, "urgencyNearDays": 2,
+                "focusVisibleLimit": 3, "dayStartHour": 0 },
+  "tasks": [ { "id": "…", "title": "…", "priority": 3, "isFocused": false, "status": "active",
+               "createdAt": "…", "updatedAt": "…", "completedOnPlan": false } ],
+  "dayOverrides": [ { "date": "2026-12-25", "capacity": 0, "note": "holiday" } ]
+}
+```
+- Task fields are those of the `Task` table above; a field without a value (`notes`, `dueDate`, `focusedAt`, `pinnedDate`, `notBefore`, `completedAt`, `deletedAt`) is left out. `status` is `active` or `done`.
+- Instants are ISO-8601 UTC text, calendar days `yyyy-MM-dd`.
+- `tasks` holds the Trash too (`deletedAt`); `dayOverrides` only the ones in force. Device settings are not in the file.
+- Reading checks the invariants of `Task` and `Settings`; a file that breaks them, or with `version` above 1, is refused and nothing changes. A priority outside the scale of the file is moved to the nearest end. Unknown fields are ignored.
+- Restore replaces everything after a confirmation (`BackupRepository.replaceAll`, one transaction). Tasks keep their timestamps.
+
+```dart
+abstract interface class BackupRepository {
+  Future<Backup> read(DateTime now);                     // everything, the Trash too
+  Future<void> replaceAll(Backup backup, DateTime now);  // all or nothing
+}
+abstract interface class BackupFileStore {               // system file dialogs
+  Future<bool> save(String fileName, String content);    // false = cancelled
+  Future<String?> pick();                                // null = cancelled
+}
+```

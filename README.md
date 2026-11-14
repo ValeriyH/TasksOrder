@@ -34,6 +34,7 @@ Day-to-day:
 | `flutter analyze` | static analysis, must be clean |
 | `flutter test` | unit and widget tests |
 | `flutter build apk --debug` | debug APK |
+| `flutter build apk --release` | release APK; signed with the release key when `android/key.properties` exists (ADR-15), else with the debug key |
 | `dart run tool/web_assets.dart` | refresh `web/drift_worker.js` and `web/sqlite3.wasm` after upgrading `drift` or `sqlite3` |
 
 ## Project layout

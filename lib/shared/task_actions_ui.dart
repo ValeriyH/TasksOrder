@@ -9,6 +9,23 @@ import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/task_tile.dart';
 
+/// How long a message with "Undo" stays on screen.
+const undoSnackBarDuration = Duration(seconds: 4);
+
+/// A message with an "Undo" button that goes away by itself after
+/// [undoSnackBarDuration]. Flutter keeps a snackbar with an action until it is
+/// closed unless it is told otherwise (`persist`).
+SnackBar undoSnackBar({
+  required String message,
+  required String undoLabel,
+  required VoidCallback onUndo,
+}) => SnackBar(
+  content: Text(message),
+  duration: undoSnackBarDuration,
+  persist: false,
+  action: SnackBarAction(label: undoLabel, onPressed: onUndo),
+);
+
 /// Completes the task and offers "Undo" in a snackbar.
 ///
 /// [onPlan]: the task is on today's list of the plan right now, so its slot
@@ -29,12 +46,10 @@ Future<void> completeWithUndo(
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
-      SnackBar(
-        content: Text(l10n.taskCompleted),
-        action: SnackBarAction(
-          label: l10n.actionUndo,
-          onPressed: () => unawaited(actions.uncomplete(task.id)),
-        ),
+      undoSnackBar(
+        message: l10n.taskCompleted,
+        undoLabel: l10n.actionUndo,
+        onUndo: () => unawaited(actions.uncomplete(task.id)),
       ),
     );
 }

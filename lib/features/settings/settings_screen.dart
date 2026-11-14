@@ -2,17 +2,21 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:tasks_order/application/backup.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/application/task_actions.dart';
+import 'package:tasks_order/domain/model/backup.dart';
 import 'package:tasks_order/domain/model/device_settings.dart';
+import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/number_stepper.dart';
+import 'package:tasks_order/shared/task_tile.dart';
 
-/// Device settings (language, theme) and planning settings. Every change is
-/// stored at once and the plan follows it.
+/// Device settings (language, theme), planning settings and the backup.
+/// Every change is stored at once and the plan follows it.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -48,9 +52,106 @@ class SettingsScreen extends ConsumerWidget {
               child: Center(child: CircularProgressIndicator()),
             ),
           },
+          _Header(l10n.settingsBackup),
+          const _BackupSection(),
         ],
       ),
     );
+  }
+}
+
+/// Backup to a file and restore from one (T-502).
+class _BackupSection extends ConsumerWidget {
+  const _BackupSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    return Column(
+      children: [
+        ListTile(
+          key: const ValueKey('backupSave'),
+          leading: const Icon(Icons.save_alt),
+          title: Text(l10n.backupSave),
+          subtitle: Text(l10n.backupSaveHint),
+          onTap: () => unawaited(_save(context, ref)),
+        ),
+        ListTile(
+          key: const ValueKey('backupRestore'),
+          leading: const Icon(Icons.settings_backup_restore),
+          title: Text(l10n.backupRestore),
+          subtitle: Text(l10n.backupRestoreHint),
+          onTap: () => unawaited(_restore(context, ref)),
+        ),
+      ],
+    );
+  }
+
+  static void _say(ScaffoldMessengerState messenger, String text) => messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
+
+  static Future<void> _save(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final bool saved;
+    try {
+      saved = await ref.read(backupServiceProvider).save();
+    } on Exception {
+      _say(messenger, l10n.backupSaveFailed);
+      return;
+    }
+    if (saved) _say(messenger, l10n.backupSaved);
+  }
+
+  static Future<void> _restore(BuildContext context, WidgetRef ref) async {
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+    final service = ref.read(backupServiceProvider);
+
+    final Backup? backup;
+    try {
+      backup = await service.pick();
+    } on BackupFormatException catch (e) {
+      _say(messenger, switch (e.problem) {
+        BackupProblem.notABackup => l10n.backupNotABackup,
+        BackupProblem.newerVersion => l10n.backupNewerVersion,
+      });
+      return;
+    } on Exception {
+      _say(messenger, l10n.backupReadFailed);
+      return;
+    }
+    if (backup == null) return;
+    // From the store: the task list of the app may be paused on this tab.
+    final current = await service.currentTaskCount();
+    if (!context.mounted) return;
+
+    final date = shortDate(
+      context,
+      LocalDate.fromDateTime(backup.exportedAt.toLocal()),
+    );
+    final count = backup.taskCount;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.backupRestoreTitle),
+        content: Text(l10n.backupRestoreBody(date, count, current)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.actionCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.actionRestore),
+          ),
+        ],
+      ),
+    );
+    if (!(confirmed ?? false)) return;
+    await service.restore(backup);
+    _say(messenger, l10n.backupRestored);
   }
 }
 
