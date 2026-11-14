@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +9,9 @@ import 'package:tasks_order/application/device_settings_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // The app draws under the system bars on every Android version, as it has
+  // to from Android 15 on; their style follows the theme (T-503).
+  unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
   // Loaded before the first frame, so the app starts in the stored language
   // and theme instead of switching to them a moment later.
   final preferences = await SharedPreferences.getInstance();

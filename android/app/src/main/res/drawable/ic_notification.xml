@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status bar icon of the morning notification (T-501): the app icon's
+     glyph, white on transparent, as Android expects. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Bars, getting shorter: the tasks in order. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10,5.07h10.8a1.17,1.17 0,0 1,0 2.34h-10.8a1.17,1.17 0,0 1,0 -2.34z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10,10.83h8.2a1.17,1.17 0,0 1,0 2.34h-8.2a1.17,1.17 0,0 1,0 -2.34z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10,16.59h5.3a1.17,1.17 0,0 1,0 2.34h-5.3a1.17,1.17 0,0 1,0 -2.34z" />
+    <!-- The first task is done. -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M2.4,6.3L3.7,7.6L6.3,4.6" />
+    <!-- The other markers. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,12m-1.35,0a1.35,1.35 0,1 1,2.7 0a1.35,1.35 0,1 1,-2.7 0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,17.76m-1.35,0a1.35,1.35 0,1 1,2.7 0a1.35,1.35 0,1 1,-2.7 0" />
+</vector>

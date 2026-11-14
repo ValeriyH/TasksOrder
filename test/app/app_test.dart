@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -201,6 +202,37 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(brightness(tester), Brightness.light);
+    });
+
+    testWidgets('the system navigation bar follows the app theme (T-503)', (
+      tester,
+    ) async {
+      // The device is light, the app is dark: the bar must not stay light.
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      final container = await pumpApp(
+        tester,
+        stored: {'device.themeMode': 'dark'},
+      );
+      Brightness? barIcons() => tester
+          .widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is AnnotatedRegion<SystemUiOverlayStyle> &&
+                  w.value.systemNavigationBarColor != null,
+            ),
+          )
+          .value
+          .systemNavigationBarIconBrightness;
+
+      expect(barIcons(), Brightness.light);
+
+      await container
+          .read(deviceSettingsProvider.notifier)
+          .setThemeMode(AppThemeMode.light);
+      await tester.pumpAndSettle();
+
+      expect(barIcons(), Brightness.dark);
     });
   });
 

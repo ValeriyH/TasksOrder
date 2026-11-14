@@ -4,22 +4,27 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tasks_order/app/app.dart';
 import 'package:tasks_order/application/backup.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
+import 'package:tasks_order/application/notifications.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/backup_repository.dart';
+import 'package:tasks_order/domain/repository/notification_scheduler.dart';
 
 import '../data/test_database.dart';
 
 /// The whole app on an in-memory database with a fixed clock, for widget
 /// tests of the screens.
 class AppHarness {
-  AppHarness._(this.tester, this.container);
+  AppHarness._(this.tester, this.container, this.notifications);
 
   final WidgetTester tester;
   final ProviderContainer container;
+
+  /// Stands in for the notifications of the device.
+  final FakeNotificationScheduler notifications;
 
   /// A Friday, 10:00 local time. Default capacity: Friday 1, Saturday 3,
   /// Sunday 0; overflow 1.
@@ -35,7 +40,9 @@ class AppHarness {
     Settings? settings,
     Map<String, Object> stored = const {},
     BackupFileStore? backupFiles,
+    FakeNotificationScheduler? notifications,
   }) async {
+    final scheduler = notifications ?? FakeNotificationScheduler();
     SharedPreferences.setMockInitialValues(stored);
     final preferences = await SharedPreferences.getInstance();
     final db = newTestDatabase();
@@ -44,6 +51,7 @@ class AppHarness {
         sharedPreferencesProvider.overrideWithValue(preferences),
         databaseProvider.overrideWithValue(db),
         clockProvider.overrideWithValue(() => now),
+        notificationSchedulerProvider.overrideWithValue(scheduler),
         if (backupFiles != null)
           backupFileStoreProvider.overrideWithValue(backupFiles),
       ],
@@ -52,7 +60,7 @@ class AppHarness {
       container.dispose();
       await db.close();
     });
-    final harness = AppHarness._(tester, container);
+    final harness = AppHarness._(tester, container, scheduler);
 
     await harness.real(() async {
       if (settings != null) {
@@ -101,3 +109,35 @@ Task testTask(
   isFocused: isFocused,
   now: DateTime(2026, 11, 13, 9, minute),
 ).copyWith(pinnedDate: pinnedDate);
+
+/// Notifications that only remember what they were asked to do.
+class FakeNotificationScheduler implements NotificationScheduler {
+  FakeNotificationScheduler({this.grant = true});
+
+  /// The answer of the user to the permission question.
+  bool grant;
+
+  int permissionRequests = 0;
+
+  /// What is pending now, and the channel name it came with.
+  List<ScheduledNotification> pending = const [];
+  String? channelName;
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return grant;
+  }
+
+  @override
+  Future<void> replacePending(
+    List<ScheduledNotification> notifications, {
+    required String channelName,
+  }) async {
+    pending = notifications;
+    this.channelName = channelName;
+  }
+}

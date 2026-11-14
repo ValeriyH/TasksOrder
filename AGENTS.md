@@ -6,7 +6,7 @@
 - When a piece of work is done, list the changed files and suggest a commit message instead of committing.
 
 ## Workflow
-- Chat with the owner in Ukrainian; code, comments, commit messages and `docs/` in English.
+- Chat with the owner in Ukrainian; code, comments, commit messages and developer docs in `docs/` in English; user-facing docs (the user guide) in English and Ukrainian, kept in step (`docs/08 User Guide.md`, `docs/08 User Guide uk.md`).
 - `docs/` is an Obsidian vault and the source of truth: next task comes from `docs/06 Task Backlog.md`; record decisions as ADRs in `docs/02 Architecture.md`.
 - `Readme.txt` is the owner's scratchpad: do not edit it.
 - Before calling a task done: `dart format lib test`, `flutter analyze` clean, `flutter test` green (CI checks all three).

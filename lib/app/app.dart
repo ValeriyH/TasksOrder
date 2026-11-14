@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/app/theme.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
+import 'package:tasks_order/application/notifications.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/l10n/l10n.dart';
@@ -33,6 +35,14 @@ class _TasksOrderAppState extends ConsumerState<TasksOrderApp> {
     );
     // Tasks deleted long ago leave the Trash for good (D14).
     unawaited(ref.read(taskActionsProvider).purgeOldTrash());
+    // The morning notifications follow the plan (T-501): every change of
+    // the plan, the language or the time reschedules the coming week.
+    ref.listenManual(morningScheduleProvider, (_, schedule) {
+      if (schedule == null) return;
+      unawaited(
+        applyMorningSchedule(ref.read(notificationSchedulerProvider), schedule),
+      );
+    }, fireImmediately: true);
   }
 
   @override
@@ -60,6 +70,25 @@ class _TasksOrderAppState extends ConsumerState<TasksOrderApp> {
       theme: appTheme(Brightness.light),
       darkTheme: appTheme(Brightness.dark),
       themeMode: ref.watch(themeModeProvider),
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: systemBarsStyle(Theme.of(context).brightness),
+        child: child!,
+      ),
     );
   }
+}
+
+/// The Android system navigation bar follows the theme of the app, not the
+/// one of the device (T-503): transparent, so the app's own bottom bar or
+/// background shows under it, with icons that stand out against it.
+SystemUiOverlayStyle systemBarsStyle(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  return SystemUiOverlayStyle(
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarContrastEnforced: false,
+    systemNavigationBarIconBrightness: dark
+        ? Brightness.light
+        : Brightness.dark,
+  );
 }

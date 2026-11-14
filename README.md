@@ -10,11 +10,12 @@ Flutter · Riverpod · drift (SQLite) · freezed · go_router. UI in Ukrainian a
 ## Documentation
 Product and technical docs live in [`docs/`](docs/Home.md) (an Obsidian vault):
 
-- [01 Brainstorm](docs/01%20Brainstorm.md): requirements and decisions D1–D15
+- [01 Brainstorm](docs/01%20Brainstorm.md): requirements and decisions D1–D21
 - [02 Architecture](docs/02%20Architecture.md): layers, project structure, testing strategy
 - [03 Data Model](docs/03%20Data%20Model.md)
 - [04 Planner Algorithm](docs/04%20Planner%20Algorithm.md): the planner contract and its test table
 - [05 Roadmap](docs/05%20Roadmap.md) and [06 Task Backlog](docs/06%20Task%20Backlog.md)
+- [08 User Guide](docs/08%20User%20Guide.md) ([українською](docs/08%20User%20Guide%20uk.md)) and [09 Changelog](docs/09%20Changelog.md)
 
 ## Getting started
 Requirements: Flutter stable (3.50+), JDK 17, Android SDK (platform 36). For the Windows target: Visual Studio Build Tools 2022 with "Desktop development with C++" and Windows Developer Mode (plugins need symlinks). Web runs in Chrome.
@@ -33,6 +34,8 @@ Day-to-day:
 | `dart format lib test` | formatting (CI fails on unformatted code) |
 | `flutter analyze` | static analysis, must be clean |
 | `flutter test` | unit and widget tests |
+| `flutter test integration_test -d <device>` | the happy path on a device or emulator (replaces an installed release-signed app) |
+| `dart run flutter_launcher_icons` / `dart run flutter_native_splash:create` | regenerate the icons / the launch screen from `assets/icon/` |
 | `flutter build apk --debug` | debug APK |
 | `flutter build apk --release` | release APK; signed with the release key when `android/key.properties` exists (ADR-15), else with the debug key |
 | `dart run tool/web_assets.dart` | refresh `web/drift_worker.js` and `web/sqlite3.wasm` after upgrading `drift` or `sqlite3` |

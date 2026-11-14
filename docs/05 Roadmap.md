@@ -33,6 +33,12 @@ M7 was designed on 2026-11-14 and does not depend on the open tasks of M5 or on 
 - **Scope creep**: parking lot in [[01 Brainstorm]] exists for a reason.
 
 ## Retro
+### M5 — 2026-11-14
+- **Done:** T-501 … T-506. Morning notification, icon and launch screen, navigation bar per theme, string review, integration test, release 0.3.0+4, user guide and changelog; 476 tests plus the integration test.
+- **Demo:** emulator, release APK driven over adb: the permission dialog, a notification with the day's task, the same after a cold boot; the app in dark Ukrainian on every screen; the icon in the launcher.
+- **Changed decisions:** ADR-20 (the notifications of the next week are computed from the plan when the app runs, no background job); ADR-21 (icon and splash generated from `assets/icon/`, the name stays "TasksOrder" in both languages); `flutter_local_notifications` held at 22.x for `compileSdk 36`.
+- **New backlog items:** none.
+- **Learned:** an inexact alarm can come at the very end of its window (4.5 min); `adb reboot` closes the emulator instead of rebooting it, `adb emu kill` and a new start give a clean cold boot; the notification plugin needs Gson keep rules and a `keep.xml` for an icon named only from Dart; an integration test on a device has to wait for the database (`pumpUntil`) and scroll off-screen chips into view; installing the debug APK of an integration test replaces a release-signed app with its data; on Windows a Python script that writes text files must use `newline=''` or they turn CRLF.
 ### M3 — 2026-11-14 (closed after M4, with T-308)
 - **Done:** T-301 … T-308. The device walkthrough ([[07 Device Test M3]]) ran on the emulator (`TasksOrder_API36`, debug build; midnight and overdue checked by moving the emulator clock); the owner checked the web app (a task survives a reload), vibration and light/dark on the phone. Fixes in 0.2.2; 460 tests.
 - **Demo:** emulator, driven over adb; release 0.2.x in everyday use on the owner's phone.

@@ -86,7 +86,7 @@ Planning settings above would sync per user in the future. **Device settings** s
 | `locale` | `AppLocale` | `system` | `system` (device language, fallback en), `uk`, `en`; user-selectable (D13) |
 | `themeMode` | `AppThemeMode` | `system` | `system` (device light/dark), `light`, `dark`; user-selectable (D13) |
 | `showReasons` | `bool` | true | badges "due / pinned / overflow" |
-| `notificationTime` | `TimeOfDay?` | null | v0.2 |
+| `notificationTime` | `int?` | null | morning notification: minutes after midnight, local time; null = off (T-501, ADR-20). Stored as `device.notificationTime`; a value outside 0..1439 reads as off |
 
 ### DayOverride
 | Field | Type | Notes |

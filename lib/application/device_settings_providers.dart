@@ -37,6 +37,11 @@ class DeviceSettingsNotifier extends _$DeviceSettingsNotifier {
   Future<void> setShowReasons(bool showReasons) =>
       _save(state.copyWith(showReasons: showReasons));
 
+  /// [time] in minutes after midnight; null switches the morning
+  /// notification off.
+  Future<void> setNotificationTime(int? time) =>
+      _save(state.copyWith(notificationTime: time));
+
   Future<void> _save(DeviceSettings settings) {
     state = settings;
     return ref.read(deviceSettingsRepositoryProvider).save(settings);

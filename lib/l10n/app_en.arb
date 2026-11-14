@@ -362,6 +362,40 @@
   "@settingsShowReasonsHint": {
     "description": "Explains the reasons switch"
   },
+  "settingsNotification": "Morning notification",
+  "@settingsNotification": {
+    "description": "Settings: switch of the daily notification with today's tasks"
+  },
+  "settingsNotificationOff": "Off",
+  "@settingsNotificationOff": {
+    "description": "Subtitle of the morning notification row when it is switched off"
+  },
+  "settingsNotificationAt": "Every day at {time}, with the day's tasks",
+  "@settingsNotificationAt": {
+    "description": "Subtitle of the morning notification row; tap it to change the time",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationDenied": "Notifications are not allowed for the app. Allow them in the system settings.",
+  "@notificationDenied": {
+    "description": "Snack bar: the user refused the notification permission"
+  },
+  "notificationChannel": "Morning plan",
+  "@notificationChannel": {
+    "description": "Name of the notification channel in the system settings"
+  },
+  "notificationTitle": "{count, plural, =1{Today: 1 task} other{Today: {count} tasks}}",
+  "@notificationTitle": {
+    "description": "Title of the morning notification; the body lists the tasks",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "settingsPlanning": "Planning",
   "@settingsPlanning": {
     "description": "Settings: section with the planning settings"
@@ -576,7 +610,7 @@
   "@trashEmpty": {
     "description": "Trash: empty state"
   },
-  "trashHint": "Deleted tasks are removed for good after {days} days",
+  "trashHint": "{days, plural, =1{Deleted tasks are removed for good after 1 day} other{Deleted tasks are removed for good after {days} days}}",
   "@trashHint": {
     "description": "Trash: note on top of the list",
     "placeholders": {

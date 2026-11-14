@@ -21,6 +21,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications uses java.time on older Androids (T-501).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -56,6 +58,8 @@ android {
             // installation that was signed with the release key.
             signingConfig = signingConfigs.findByName("release")
                 ?: signingConfigs.getByName("debug")
+            // Added to the rules of the Flutter plugin (T-501).
+            proguardFiles("proguard-rules.pro")
         }
     }
 }
@@ -68,4 +72,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

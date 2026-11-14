@@ -16,6 +16,7 @@ void main() {
     expect(defaults.locale, AppLocale.system);
     expect(defaults.themeMode, AppThemeMode.system);
     expect(defaults.showReasons, isTrue);
+    expect(defaults.notificationTime, isNull);
   });
 
   test('nothing stored gives the defaults', () async {
@@ -30,6 +31,7 @@ void main() {
       locale: AppLocale.uk,
       themeMode: AppThemeMode.dark,
       showReasons: false,
+      notificationTime: 7 * 60 + 30,
     );
     await repo.save(settings);
 
@@ -38,6 +40,36 @@ void main() {
     expect(prefs.getString(PrefsDeviceSettingsRepository.localeKey), 'uk');
     expect(prefs.getString(PrefsDeviceSettingsRepository.themeModeKey), 'dark');
     expect(prefs.getBool(PrefsDeviceSettingsRepository.showReasonsKey), false);
+    expect(
+      prefs.getInt(PrefsDeviceSettingsRepository.notificationTimeKey),
+      450,
+    );
+  });
+
+  test('switching the notification off removes its time', () async {
+    final repo = await repoWith({
+      PrefsDeviceSettingsRepository.notificationTimeKey: 480,
+    });
+    expect(repo.load().notificationTime, 480);
+
+    await repo.save(const DeviceSettings());
+
+    expect(repo.load().notificationTime, isNull);
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.containsKey(PrefsDeviceSettingsRepository.notificationTimeKey),
+      isFalse,
+    );
+  });
+
+  test('a notification time outside the day is ignored', () async {
+    for (final stored in <Object>[-1, 24 * 60, '08:00']) {
+      final repo = await repoWith({
+        PrefsDeviceSettingsRepository.notificationTimeKey: stored,
+      });
+
+      expect(repo.load().notificationTime, isNull, reason: '$stored');
+    }
   });
 
   test('an unknown name falls back to the default of that field', () async {

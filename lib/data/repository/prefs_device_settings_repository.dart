@@ -9,6 +9,9 @@ class PrefsDeviceSettingsRepository implements DeviceSettingsRepository {
   static const localeKey = 'device.locale';
   static const themeModeKey = 'device.themeMode';
   static const showReasonsKey = 'device.showReasons';
+  static const notificationTimeKey = 'device.notificationTime';
+
+  static const _minutesPerDay = 24 * 60;
 
   final SharedPreferences _prefs;
 
@@ -20,6 +23,10 @@ class PrefsDeviceSettingsRepository implements DeviceSettingsRepository {
       themeMode: _enum(themeModeKey, AppThemeMode.values) ?? defaults.themeMode,
       showReasons:
           _read(_prefs.getBool, showReasonsKey) ?? defaults.showReasons,
+      notificationTime: switch (_read(_prefs.getInt, notificationTimeKey)) {
+        final minute? when minute >= 0 && minute < _minutesPerDay => minute,
+        _ => null,
+      },
     );
   }
 
@@ -28,6 +35,12 @@ class PrefsDeviceSettingsRepository implements DeviceSettingsRepository {
     await _prefs.setString(localeKey, settings.locale.name);
     await _prefs.setString(themeModeKey, settings.themeMode.name);
     await _prefs.setBool(showReasonsKey, settings.showReasons);
+    final time = settings.notificationTime;
+    if (time == null) {
+      await _prefs.remove(notificationTimeKey);
+    } else {
+      await _prefs.setInt(notificationTimeKey, time);
+    }
   }
 
   /// Null when the stored name is not one of [values], e.g. written by a

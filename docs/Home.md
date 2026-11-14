@@ -12,6 +12,9 @@ Flutter app (Android first; Windows and web for development) that takes an unsor
 - [[04 Planner Algorithm]] — the scheduling algorithm with worked examples and test cases
 - [[05 Roadmap]] — milestones
 - [[06 Task Backlog]] — concrete tasks with definition of done
+- [[07 Device Test M3]] — manual walkthrough on a device
+- [[08 User Guide]] — how to use the app ([[08 User Guide uk|українською]])
+- [[09 Changelog]] — what changed in each version
 
 ## Development cycle
 Plan → Split into tasks → Implement → Test & fix → Next step (new needs analysis or next task from [[06 Task Backlog]]).
@@ -30,3 +33,4 @@ Plan → Split into tasks → Implement → Test & fix → Next step (new needs 
 - 2026-11-14 (device walkthrough, 0.2.2): [[07 Device Test M3]] passed on the emulator; the owner checked web, vibration and light/dark on the phone. Fixes: priorities are fixed levels of the ten-level table and a scale change touches no task (ADR-17, D1; schema 2, backup format 2); Today header "Planned left/total" with the overload banner on the same total and the full capacity; "Rest day" in the Plan. Ukrainian level 8 is "Якось" everywhere. 460 tests. T-308 and M3 closed (retro in [[05 Roadmap]]). Next: M5.
 - 2026-11-14 (brainstorm: recurring tasks): **D20**, ADR-18. A task can repeat every N days / weeks / months / years or on weekdays, by schedule or from completion. One stored instance per series; the next one is created when it is completed or skipped; the later repeats of the horizon are ghosts computed by the planner. `notBefore` becomes a release date. Schema 3 and backup format 3 are designed, not built. Docs 01–06 updated; tasks T-701 … T-709 (M7) in [[06 Task Backlog]]. No code yet.
 - 2026-11-14 (brainstorm: task size): **D21**, ADR-19. A task is small, normal or large: ½, 1 or 2 slots of the daily capacity, stored as a weight in half-slots. A task is done within one day; a bigger job is split by hand. The planner fills a day first fit by priority, so a large task waits for a day that can hold it; a large task of level 1–2 may take a working day with overflow; a large task never weighs more than the biggest day of the week. Schema 4 and backup format 4 are designed, not built. Docs 01–06 updated; tasks T-801 … T-806 (M8, after M7) in [[06 Task Backlog]]. No code yet.
+- 2026-11-14 (M5 closed, 0.3.0): morning notification with the day's tasks (T-501, ADR-20), icon, launch screen and a navigation bar that follows the theme (T-503, ADR-21), an integration test on the emulator (T-504), release 0.3.0+4 (T-505), [[08 User Guide]] and [[09 Changelog]] (T-506); 476 tests. Retro in [[05 Roadmap]]. Next: the home-screen widget (T-601) or M7, the owner's choice.

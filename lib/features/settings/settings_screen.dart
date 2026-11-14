@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/application/backup.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
+import 'package:tasks_order/application/notifications.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/backup.dart';
 import 'package:tasks_order/domain/model/device_settings.dart';
@@ -197,8 +198,84 @@ class _DeviceSection extends ConsumerWidget {
           value: device.showReasons,
           onChanged: (value) => unawaited(notifier.setShowReasons(value)),
         ),
+        if (ref.watch(notificationSchedulerProvider).isSupported)
+          const _NotificationTile(),
       ],
     );
+  }
+}
+
+/// The morning notification (T-501): the switch asks for the permission, a
+/// tap on the row chooses the time.
+class _NotificationTile extends ConsumerWidget {
+  const _NotificationTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final time = ref.watch(
+      deviceSettingsProvider.select((settings) => settings.notificationTime),
+    );
+    final notifier = ref.read(deviceSettingsProvider.notifier);
+
+    return ListTile(
+      key: const ValueKey('notification'),
+      leading: const Icon(Icons.notifications_outlined),
+      title: Text(l10n.settingsNotification),
+      subtitle: Text(
+        time == null
+            ? l10n.settingsNotificationOff
+            : l10n.settingsNotificationAt(
+                MaterialLocalizations.of(context).formatTimeOfDay(
+                  _timeOfDay(time),
+                  alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(
+                    context,
+                  ),
+                ),
+              ),
+      ),
+      trailing: Switch(
+        key: const ValueKey('notificationSwitch'),
+        value: time != null,
+        onChanged: (on) => unawaited(
+          on ? _switchOn(context, ref) : notifier.setNotificationTime(null),
+        ),
+      ),
+      onTap: time == null ? null : () => unawaited(_pickTime(context, ref)),
+    );
+  }
+
+  static TimeOfDay _timeOfDay(int minute) =>
+      TimeOfDay(hour: minute ~/ 60, minute: minute % 60);
+
+  static Future<void> _switchOn(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final denied = context.l10n.notificationDenied;
+    final granted = await ref
+        .read(notificationSchedulerProvider)
+        .requestPermission();
+    if (!granted) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(denied)));
+      return;
+    }
+    await ref
+        .read(deviceSettingsProvider.notifier)
+        .setNotificationTime(DeviceSettings.defaultNotificationTime);
+  }
+
+  static Future<void> _pickTime(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(deviceSettingsProvider).notificationTime;
+    if (current == null) return;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _timeOfDay(current),
+    );
+    if (picked == null) return;
+    await ref
+        .read(deviceSettingsProvider.notifier)
+        .setNotificationTime(picked.hour * 60 + picked.minute);
   }
 }
 
