@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home-screen widget (T-601); the texts of the tasks come from the app. -->
+    <string name="widget_name" translatable="false">TasksOrder</string>
+    <string name="widget_description">Today\'s tasks</string>
+    <string name="widget_open_app">Open TasksOrder to see the plan</string>
+</resources>

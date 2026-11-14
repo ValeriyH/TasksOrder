@@ -396,6 +396,22 @@
       }
     }
   },
+  "widgetHeader": "Today · {left}/{total}",
+  "@widgetHeader": {
+    "description": "Home-screen widget: header with the tasks left and all tasks of today's list",
+    "placeholders": {
+      "left": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "widgetStale": "Open TasksOrder to update the plan",
+  "@widgetStale": {
+    "description": "Home-screen widget: the app has not run for longer than the cached days"
+  },
   "settingsPlanning": "Planning",
   "@settingsPlanning": {
     "description": "Settings: section with the planning settings"

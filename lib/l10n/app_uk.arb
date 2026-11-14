@@ -85,6 +85,8 @@
   "notificationDenied": "Сповіщення для застосунку заборонені. Дозвольте їх у налаштуваннях системи.",
   "notificationChannel": "План на ранок",
   "notificationTitle": "{count, plural, one{Сьогодні: {count} завдання} few{Сьогодні: {count} завдання} many{Сьогодні: {count} завдань} other{Сьогодні: {count} завдання}}",
+  "widgetHeader": "Сьогодні · {left}/{total}",
+  "widgetStale": "Відкрийте TasksOrder, щоб оновити план",
   "settingsPlanning": "Планування",
   "settingsPriorityScale": "Рівнів пріоритету",
   "plainNumber": "{value}",

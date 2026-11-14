@@ -1,0 +1,75 @@
+import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/plan.dart';
+import 'package:tasks_order/domain/model/task.dart';
+
+/// One day of the home-screen widget (T-601): what the Today screen would
+/// show on [date].
+final class WidgetDay {
+  const WidgetDay({
+    required this.date,
+    required this.titles,
+    this.doneCount = 0,
+    this.isRestDay = false,
+  });
+
+  final LocalDate date;
+
+  /// Titles of the tasks still planned for [date], in plan order.
+  final List<String> titles;
+
+  /// Tasks of the day's list already completed; only today has any.
+  final int doneCount;
+
+  /// Nothing planned because the day has no capacity.
+  final bool isRestDay;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WidgetDay &&
+      other.date == date &&
+      other.doneCount == doneCount &&
+      other.isRestDay == isRestDay &&
+      other.titles.length == titles.length &&
+      Iterable<int>.generate(titles.length)
+          .every((i) => other.titles[i] == titles[i]);
+
+  @override
+  int get hashCode =>
+      Object.hash(date, doneCount, isRestDay, Object.hashAll(titles));
+
+  @override
+  String toString() => 'WidgetDay($date, $titles, done $doneCount)';
+}
+
+/// The first [days] days of [plan] for the home-screen widget.
+///
+/// The widget cannot compute the plan (D2), so the app hands it a cache of
+/// the coming days and the widget picks the current one by itself; that way
+/// it turns to the next day at the day start without the app. The days after
+/// today are a forecast, as for the morning notification (ADR-20).
+///
+/// [doneToday] is the number of completions from today's list
+/// (`Planner.countCompletedToday`).
+List<WidgetDay> widgetDays({
+  required Plan plan,
+  required Map<String, Task> tasksById,
+  required int doneToday,
+  int days = 7,
+}) => [
+  for (final day in plan.days.take(days))
+    _widgetDay(day, tasksById, day.date == plan.today ? doneToday : 0),
+];
+
+WidgetDay _widgetDay(PlannedDay day, Map<String, Task> tasksById, int done) {
+  final titles = [
+    for (final entry in day.entries)
+      if (tasksById[entry.taskId] case final task?) task.title,
+  ];
+  return WidgetDay(
+    date: day.date,
+    titles: titles,
+    doneCount: done,
+    // Today's capacity is already reduced by the completions (D19).
+    isRestDay: titles.isEmpty && done == 0 && day.capacity == 0,
+  );
+}

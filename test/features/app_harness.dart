@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tasks_order/app/app.dart';
 import 'package:tasks_order/application/backup.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
+import 'package:tasks_order/application/home_widget.dart';
 import 'package:tasks_order/application/notifications.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
@@ -11,6 +12,7 @@ import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/backup_repository.dart';
+import 'package:tasks_order/domain/repository/home_screen_widget.dart';
 import 'package:tasks_order/domain/repository/notification_scheduler.dart';
 
 import '../data/test_database.dart';
@@ -18,13 +20,21 @@ import '../data/test_database.dart';
 /// The whole app on an in-memory database with a fixed clock, for widget
 /// tests of the screens.
 class AppHarness {
-  AppHarness._(this.tester, this.container, this.notifications);
+  AppHarness._(
+    this.tester,
+    this.container,
+    this.notifications,
+    this.homeWidget,
+  );
 
   final WidgetTester tester;
   final ProviderContainer container;
 
   /// Stands in for the notifications of the device.
   final FakeNotificationScheduler notifications;
+
+  /// Stands in for the home-screen widget.
+  final FakeHomeScreenWidget homeWidget;
 
   /// A Friday, 10:00 local time. Default capacity: Friday 1, Saturday 3,
   /// Sunday 0; overflow 1.
@@ -43,6 +53,7 @@ class AppHarness {
     FakeNotificationScheduler? notifications,
   }) async {
     final scheduler = notifications ?? FakeNotificationScheduler();
+    final homeWidget = FakeHomeScreenWidget();
     SharedPreferences.setMockInitialValues(stored);
     final preferences = await SharedPreferences.getInstance();
     final db = newTestDatabase();
@@ -52,6 +63,7 @@ class AppHarness {
         databaseProvider.overrideWithValue(db),
         clockProvider.overrideWithValue(() => now),
         notificationSchedulerProvider.overrideWithValue(scheduler),
+        homeScreenWidgetProvider.overrideWithValue(homeWidget),
         if (backupFiles != null)
           backupFileStoreProvider.overrideWithValue(backupFiles),
       ],
@@ -60,7 +72,7 @@ class AppHarness {
       container.dispose();
       await db.close();
     });
-    final harness = AppHarness._(tester, container, scheduler);
+    final harness = AppHarness._(tester, container, scheduler, homeWidget);
 
     await harness.real(() async {
       if (settings != null) {
@@ -140,4 +152,15 @@ class FakeNotificationScheduler implements NotificationScheduler {
     pending = notifications;
     this.channelName = channelName;
   }
+}
+
+/// A home-screen widget that only remembers what it was sent.
+class FakeHomeScreenWidget implements HomeScreenWidget {
+  final payloads = <String>[];
+
+  @override
+  bool get isSupported => true;
+
+  @override
+  Future<void> update(String payload) async => payloads.add(payload);
 }

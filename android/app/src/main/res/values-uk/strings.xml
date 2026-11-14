@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Завдання на сьогодні</string>
+    <string name="widget_open_app">Відкрийте TasksOrder, щоб побачити план</string>
+</resources>

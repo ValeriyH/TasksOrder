@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#3F51B5</color>
+    <!-- Home-screen widget (T-601): the surface and text colours of the light theme. -->
+    <color name="widget_background">#FBF8FF</color>
+    <color name="widget_title">#3F51B5</color>
+    <color name="widget_text">#1B1B21</color>
+    <color name="widget_secondary">#46464F</color>
 </resources>

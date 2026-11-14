@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/app/theme.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
+import 'package:tasks_order/application/home_widget.dart';
 import 'package:tasks_order/application/notifications.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/application/task_actions.dart';
@@ -43,6 +44,14 @@ class _TasksOrderAppState extends ConsumerState<TasksOrderApp> {
         applyMorningSchedule(ref.read(notificationSchedulerProvider), schedule),
       );
     }, fireImmediately: true);
+    // So does the home-screen widget (T-601).
+    final homeWidget = ref.read(homeScreenWidgetProvider);
+    if (homeWidget.isSupported) {
+      ref.listenManual(homeWidgetPayloadProvider, (_, payload) {
+        if (payload == null) return;
+        unawaited(applyHomeWidgetPayload(homeWidget, payload));
+      }, fireImmediately: true);
+    }
   }
 
   @override

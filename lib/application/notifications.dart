@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart'
     show ProviderListenableSelect;
@@ -9,7 +8,6 @@ import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/data/notifications/local_notification_scheduler.dart';
 import 'package:tasks_order/domain/notification/morning_digest.dart';
 import 'package:tasks_order/domain/repository/notification_scheduler.dart';
-import 'package:tasks_order/l10n/generated/app_localizations.dart';
 
 part 'notifications.g.dart';
 
@@ -28,9 +26,7 @@ MorningSchedule? morningSchedule(Ref ref) {
   final time = ref.watch(
     deviceSettingsProvider.select((settings) => settings.notificationTime),
   );
-  final l10n = lookupAppLocalizations(
-    _supported(ref.watch(localeProvider) ?? PlatformDispatcher.instance.locale),
-  );
+  final l10n = ref.watch(appLocalizationsProvider);
   if (time == null) {
     return MorningSchedule(const [], channelName: l10n.notificationChannel);
   }
@@ -57,15 +53,6 @@ MorningSchedule? morningSchedule(Ref ref) {
       ),
   ], channelName: l10n.notificationChannel);
 }
-
-/// The language of the notification: the app's one, English when the device
-/// language is not supported (D13).
-Locale _supported(Locale locale) =>
-    AppLocalizations.supportedLocales.any(
-      (supported) => supported.languageCode == locale.languageCode,
-    )
-    ? Locale(locale.languageCode)
-    : const Locale('en');
 
 /// The notifications to have pending, with the channel name in the app's
 /// language.

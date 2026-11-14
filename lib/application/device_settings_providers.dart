@@ -1,4 +1,4 @@
-import 'dart:ui' show Locale;
+import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:material_ui/material_ui.dart' show ThemeMode;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tasks_order/data/repository/prefs_device_settings_repository.dart';
 import 'package:tasks_order/domain/model/device_settings.dart';
 import 'package:tasks_order/domain/repository/device_settings_repository.dart';
+import 'package:tasks_order/l10n/generated/app_localizations.dart';
 
 part 'device_settings_providers.g.dart';
 
@@ -64,3 +65,18 @@ ThemeMode themeMode(Ref ref) =>
       AppThemeMode.light => ThemeMode.light,
       AppThemeMode.dark => ThemeMode.dark,
     };
+
+/// The texts of the app for code outside the widget tree: the morning
+/// notification (T-501) and the home-screen widget (T-601). The language is
+/// the app's one, English when the device language is not supported (D13).
+@riverpod
+AppLocalizations appLocalizations(Ref ref) {
+  final locale =
+      ref.watch(localeProvider) ?? PlatformDispatcher.instance.locale;
+  final supported = AppLocalizations.supportedLocales.any(
+    (candidate) => candidate.languageCode == locale.languageCode,
+  );
+  return lookupAppLocalizations(
+    supported ? Locale(locale.languageCode) : const Locale('en'),
+  );
+}
