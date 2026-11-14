@@ -14,6 +14,7 @@ updated: 2026-11-14
 | `title` | `String` | required, trimmed, non-empty |
 | `notes` | `String?` | |
 | `priority` | `int` | a level of the ten-level table: 1 = highest … 10 = lowest, Normal = 5, whatever the scale (D1, ADR-17). Shown as its name only; a level the scale does not offer reads as the nearest one. Table in [[01 Brainstorm]] |
+| `weight` | `int` | size of the task in **half-slots** of the daily capacity (D21, ADR-19; planned, T-801, schema 4): 1 = small, 2 = normal (default), 4 = large. `TaskSize` names these three for the UI; any other value ≥ 1 is valid and reads as the nearest size. The planner uses `effWeight`, see [[04 Planner Algorithm]] |
 | `dueDate` | `LocalDate?` | calendar day, no time |
 | `isFocused` | `bool` | Focus mark (D17): kept in sight in the Focus view; the task is planned like any other. Persists until done or unmarked |
 | `focusedAt` | `DateTime?` (UTC) | set when `isFocused` becomes true; Focus tie-breaker |
@@ -29,7 +30,7 @@ updated: 2026-11-14
 | `completedOnPlan` | `bool` | set at completion: the task was on today's list of the plan at that moment (D19). Only such completions lower that day's capacity. False while active |
 | `deletedAt` | `DateTime?` (UTC) | soft delete = Trash (D14) and sync tombstone (D12); deleted rows are filtered out of every query except Trash; purged after 30 days |
 
-Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`).
+Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`). With D21: `weight >= 1`; the successor of a recurring task copies it.
 
 ### Recurrence (value object, D20; planned, T-701)
 Two kinds, a sealed `freezed` class in `lib/domain/model/recurrence.dart`:
@@ -136,6 +137,8 @@ class PlanEntry {
 ```
 Ghosts (D20) appear only in `days[1..]`: never today, never in `focus`, `laterTaskIds` or `atRiskTaskIds`. They count in `entries.length`, so `n/capacity` and `isOverloaded` include them.
 
+Planned with T-802 (D21): `PlanEntry.weight` (the `effWeight` the planner used, in half-slots) and `PlanEntry.waitsForRoom` (the task was skipped on an earlier day only because it did not fit what was left of it); `PlannedDay.load` = the sum of the weights of its entries, and `isOverloaded` becomes `load > 2 × capacity`. The UI shows the load in slots ("1½ / 2").
+
 ## Persistence schema (drift / SQLite)
 ```sql
 CREATE TABLE tasks (
@@ -186,6 +189,7 @@ CREATE TABLE day_overrides (
 The lines marked "schema 3" are planned (D20, T-705); the code is at schema version 2 (snapshots: `drift_schemas/drift_schema_v1.json`, `drift_schema_v2.json`; the tables are the same). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart`.
 - 1 → 2 (ADR-17): `tasks.priority` was the position in the scale of the settings, `1..priority_scale`; it becomes the level at that position (`PriorityLabels.fromPosition`): scale 5 → 2, 3, 5, 7, 8; scale 3 → 2, 5, 7; scale 10 unchanged. A value past either end becomes that end. `updated_at` stays.
 - 2 → 3 (D20, ADR-18; planned, T-705): three nullable columns on `tasks` (`recurrence`, `series_id`, `occurrence_date`) and the index `idx_tasks_series`. No row changes: every existing task is an ordinary one. `not_before` is in the table since schema 1 and only starts to be used. New snapshot `drift_schema_v3.json`.
+- 3 → 4 (D21, ADR-19; planned, T-804): `tasks.weight INTEGER NOT NULL DEFAULT 2`. Every existing task becomes a normal one, so the plan does not change. New snapshot `drift_schema_v4.json`.
 
 The `settings` row is seeded when the database is created, with the column defaults and `updated_at = 0`: the epoch marks a row the user never changed, so it loses any last-write-wins merge. Drift row classes are named `TaskRow`, `SettingsRow`, `DayOverrideRow`; they stay inside `lib/data`.
 
@@ -249,6 +253,7 @@ One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `Backu
 - Reading checks the invariants of `Task` and `Settings`; a file that breaks them, or with `version` above 2, is refused and nothing changes. A priority outside 1..10 (or outside the scale of a version 1 file) is moved to the nearest end. Unknown fields are ignored.
 - Restore replaces everything after a confirmation (`BackupRepository.replaceAll`, one transaction). Tasks keep their timestamps.
 - **Version 3 (planned, T-706, D20):** a task may also carry `recurrence` (the JSON object shown under Recurrence), `seriesId` and `occurrenceDate`; all three are left out for an ordinary task. Reading checks the rule (`every ≥ 1`, a known `unit`, `anchor` exactly when `afterDone` is false, `days` non-empty within 0..6), that a rule comes with `seriesId` and `occurrenceDate`, and that no series has two active instances with a rule outside the Trash. Files of version 1 and 2 are read as before. The version goes up because an older app ignores unknown fields and would silently drop the rules; with 3 it refuses the file.
+- **Version 4 (planned, T-804, D21):** a task may carry `weight` (half-slots, ≥ 1); it is left out for a normal task (2), and a file of version 1–3 reads with 2 everywhere. A weight below 1 is refused. The version goes up for the same reason as with 3.
 
 ```dart
 abstract interface class BackupRepository {

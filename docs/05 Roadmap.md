@@ -15,8 +15,9 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 | **M4 — Plan control (v0.2)** | User can steer the plan | Plan screen, pins to future dates, day overrides, at-risk resolution, Trash, scale migration | T-401 … T-406 |
 | **M5 — Polish & release (v0.3)** | Something you would keep installed | Notification, backup, icon, tests, signed release build | T-501 … T-506 |
 | **M7 — Recurring tasks (v0.4)** | Tasks that repeat, with an honest load for the whole horizon | Repeat rules (every N days / weeks / months / years, weekdays; by schedule or from completion), one stored instance per series, ghosts in the Plan, release dates in the planner, schema 3, backup format 3 (D20, ADR-18) | T-701 … T-709 |
+| **M8 — Task size (v0.5)** | A small task does not eat a whole day and a large one gets a day that can hold it | Sizes small / normal / large as weights of ½ / 1 / 2 slots, first-fit planning, overflow for a large top-level task, schema 4, backup format 4 (D21, ADR-19) | T-801 … T-806 |
 
-M7 was designed on 2026-11-14 and does not depend on the open tasks of M5 or on the widget (T-601); the owner picks the order.
+M7 was designed on 2026-11-14 and does not depend on the open tasks of M5 or on the widget (T-601); the owner picks the order. M8 was designed the same day and comes after M7 (owner): both change the same parts of the planner.
 
 ## Suggested order inside the cycle
 1. Pick the next unchecked task in [[06 Task Backlog]] (respect `depends`).
