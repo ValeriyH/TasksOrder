@@ -6,6 +6,9 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.3.1+5 — 2026-11-15
+- **Home-screen widget** (T-601, ADR-22): today's tasks on the home screen with "Today · left/total"; follows every change in the app and turns to the next day by itself; a tap opens the app. Light and dark like the phone.
+
 ## 0.3.0+4 — 2026-11-14 (M5)
 - **Morning notification** (T-501, ADR-20): at a time of your choice, the tasks planned for the day; on Android 13+ the app asks for the permission. Survives a restart of the phone.
 - **Look** (T-503, ADR-21): new app icon (also as an Android 13 themed icon), launch screen for light and dark, the system navigation bar follows the theme of the app; Ukrainian texts reviewed (the editor title fits, the Trash note counts days correctly).

@@ -17,7 +17,7 @@
   "taskTitleRequired": "Введіть назву",
   "taskNotesLabel": "Нотатки",
   "taskPriorityLabel": "Пріоритет",
-  "taskDueDateLabel": "Термін",
+  "taskDueDateLabel": "Виконати до",
   "taskFocusLabel": "Фокус",
   "taskFocusHint": "Тримати на видноті на екрані «Сьогодні»",
   "taskPinDateLabel": "Зробити цього дня",

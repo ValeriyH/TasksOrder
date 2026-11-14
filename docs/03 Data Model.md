@@ -88,6 +88,23 @@ Planning settings above would sync per user in the future. **Device settings** s
 | `showReasons` | `bool` | true | badges "due / pinned / overflow" |
 | `notificationTime` | `int?` | null | morning notification: minutes after midnight, local time; null = off (T-501, ADR-20). Stored as `device.notificationTime`; a value outside 0..1439 reads as off |
 
+### Home-screen widget cache (T-601, ADR-22)
+Not a store of the plan: a copy the Android widget reads because it cannot compute the plan (D2). Written by the app on every change of the plan to the SharedPreferences file `today_widget`, key `cache`, as JSON:
+
+```json
+{
+  "format": 1,
+  "dayStartHour": 0,
+  "stale": "Open TasksOrder to update the plan",
+  "days": [
+    {"date": "2026-11-15", "header": "Today · 2/3", "lines": ["Call mom", "Pay bills"], "empty": null},
+    {"date": "2026-11-16", "header": "Today", "lines": [], "empty": "Rest day"}
+  ]
+}
+```
+
+Seven days from today. Texts are in the app's language. `lines` holds at most 8 entries, the last one "+N more" when there are more tasks; `empty` is set only when `lines` is empty ("All done for today", "Rest day" or "Nothing planned for today"). The widget shows the entry whose `date` is the current plan day and `stale` when there is none. A change of the format raises `format`.
+
 ### DayOverride
 | Field | Type | Notes |
 |-------|------|-------|

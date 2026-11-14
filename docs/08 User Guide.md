@@ -30,6 +30,9 @@ All tasks with filters: All, Focus, With due date, Later, Done. The bin button o
 ## Task editor
 Title, notes, priority, due date, Focus, and "Do on this day" (a pin: the task goes on that day whatever the plan would do). The bin in the top bar moves the task to the Trash.
 
+## Home-screen widget (Android)
+Long-press an empty place on the home screen → Widgets → TasksOrder, and drag the widget onto the screen; it can be resized. It shows "Today · left/total" and the tasks of the day; a day with nothing to do says so. It follows every change made in the app and turns to the next day by itself at the day start. A tap opens the app. Like the morning notification, it knows the coming days from the last time the app ran: if the app has not run for a week, the widget asks you to open it.
+
 ## Settings
 - **Appearance:** language (device, Українська, English), theme (device, light, dark), the badges that say why a task is on its day (Pinned, Deadline, Extra).
 - **Morning notification** (Android): switch it on, allow notifications when Android asks, tap the row to choose the time. Every day at that time a notification lists the tasks planned for the day; a tap opens the app. It can come a few minutes late (Android groups such alarms to save battery). A day with nothing planned has no notification. The texts for the coming days are prepared from the plan whenever the app runs, so open the app now and then to keep them right. A notification missed while the phone was off is shown after it starts.
