@@ -186,7 +186,7 @@ void main() {
 
       expect(find.text('Нове завдання'), findsOneWidget);
       expect(find.text('Звичайний'), findsOneWidget);
-      expect(find.text('Виконати до'), findsOneWidget);
+      expect(find.text('Кінцевий термін'), findsOneWidget);
       expect(find.text('Не вказано'), findsNWidgets(2));
       expect(find.text('Зберегти'), findsOneWidget);
     });
