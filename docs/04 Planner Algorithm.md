@@ -1,7 +1,7 @@
 ---
 tags: [algorithm, planner]
 created: 2026-11-12
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # 04 Planner Algorithm
 
@@ -28,6 +28,40 @@ Every active task is planned; there is no queue outside the pool (D17).
 An overdue task is planned exactly like a task without a date: its deadline is gone, so there is nothing left to protect. It is kept in sight by the Focus view instead.
 
 Priority 1 ("Critical") is an ordinary level: it wins the priority fill but waits for a slot like everything else. "Do it on this day whatever the capacity" is a pin.
+
+## Release dates: `notBefore` (planned, T-703)
+`release(t)` = `t.notBefore`, or today when it is empty or in the past. A task is **released** on the day `d` when `release(t) <= d`.
+- The priority fill of `d` takes released tasks only.
+- A pin beats it: a pinned task sits on its day whatever `notBefore` says.
+- Deadline forcing can only pull released tasks into `d`, but it counts the unreleased ones too: they will need slots before their due dates (see the forcing section).
+- A task released after the end of the horizon is in `later`. A task whose `notBefore` is later than its due date is placed from its release on and is at risk.
+- Focus does not look at it: a focused task that is not released yet is in the strip with the day it is planned for.
+
+The app sets `notBefore` for the next instance of a recurring task (D20); there is no field to set it by hand yet.
+
+## Recurring tasks: ghosts (D20; planned, T-704)
+The stored instance of a series is an ordinary task: the rules above and below apply to it as they are. In addition, for every active task `t` with a `recurrence` the planner adds its later repeats as **ghosts**, candidates that exist only inside this computation:
+
+```
+base  = max(today, t.occurrenceDate)
+dates = by schedule:      the dates of the rule after base
+        from completion:  base + k × every units, k = 1, 2, …   // assumes each repeat is done on its day
+ghosts = one per date, while date <= today + horizon - 1
+```
+A ghost has the priority of `t`, `createdAt` of `t` (ties between repeats of one series: earlier date first) and its dates follow the dates `t` has, like the successor in [[03 Data Model]]:
+
+| `t` has | Ghost for the date `x` (previous repeat on `p`) |
+|---------|--------------------------------------------------|
+| a pin | pinned on `x`; reason `pinned`; with a due date on `t`, due at the same distance from the pin |
+| a due date only | due on `x`, released on `p + 1`: it competes inside its own period, with boost and forcing |
+| neither | released on `x`, then by priority |
+
+- A ghost is never placed today: every ghost is released after `base`, which is today or later.
+- A ghost takes a slot, lowers `avail` and can be forced like a real task: that is the point, the load of the coming weeks is real.
+- Its entry is `PlanEntry(taskId: t.id, occurrenceDate: x)`. The UI shows it in the Plan without a checkbox; a tap opens `t`.
+- Ghosts are not in `focus` and not in `laterTaskIds` (a ghost that found no day inside the horizon is dropped). A ghost placed after its due date has `atRisk` on its entry but is not in `atRiskTaskIds`: the banner and the at-risk list are about tasks the user can act on.
+- Repeats do not pile up: when `t` was missed, `t` itself is the overdue task (D18) and ghosts start after today.
+- Cost: at most one ghost per day of the horizon for each series (a daily task and 90 days: 89).
 
 ## Focus: a view, not a queue
 `Plan.focus` lists the tasks with `isFocused == true` **or** `dueDate < today`. It is built from the same tasks the day loop places and changes nothing in the plan: no capacity, no deadline math (D17).
@@ -62,6 +96,7 @@ Priority 1 ("Critical") is an ordinary level: it wins the priority fill but wait
 ## Day loop
 ```
 pool = activeTasks                                     // overdue ones without their due date
+     + ghosts of the recurring tasks                   // D20, T-704
 
 for d in today .. today + horizon - 1:                // horizon counts today
     day = PlannedDay(d, capacity(d))
@@ -79,13 +114,13 @@ for d in today .. today + horizon - 1:                // horizon counts today
 
     // 3. Priority fill up to capacity (not above), using effPriority(t, d)
     while day.entries.length < capacity(d) and pool not empty:
-        place(pool.firstFor(d), reason: priority)
+        place(pool.firstFor(d), reason: priority)     // released tasks only (T-703)
 
     // Flags
     for entry at index >= capacity(d): entry.overflow = true
     trim(day, hardLimit(d))        // tail goes back to the pool; it will be atRisk when placed after effDue
 
-later = whatever remains in pool
+later = whatever remains in pool, without ghosts
 
 focus = activeTasks where isFocused or dueDate < today,
         sorted by (priority, dueDate nulls last, focusedAt nulls last, createdAt)
@@ -113,6 +148,17 @@ return first forcedCount tasks of dueTasks   (EDF order)
 - Plain tasks (overdue ones included) are never forced; they only fill leftover slots by priority.
 - Because today's priority fill only consumes today's slots (which `avail` never counted), it cannot break future feasibility.
 - A focused task is an ordinary pool task: with a due date it is forced and boosted like any other.
+
+### With release dates (planned, T-703)
+A task that is not released on `d` cannot be done on `d`, but it still needs a slot between its release and its due date, and that slot is no longer free for the others. So `need` counts every due-dated task, and the result is cut to what can be pulled into `d`:
+```
+need(D)     = count of dueTasks with effDue <= D                       // released or not
+released(D) = count of dueTasks with effDue <= D and release <= d
+forcedCount = max over D of min(need(D) - avail(D), released(D))
+
+return first forcedCount released tasks of dueTasks   (EDF order)
+```
+Without unreleased tasks this is the formula above. The `min` keeps a tight cluster of unreleased tasks (three ghosts due in one week with one free slot) from forcing unrelated tasks with later deadlines into `d`: only tasks due by the same `D` free a slot there. What still does not fit is at risk on its day, as before.
 
 ## Why two mechanisms (hard forcing + soft boost)
 Forcing alone meets deadlines but is *lazy*: with comfortable capacity it leaves due tasks to the last feasible day, so the user experiences "the deadline came and everything is due at once". The boost makes due tasks win slots early when capacity allows; forcing is the safety net when it does not.
@@ -205,11 +251,31 @@ Capacity Sun 0. Task due Sun. On Sat: need(Sun)=1, avail(Sun)=0 → forced on Sa
 20. Deadline refill (D16): capacity 2, overflow 1, five tasks due today → 3 today, 2 `atRisk`. One completed (`completedTodayCount = 1`, four left) → still 3 today, 1 `atRisk`. Plain tasks in the same setup: one completed → 1 today, no refill.
 21. Same with overflow 0 → 2 today, 3 `atRisk`; one completed → 2 today, 2 `atRisk`.
 
+Planned with T-703 (release dates):
+
+22. `notBefore` in three days, Critical, next to Low tasks, capacity 1 → the Low tasks take the first three days, the Critical one its release day. `notBefore` in the past or today → no effect.
+23. A pin earlier than `notBefore` → placed on the pin. `notBefore` beyond the horizon → in `later`. Focused and not released → in `focus` with its `plannedDate`.
+24. Forcing with an unreleased task: capacity 1; X due Thu and released Thu, Y due Thu and released today (Mon), a High task without a date → Y is not left for Thu (X needs that slot): `need(Thu) = 2`. Y is forced no later than Wed, X is on Thu, nothing at risk.
+25. Two unreleased tasks due on the same day with one slot there, plus a released task with a later due date → the released one is not forced today (the `min`), one of the two is at risk.
+
+Planned with T-704 (ghosts):
+
+26. Weekly task without dates, `occurrenceDate` today, horizon 30 → the instance by priority from today, ghosts released on days 7, 14, 21, 28, each on its release day or the next free one; all with `occurrenceDate`, none in `later` or `focus`.
+27. Monthly by schedule, anchor Jan 31, horizon 90 from Jan 31 → ghosts for Feb 28 (29 in a leap year), Mar 31, Apr 30.
+28. Weekdays Mon/Wed/Fri with a pin → ghosts pinned on those days, also on a rest day and above the capacity; they lower `avail` for the forcing of other tasks.
+29. Due-only weekly task → each ghost is due on its date and released the day after the previous one; three of them are never packed into the first week, even at the highest priority.
+30. Missed instance (`occurrenceDate` three days ago, weekdays rule) → one real task, overdue and in `focus`; the first ghost is the first rule date after today.
+31. From completion, every 10 days, instance not done yet → ghosts on `base + 10`, `+ 20`, … Done instance removed from the input and its successor added → the ghosts move with it.
+32. A ghost of a due-only task that cannot make its date → `atRisk` on the entry, `atRiskTaskIds` unchanged. A ghost that fits no day of the horizon → dropped.
+33. Determinism and performance with ghosts: 500 tasks, 20 of them daily series, horizon 90 → same plan twice, under 50 ms.
+
 ## Complexity
 Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomputed once per plan. Effective priority depends on `d`, so the pool is re-sorted per day (T log T). Total O(H × T log T) with H = horizon days. For H = 90, T = 500 this is trivially fast on a phone.
 
 ## Known limitations / future
 - Capacity is a task count; effort estimates (points) would change `place()` to subtract weight. Keep the interface open.
 - Pure EDF forcing can place a forced task on a day where a slightly higher-priority due task would have been the nicer choice; both deadlines are still met, so this is accepted.
-- `notBefore` (snooze) is a simple filter in the pool (`d >= notBefore`), planned for a later milestone.
+- `notBefore` is a release date (T-703). Setting it by hand (snooze) needs only a field in the editor; not scheduled.
+- Ghosts of a "from completion" rule assume that every repeat is done on its day; the real dates move with each completion.
+- The forcing formula with release dates checks the periods that start tomorrow. A cluster of unreleased tasks that cannot fit its own period is not solved earlier; it shows as at risk.
 - Boost thresholds are global; per-task "lead time" could come later.

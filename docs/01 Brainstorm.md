@@ -25,6 +25,7 @@ People collect far more tasks than they can do. Classic to-do apps show the whol
 - As a user I am warned when deadlines cannot be met with the current capacity.
 - As a user I never lose an overdue task: it is planned by its priority like a task without a date, and stays in Focus with an "overdue" badge until I do it or move its date (D18).
 - As a user I can do a task from a later day ahead of time without today's list changing (D19).
+- As a user I can make a task repeat (every N days / weeks / months / years, or on weekdays) and see its future repeats in the Plan, so the load of the coming weeks is honest (D20, v0.4).
 
 ## Feature list
 
@@ -42,8 +43,11 @@ People collect far more tasks than they can do. Classic to-do apps show the whol
 - Daily morning notification with today's list
 - Backup / restore as JSON
 
+### v0.4
+- Recurring tasks (D20): every N days / weeks / months / years or on weekdays; by schedule or from completion; future repeats shown in the Plan
+
 ### Later ideas (parking lot)
-- "Not before" date (snooze) and recurring tasks
+- "Not before" date set by hand (snooze); the planner honours the field from D20 on, only the UI is missing
 - Effort estimate (S/M/L) and capacity in "points" instead of task count
 - Projects / tags, subtasks
 - Stats: completed per week, streaks
@@ -87,6 +91,7 @@ A new task gets Normal (5) on every scale. Level 8 in Ukrainian was "Якось"
 | D17 | **Focus replaces the Today flag: a view, not a queue.** Any task can be marked *Focus* (`isFocused`). A focused task **stays in the pool** and is planned like every other task (priority, deadline forcing, boost, capacity). Focus is an alternative view over the same tasks: the **Focus strip** on top of the Today screen lists focused and overdue (D18) tasks that are *not* already on today's list, at most `focusVisibleLimit` (3) at a time with "+N more", ordered by priority, then due date (so overdue ones lead within a priority), then when the task was focused. A focus task that is on today's list is shown only there. Everywhere (Today, Plan, Tasks) such a task carries the focus mark; in the strip it also shows the day it is planned for. Focus changes no capacity or deadline math. "Do it on this day whatever the capacity" is a **pin**; the pin date is in the task editor from v0.1. | Owner 2026-11-13: the Today queue lived for days and became a second backlog, so "Today" was the wrong name; flagged tasks vanished from the plan and lost their deadline protection. Keeping them in the plan is honest, and the strip still keeps them in sight. The command "do it today above the limit" is lost on purpose; a pin covers it. |
 | D18 | **Overdue tasks are plain pool tasks that stay in Focus.** Once `dueDate < today` the planner ignores the due date: no forcing, no boost, never *at risk*; the task competes by priority only, like a task without a date. It is automatically in Focus with an "overdue by N days" badge until it is done or its due date is moved or cleared. Derived from the date, nothing stored (D2). | Owner 2026-11-13: a missed deadline has nothing left to protect, so it must neither block the plan nor produce daily at-risk noise; Focus keeps it visible. One pool, no separate queue. Accepted consequence: a low-priority task can drop back in the plan the day after its deadline. |
 | D19 | **Only completions from today's list use up today's capacity.** Ticking a task that was on today's list leaves its slot empty (D3). Ticking any other task (from the Focus strip, Plan or Tasks) leaves today's list as it is; the slot it held on a later day is planned again. The task stores `completedOnPlan`, set at completion, because the plan itself is not stored (D2). There is no "earned free day": a day is kept free with a day override. | Owner 2026-11-13: "if it is Tuesday and I closed Thursday's task, why move anything?". Before, every non-flagged completion lowered today's capacity, so doing work ahead pushed a task out of today. |
+| D20 | **Recurring tasks: one stored instance per series, the rest is derived.** A task can carry a repeat rule: *every N days / weeks / months / years*, or *on weekdays* (a set of Mon..Sun). An interval rule counts either **by schedule**, from a fixed anchor date ("monthly on the 30th" stays on the 30th, or on the last day of a shorter month), or **from completion** ("30 days after I did it"); weekdays always follow the schedule. The database holds **one active instance** of a series. When it is completed or skipped, the next one is created in the same write as a copy (title, notes, priority, rule). The later repeats inside the planning horizon are computed by the planner as **ghosts**: they take slots and are shown in the Plan, but they are not stored and cannot be ticked. The date of a repeat goes where the task keeps its date: a **pin** if the task is pinned (exactly that day), else the **due date** (do it by that day), else **not before** (available from that day, then by priority). With both a pin and a due date the pin leads, as everywhere in the planner, and the due date keeps its distance from it. A repeat is never planned before the date of the previous one. Missed repeats do not pile up: the instance stays (overdue → Focus, D18) and the next one is the first date after today. A series ends only by hand: remove the rule or delete the series. Details in [[03 Data Model]] and [[04 Planner Algorithm]]. | Owner 2026-11-14: recurring tasks were missed in the earlier brainstorms. Resetting the same row to active would lose the done record that D3/D19 count. Storing a horizon of rows needs a top-up at every day rollover and an "edit this one or all" question. Ghosts follow D2 and still show the real load of the horizon. Example: utilities as "every 1 month" without a pin or a due date appear on their day and are planned by priority; with a pin they sit on that day. Weekday repeats use up capacity like any task: "that is life". |
 
 ## Open questions for the owner
 All answered as of 2026-11-13:
@@ -120,3 +125,7 @@ Hooks the MVP keeps open, see D12:
 - **At risk** — a task whose due date cannot be met with current capacity + overflow.
 - **Pinned** — task manually fixed to a date by the user.
 - **Horizon** — how many days ahead the planner fills (default 90). Tasks that do not fit are "Later".
+- **Series** — a recurring task over time: its done instances, the one active instance and the repeats still to come (D20).
+- **Instance** — a stored task of a series; at most one is active.
+- **Ghost** — a future repeat computed by the planner for the horizon: it takes a slot and is shown in the Plan, but it is not stored (D20).
+- **Not before** — the first day the planner may place a task on; set by the app for the next instance of a series.

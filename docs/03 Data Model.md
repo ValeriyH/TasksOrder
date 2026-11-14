@@ -18,7 +18,10 @@ updated: 2026-11-14
 | `isFocused` | `bool` | Focus mark (D17): kept in sight in the Focus view; the task is planned like any other. Persists until done or unmarked |
 | `focusedAt` | `DateTime?` (UTC) | set when `isFocused` becomes true; Focus tie-breaker |
 | `pinnedDate` | `LocalDate?` | manual "do it on this day"; placed whatever the capacity; a pin in the past behaves as today |
-| `notBefore` | `LocalDate?` | reserved for snooze (later); planner ignores it in MVP |
+| `notBefore` | `LocalDate?` | release date: the planner does not place the task before this day (T-703; ignored until then). Set by the app for the next instance of a series (D20); a field to set it by hand (snooze) is not built. A pin beats it |
+| `recurrence` | `Recurrence?` | repeat rule (D20, schema 3); `null` = an ordinary task. The same for every instance of a series |
+| `seriesId` | `String?` | id of the first task of the series; ties the done instances, the active one and the Trash together. Stays when the rule is removed |
+| `occurrenceDate` | `LocalDate?` | the date of this instance in its series. Set with the rule; a one-off move of the pin or the due date does not change it, so the schedule does not shift |
 | `status` | `TaskStatus` | `active`, `done` (D14: no "dropped"; removal is a soft delete) |
 | `createdAt` | `DateTime` (UTC) | tie-breaker: older first |
 | `updatedAt` | `DateTime` (UTC) | |
@@ -26,7 +29,40 @@ updated: 2026-11-14
 | `completedOnPlan` | `bool` | set at completion: the task was on today's list of the plan at that moment (D19). Only such completions lower that day's capacity. False while active |
 | `deletedAt` | `DateTime?` (UTC) | soft delete = Trash (D14) and sync tombstone (D12); deleted rows are filtered out of every query except Trash; purged after 30 days |
 
-Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash.
+Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`).
+
+### Recurrence (value object, D20; planned, T-701)
+Two kinds, a sealed `freezed` class in `lib/domain/model/recurrence.dart`:
+
+| Kind | Fields | Meaning |
+|------|--------|---------|
+| `interval` | `every` (int ≥ 1), `unit` (`day`, `week`, `month`, `year`), `afterDone` (bool), `anchor` (`LocalDate`, only when `afterDone` is false) | every N units. **By schedule** (`afterDone == false`): the dates are `anchor + k × every` units, each computed from the anchor, so "monthly, anchor Jan 31" gives Feb 28 (29), Mar 31, Apr 30. **From completion** (`afterDone == true`): the next date is the day of completion + `every` units |
+| `weekdays` | `days` (non-empty set of 0..6, Monday = 0 as in `LocalDate.weekday`) | every listed weekday; always by schedule |
+
+Stored as JSON text, the same in the database column and in the backup:
+```json
+{"kind":"interval","every":1,"unit":"month","afterDone":false,"anchor":"2026-11-30"}
+{"kind":"interval","every":30,"unit":"day","afterDone":true}
+{"kind":"weekdays","days":[0,2,4]}
+```
+
+Rules of a series (`Task.successor`, T-702):
+- **Start.** Setting a rule in the editor gives the task `seriesId` (its own id when it had none) and `occurrenceDate = pinnedDate ?? dueDate ?? notBefore ?? today`; an interval rule by schedule takes that date as `anchor`. Saving the editor with another pin or due date moves `occurrenceDate` and `anchor` with it (the user changed the schedule). The quick actions (move due date, move to a day, unpin) leave them alone: a one-off move.
+- **Next date** when the instance is completed or skipped on the day `today`: from completion → `today + every` units; by schedule → the first date of the rule after `max(today, occurrenceDate)`. So missed repeats are dropped, and an instance done ahead of its day does not produce a second one for the same date.
+- **Successor** = a new active task: the same `title`, `notes`, `priority`, `recurrence`, `seriesId`; `occurrenceDate` = the next date; no Focus mark; `createdAt = now`. Its id is `uuid.v5(predecessor.id, 'next')`: the same on every device (D12) and known to undo.
+- **Where the date goes** follows the dates the predecessor has:
+
+  | Predecessor has | Successor gets | Planned as |
+  |-----------------|----------------|------------|
+  | `pinnedDate` | `pinnedDate` = next date; a `dueDate` keeps its distance from the pin | exactly on that day (the pin leads, as for any task) |
+  | `dueDate` only | `dueDate` = next date, `notBefore` = the day after the predecessor's `occurrenceDate` (for `afterDone`: after the day of completion) | by priority and deadline inside its own period |
+  | neither | `notBefore` = next date | available from that day, then by priority |
+
+- **Complete**: the repository marks the instance done and inserts the successor in one transaction, unless the series already has another active instance.
+- **Undo** (`uncomplete`): the successor is removed for good when it is still active and untouched (`updatedAt == createdAt`); otherwise the task that returns loses its rule and stays as an ordinary task of the series.
+- **Skip** ("not this time"): the instance goes to the Trash and the successor is inserted, as on completion.
+- **Delete the series**: the instance goes to the Trash with its rule and no successor. Restoring it resumes the series. Restoring a skipped instance while the series has another active one returns it without the rule.
+- **Stop repeating**: "Repeat: none" in the editor clears `recurrence` and `occurrenceDate`; the task stays as an ordinary one.
 
 Sync-readiness (D12): `id` is a UUID, every write bumps `updatedAt`, delete is soft. When accounts arrive, add `ownerId`/`assigneeId` columns with the local user as default. No other preparation is done now.
 
@@ -59,7 +95,7 @@ Planning settings above would sync per user in the future. **Device settings** s
 | `note` | `String?` | "holiday", "trip" |
 
 ### LocalDate (value object)
-Year/month/day only. Operations: `todayFor(now, dayStartHour)`, `addDays`, `daysUntil`, `weekday`, `compareTo`, ISO parse/format. Never converted to `DateTime` inside the planner.
+Year/month/day only. Operations: `todayFor(now, dayStartHour)`, `addDays`, `daysUntil`, `weekday`, `compareTo`, ISO parse/format; with T-701 also `addMonths` and `addYears`, which keep the day of the month and fall back to the last day of a shorter month. Never converted to `DateTime` inside the planner.
 
 ## Derived model (not persisted) — output of the planner
 ```dart
@@ -93,8 +129,12 @@ class PlanEntry {
   final PlanReason reason;            // pinned | deadline | priority
   final bool overflow;                // placed above capacity
   final bool atRisk;                  // placed after its due date
+  final LocalDate? occurrenceDate;    // T-704: null = the stored task; set = a ghost, the repeat of
+                                      // task `taskId` for that date (D20). Identity: (taskId, occurrenceDate)
+  bool get isGhost => occurrenceDate != null;
 }
 ```
+Ghosts (D20) appear only in `days[1..]`: never today, never in `focus`, `laterTaskIds` or `atRiskTaskIds`. They count in `entries.length`, so `n/capacity` and `isOverloaded` include them.
 
 ## Persistence schema (drift / SQLite)
 ```sql
@@ -108,6 +148,9 @@ CREATE TABLE tasks (
   focused_at    INTEGER,          -- UTC epoch ms
   pinned_date   TEXT,
   not_before    TEXT,
+  recurrence    TEXT,             -- schema 3: JSON repeat rule or NULL (D20)
+  series_id     TEXT,             -- schema 3: id of the first task of the series
+  occurrence_date TEXT,           -- schema 3: 'yyyy-MM-dd', date of this instance in the series
   status        INTEGER NOT NULL, -- 0 active, 1 done
   created_at    INTEGER NOT NULL, -- UTC epoch ms
   updated_at    INTEGER NOT NULL,
@@ -117,6 +160,7 @@ CREATE TABLE tasks (
 );
 CREATE INDEX idx_tasks_status ON tasks(status, deleted_at);
 CREATE INDEX idx_tasks_due ON tasks(due_date);
+CREATE INDEX idx_tasks_series ON tasks(series_id);   -- schema 3
 
 CREATE TABLE settings (
   id                          INTEGER PRIMARY KEY CHECK (id = 1),
@@ -139,8 +183,9 @@ CREATE TABLE day_overrides (
   deleted_at  INTEGER
 );
 ```
-Schema version 2 (snapshots: `drift_schemas/drift_schema_v1.json`, `drift_schema_v2.json`; the tables are the same). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart`.
+The lines marked "schema 3" are planned (D20, T-705); the code is at schema version 2 (snapshots: `drift_schemas/drift_schema_v1.json`, `drift_schema_v2.json`; the tables are the same). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart`.
 - 1 → 2 (ADR-17): `tasks.priority` was the position in the scale of the settings, `1..priority_scale`; it becomes the level at that position (`PriorityLabels.fromPosition`): scale 5 → 2, 3, 5, 7, 8; scale 3 → 2, 5, 7; scale 10 unchanged. A value past either end becomes that end. `updated_at` stays.
+- 2 → 3 (D20, ADR-18; planned, T-705): three nullable columns on `tasks` (`recurrence`, `series_id`, `occurrence_date`) and the index `idx_tasks_series`. No row changes: every existing task is an ordinary one. `not_before` is in the table since schema 1 and only starts to be used. New snapshot `drift_schema_v3.json`.
 
 The `settings` row is seeded when the database is created, with the column defaults and `updated_at = 0`: the epoch marks a row the user never changed, so it loses any last-write-wins merge. Drift row classes are named `TaskRow`, `SettingsRow`, `DayOverrideRow`; they stay inside `lib/data`.
 
@@ -160,6 +205,12 @@ abstract interface class TaskRepository {
   Future<void> restore(String id, DateTime now); // clears deletedAt
   Future<void> deleteForever(String id);         // "Delete forever" in the Trash
   Future<int> purgeDeleted(Duration olderThan, DateTime now); // housekeeping, 30 days
+  // Planned with T-705 (D20):
+  // - complete() and the new skip() also take `required LocalDate today` and insert the
+  //   successor of a recurring task in the same transaction;
+  // - skip(id, now, today: ...) moves the instance to the Trash and inserts the successor;
+  // - uncomplete() removes an untouched successor; restore() drops the rule when the
+  //   series has another active instance.
 }
 abstract interface class SettingsRepository {
   Stream<Settings> watch();                      // defaults when nothing is stored
@@ -197,6 +248,7 @@ One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `Backu
 - `priority` is the level 1..10 (ADR-17). In version 1 it was the position in the file's `priorityScale`; such a file is still read, each priority turned into the level at that position, as the schema migration does.
 - Reading checks the invariants of `Task` and `Settings`; a file that breaks them, or with `version` above 2, is refused and nothing changes. A priority outside 1..10 (or outside the scale of a version 1 file) is moved to the nearest end. Unknown fields are ignored.
 - Restore replaces everything after a confirmation (`BackupRepository.replaceAll`, one transaction). Tasks keep their timestamps.
+- **Version 3 (planned, T-706, D20):** a task may also carry `recurrence` (the JSON object shown under Recurrence), `seriesId` and `occurrenceDate`; all three are left out for an ordinary task. Reading checks the rule (`every ≥ 1`, a known `unit`, `anchor` exactly when `afterDone` is false, `days` non-empty within 0..6), that a rule comes with `seriesId` and `occurrenceDate`, and that no series has two active instances with a rule outside the Trash. Files of version 1 and 2 are read as before. The version goes up because an older app ignores unknown fields and would silently drop the rules; with 3 it refuses the file.
 
 ```dart
 abstract interface class BackupRepository {

@@ -14,6 +14,9 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 | **M3 — MVP UI (v0.1)** | Daily usable app, uk/en, light/dark | Today (queue + planned), Tasks, Add/Edit, Settings, Done; debug APK on device | T-301 … T-308 |
 | **M4 — Plan control (v0.2)** | User can steer the plan | Plan screen, pins to future dates, day overrides, at-risk resolution, Trash, scale migration | T-401 … T-406 |
 | **M5 — Polish & release (v0.3)** | Something you would keep installed | Notification, backup, icon, tests, signed release build | T-501 … T-506 |
+| **M7 — Recurring tasks (v0.4)** | Tasks that repeat, with an honest load for the whole horizon | Repeat rules (every N days / weeks / months / years, weekdays; by schedule or from completion), one stored instance per series, ghosts in the Plan, release dates in the planner, schema 3, backup format 3 (D20, ADR-18) | T-701 … T-709 |
+
+M7 was designed on 2026-11-14 and does not depend on the open tasks of M5 or on the widget (T-601); the owner picks the order.
 
 ## Suggested order inside the cycle
 1. Pick the next unchecked task in [[06 Task Backlog]] (respect `depends`).
