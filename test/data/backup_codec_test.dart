@@ -97,7 +97,7 @@ void main() {
     final json = jsonDecode(codec.encode(sample())) as Map<String, dynamic>;
 
     expect(json['app'], 'TasksOrder');
-    expect(json['version'], 1);
+    expect(json['version'], 2);
     expect(json['exportedAt'], '2026-11-13T08:30:15.250Z');
     expect(firstTask(json)['createdAt'], '2026-11-13T08:30:15.250Z');
   });
@@ -202,20 +202,61 @@ void main() {
 
   test('a backup of a newer format is told apart', () {
     expect(
-      () => codec.decode(changed((json) => json['version'] = 2)),
+      () => codec.decode(changed((json) => json['version'] = 3)),
       fails(BackupProblem.newerVersion),
     );
   });
 
-  test('a priority outside the scale moves to its nearest end', () {
+  test('a priority outside 1..10 moves to its nearest end', () {
     final read = codec.decode(
       changed((json) {
-        (json['settings'] as Map<String, dynamic>)['priorityScale'] = 3;
-        firstTask(json)['priority'] = 0;
+        final tasks = json['tasks'] as List<dynamic>;
+        (tasks[0] as Map<String, dynamic>)['priority'] = 0;
+        (tasks[2] as Map<String, dynamic>)['priority'] = 12;
       }),
     );
 
-    expect(read.tasks.map((task) => task.priority), [1, 1, 3, 2]);
+    expect(read.tasks.map((task) => task.priority), [1, 1, 10, 2]);
+  });
+
+  test('the scale does not change the priorities (ADR-17)', () {
+    final read = codec.decode(
+      changed((json) {
+        (json['settings'] as Map<String, dynamic>)['priorityScale'] = 3;
+      }),
+    );
+
+    expect(read.tasks.map((task) => task.priority), [3, 1, 5, 2]);
+  });
+
+  group('format 1: a priority was the position in the scale', () {
+    String version1({required int scale, required List<int> priorities}) =>
+        changed((json) {
+          json['version'] = 1;
+          (json['settings'] as Map<String, dynamic>)['priorityScale'] = scale;
+          final tasks = json['tasks'] as List<dynamic>;
+          for (var i = 0; i < tasks.length; i++) {
+            (tasks[i] as Map<String, dynamic>)['priority'] = priorities[i];
+          }
+        });
+
+    test('scale 5: Critical, High, Normal, Low, Someday keep their names', () {
+      final read = codec.decode(version1(scale: 5, priorities: [1, 2, 3, 5]));
+
+      expect(read.tasks.map((task) => task.priority), [2, 3, 5, 8]);
+    });
+
+    test('scale 3: Critical, Normal, Low; past the end is Low', () {
+      final read = codec.decode(version1(scale: 3, priorities: [1, 2, 3, 9]));
+
+      expect(read.tasks.map((task) => task.priority), [2, 5, 7, 7]);
+    });
+
+    test('scale 10 is already the table', () {
+      final read = codec.decode(version1(scale: 10, priorities: [1, 4, 9, 10]));
+
+      expect(read.tasks.map((task) => task.priority), [1, 4, 9, 10]);
+    });
   });
 
   test('unknown fields are ignored', () {

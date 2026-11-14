@@ -48,8 +48,11 @@ Priority 1 ("Critical") is an ordinary level: it wins the priority fill but wait
   boost = slack <= settings.urgencyNearDays ? 2      // default 2
         : slack <= settings.urgencySoonDays ? 1      // default 7
         : 0
-  return max(1, t.priority - boost)
+  levels = levels(settings.priorityScale)   // e.g. scale 5: [2, 3, 5, 7, 8]
+  i = index of the level nearest to t.priority (the higher on a tie)
+  return min(t.priority, levels[max(0, i - boost)])
   ```
+  The steps are levels of the scale in use (ADR-17): on scale 5 Normal (5) becomes High (3), then Critical (2); on scale 10 Elevated (4), then High (3). A boost never lowers a priority, so Catastrophic (1) on scale 5 stays 1.
 - Pool ordering (used whenever "next by priority" is needed), evaluated for the day `d` being filled:
   1. `effPriority(t, d)` ascending (1 first)
   2. original `priority` ascending — a boosted task joins a tier but does not overtake that tier's originals
@@ -125,6 +128,8 @@ Forcing alone meets deadlines but is *lazy*: with comfortable capacity it leaves
 | `atRisk` | placed after its due date (impossible with current capacity) | red badge + Plan header "N tasks at risk"; Today screen banner "N tasks will not make their deadline" opening the list (`Plan.hasAtRisk`, D16) |
 
 ## Worked example 1 — priority vs deadline (tight capacity)
+The priorities in the examples are positions on scale 5: 1 Critical, 2 High, 3 Normal, 4 Low, 5 Someday. Since ADR-17 a task stores the level of the ten-level table (2, 3, 5, 7, 8); the order and the boost steps are the same, and `planner_test.dart` maps the numbers so.
+
 Settings: scale 5, capacity Mon–Fri 1, Sat 3, Sun 0, overflow 1, boost thresholds 7 / 2. Today = Mon 2026-11-16.
 
 | Task | Priority | Due |

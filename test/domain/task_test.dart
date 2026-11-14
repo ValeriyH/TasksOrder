@@ -82,9 +82,13 @@ void main() {
       );
     });
 
-    test('rejects a priority below 1', () {
+    test('rejects a priority outside 1..10', () {
       expect(
         () => Task.create(title: 'x', priority: 0, now: t0),
+        throwsArgumentError,
+      );
+      expect(
+        () => Task.create(title: 'x', priority: 11, now: t0),
         throwsArgumentError,
       );
     });
@@ -115,8 +119,10 @@ void main() {
       expect(() => newTask().copyWith(title: ' '), isAssertionError);
     });
 
-    test('priority starts at 1', () {
+    test('priority is a level 1..10', () {
       expect(() => newTask().copyWith(priority: 0), isAssertionError);
+      expect(() => newTask().copyWith(priority: 11), isAssertionError);
+      expect(newTask().copyWith(priority: 10).priority, 10);
     });
 
     test('completedAt is set exactly when the task is done', () {
@@ -134,24 +140,6 @@ void main() {
 
     test('completedOnPlan needs a done task', () {
       expect(() => newTask().copyWith(completedOnPlan: true), isAssertionError);
-    });
-  });
-
-  group('isValidPriority', () {
-    test('checks the priority against the scale', () {
-      final p3 = newTask().copyWith(priority: 3);
-      final p4 = newTask().copyWith(priority: 4);
-      final p10 = newTask().copyWith(priority: 10);
-
-      expect(p3.isValidPriority(3), isTrue);
-      expect(p4.isValidPriority(3), isFalse);
-      expect(p4.isValidPriority(5), isTrue);
-      expect(p10.isValidPriority(5), isFalse);
-      expect(p10.isValidPriority(10), isTrue);
-    });
-
-    test('is false for an unsupported scale', () {
-      expect(newTask().isValidPriority(4), isFalse);
     });
   });
 

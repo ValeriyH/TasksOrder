@@ -1,7 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
-import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/task_repository.dart';
 
@@ -54,14 +53,6 @@ class TaskActions {
   /// [trashRetention]. Returns how many tasks went.
   Future<int> purgeOldTrash() =>
       _repository.purgeDeleted(trashRetention, _clock());
-
-  /// Squeezes the priorities of all tasks from one scale into a smaller one
-  /// (T-406). Returns how many changed.
-  Future<int> remapPriorities({required int from, required int to}) =>
-      _repository.remapPriorities(
-        (priority) => PriorityLabels.remap(priority, from: from, to: to),
-        _clock(),
-      );
 
   /// Moves the due date; null removes it.
   Future<void> setDueDate(Task task, LocalDate? dueDate) =>

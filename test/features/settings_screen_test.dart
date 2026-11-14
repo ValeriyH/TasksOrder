@@ -161,71 +161,46 @@ void main() {
     });
   });
 
-  group('a smaller priority scale (T-406)', () {
+  group('the priority scale (ADR-17)', () {
     final tasks = [
-      testTask('p1', priority: 1),
-      testTask('p3', priority: 3, minute: 1),
-      testTask('p5', priority: 5, minute: 2),
+      testTask('catastrophic', priority: 1),
+      testTask('normal', minute: 1),
+      testTask('someday', priority: 8, minute: 2),
     ];
 
-    testWidgets('asks, then squeezes the priorities and stores the scale', (
+    for (final scale in ['3', '10']) {
+      testWidgets('to $scale: no question, the tasks keep their levels', (
+        tester,
+      ) async {
+        final app = await start(tester, tasks: tasks);
+
+        await segment(tester, 'scale', scale);
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(current(app).priorityScale, int.parse(scale));
+        expect((await app.task('catastrophic')).priority, 1);
+        expect((await app.task('normal')).priority, 5);
+        expect((await app.task('someday')).priority, 8);
+      });
+    }
+
+    testWidgets('a round trip 5 -> 10 -> 3 -> 5 changes nothing', (
       tester,
     ) async {
       final app = await start(tester, tasks: tasks);
 
-      await segment(tester, 'scale', '3');
-      expect(find.text('Fewer priority levels'), findsOneWidget);
-      expect(
-        find.textContaining('2 tasks get a new priority on the scale of 3'),
-        findsOneWidget,
-      );
-      // Nothing changed yet.
-      expect(current(app).priorityScale, 5);
-      await tester.tap(find.text('Change'));
-      await tester.pumpAndSettle();
-
-      expect(current(app).priorityScale, 3);
-      expect((await app.task('p1')).priority, 1);
-      expect((await app.task('p3')).priority, 2);
-      expect((await app.task('p5')).priority, 3);
-    });
-
-    testWidgets('Cancel keeps the scale and the tasks', (tester) async {
-      final app = await start(tester, tasks: tasks);
-
-      await segment(tester, 'scale', '3');
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+      for (final scale in ['10', '3', '5']) {
+        await segment(tester, 'scale', scale);
+      }
 
       expect(current(app).priorityScale, 5);
-      expect((await app.task('p5')).priority, 5);
       expect(
-        tester
-            .widget<SegmentedButton<int>>(find.byKey(const ValueKey('scale')))
-            .selected,
-        {5},
+        [
+          for (final id in ['catastrophic', 'normal', 'someday'])
+            (await app.task(id)).priority,
+        ],
+        [1, 5, 8],
       );
-    });
-
-    testWidgets('no question when no task would change', (tester) async {
-      final app = await start(tester, tasks: [testTask('p1', priority: 1)]);
-
-      await segment(tester, 'scale', '3');
-
-      expect(find.text('Fewer priority levels'), findsNothing);
-      expect(current(app).priorityScale, 3);
-    });
-
-    testWidgets('a bigger scale keeps the priorities and does not ask', (
-      tester,
-    ) async {
-      final app = await start(tester, tasks: tasks);
-
-      await segment(tester, 'scale', '10');
-
-      expect(find.text('Fewer priority levels'), findsNothing);
-      expect(current(app).priorityScale, 10);
-      expect((await app.task('p5')).priority, 5);
     });
   });
 

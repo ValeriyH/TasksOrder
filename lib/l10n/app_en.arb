@@ -92,18 +92,6 @@
   "@taskNotFound": {
     "description": "Editor opened for a task that does not exist or is in the Trash"
   },
-  "priorityWithNumber": "{label} ({number})",
-  "@priorityWithNumber": {
-    "description": "A priority as it is always shown: its name and its number, 1 is the highest (D1)",
-    "placeholders": {
-      "label": {
-        "type": "String"
-      },
-      "number": {
-        "type": "int"
-      }
-    }
-  },
   "priorityS3P1": "Critical",
   "@priorityS3P1": {
     "description": "Priority 1 on the scale of 3 (D1)"
@@ -180,14 +168,14 @@
   "@errorLoading": {
     "description": "Shown instead of a screen when the database failed"
   },
-  "todayPlannedHeader": "Planned {count}/{capacity}",
+  "todayPlannedHeader": "Planned {left}/{total}",
   "@todayPlannedHeader": {
-    "description": "Today: header of today's list, tasks left and the capacity of the day",
+    "description": "Today: header of today's list, tasks left of all the tasks the day holds today (left plus done from the list)",
     "placeholders": {
-      "count": {
+      "left": {
         "type": "int"
       },
-      "capacity": {
+      "total": {
         "type": "int"
       }
     }
@@ -203,7 +191,7 @@
   },
   "todayOverloaded": "More than planned: {count} tasks, capacity {capacity}",
   "@todayOverloaded": {
-    "description": "Today: banner when deadlines put more tasks on today than its capacity",
+    "description": "Today: banner when the day holds more tasks than its capacity; count includes the ones done today from the list, capacity is the day's full capacity",
     "placeholders": {
       "count": {
         "type": "int"
@@ -622,26 +610,6 @@
         "type": "String"
       }
     }
-  },
-  "scaleShrinkTitle": "Fewer priority levels",
-  "@scaleShrinkTitle": {
-    "description": "Settings: title of the question before the priority scale gets smaller"
-  },
-  "scaleShrinkBody": "{count, plural, =1{1 task gets} other{{count} tasks get}} a new priority on the scale of {scale}. The order of the tasks stays.",
-  "@scaleShrinkBody": {
-    "description": "Settings: what happens to the tasks when the scale gets smaller",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "scale": {
-        "type": "int"
-      }
-    }
-  },
-  "actionChange": "Change",
-  "@actionChange": {
-    "description": "Dialog button: confirm the change"
   },
   "settingsBackup": "Backup",
   "@settingsBackup": {

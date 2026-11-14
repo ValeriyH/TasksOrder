@@ -136,7 +136,9 @@ class _TodayBody extends ConsumerWidget {
         if (day.isOverloaded)
           _Banner(
             icon: Icons.info_outline,
-            text: l10n.todayOverloaded(day.entries.length, day.capacity),
+            // All the day holds, the ones done from the list too, against
+            // its full capacity: the same numbers as the header.
+            text: l10n.todayOverloaded(planned.length + doneCount, capacity),
             background: theme.colorScheme.tertiaryContainer,
             foreground: theme.colorScheme.onTertiaryContainer,
           ),
@@ -154,7 +156,10 @@ class _TodayBody extends ConsumerWidget {
         ],
         if (planned.isNotEmpty || doneCount > 0) ...[
           _SectionHeader(
-            title: l10n.todayPlannedHeader(planned.length, capacity),
+            title: l10n.todayPlannedHeader(
+              planned.length,
+              planned.length + doneCount,
+            ),
             trailing: doneCount > 0 ? l10n.todayDoneCount(doneCount) : null,
           ),
           ...planned,

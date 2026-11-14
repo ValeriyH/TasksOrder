@@ -106,7 +106,7 @@ void main() {
       expect(headerTexts(tester, saturday), ['Tomorrow', '3/3']);
       expect(headerTexts(tester, LocalDate(2026, 11, 15)), [
         'Sun, Nov 15',
-        '0/0',
+        'Rest day',
       ]);
       expect(headerTexts(tester, monday), ['Mon, Nov 16', '1/1']);
       expect(find.text('Later (1)'), findsOneWidget);
@@ -162,6 +162,9 @@ void main() {
       await tester.tap(inTile('a', find.byType(Checkbox)));
       await tester.pumpAndSettle();
       expect((await app.task('a')).completedOnPlan, isTrue);
+      // Today still holds one task of its one: the done one counts, as on
+      // the Today screen.
+      expect(headerTexts(tester, today), ['Today', '1/1']);
     });
 
     testWidgets('a tap opens the editor', (tester) async {
@@ -272,6 +275,20 @@ void main() {
       );
     });
 
+    testWidgets('a rest day with a pinned task shows the count', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        tasks: [testTask('a', pinnedDate: LocalDate(2026, 11, 15))],
+      );
+
+      expect(headerTexts(tester, LocalDate(2026, 11, 15)), [
+        'Sun, Nov 15',
+        '1/0',
+      ]);
+    });
+
     testWidgets('down to a rest day, and back to the weekday', (tester) async {
       final app = await start(tester, tasks: [testTask('a')]);
 
@@ -280,7 +297,13 @@ void main() {
       // A day without its own capacity has nothing to reset.
       expect(find.text('As the weekday'), findsNothing);
       await tapKey(tester, 'override-');
-      expect(find.text('Rest day'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Rest day'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 

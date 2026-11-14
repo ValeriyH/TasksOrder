@@ -66,12 +66,12 @@ void main() {
     await start(
       tester,
       tasks: [
-        testTask('low', priority: 4),
-        testTask('mid', priority: 2, minute: 1),
-        testTask('high', priority: 1, minute: 2),
+        testTask('low', priority: 7),
+        testTask('mid', priority: 3, minute: 1),
+        testTask('high', priority: 2, minute: 2),
         testTask(
           'dated',
-          priority: 2,
+          priority: 3,
           dueDate: LocalDate(2026, 11, 20),
           minute: 3,
         ),
@@ -82,7 +82,7 @@ void main() {
     expect(inTile('high', find.text('Planned for today')), findsOneWidget);
     expect(inTile('mid', find.text('Planned for Sat, Nov 14')), findsOneWidget);
     expect(inTile('dated', find.text('Due Fri, Nov 20')), findsOneWidget);
-    expect(inTile('low', find.text('Low (4)')), findsOneWidget);
+    expect(inTile('low', find.text('Low')), findsOneWidget);
   });
 
   testWidgets('done tasks are not listed', (tester) async {
@@ -229,7 +229,8 @@ void main() {
       for (final text in tester.widgetList<Text>(
         find.descendant(of: find.byType(ListView), matching: find.byType(Text)),
       ))
-        if (!text.data!.contains('(')) text.data!,
+        // Leave out the priority badge of each task.
+        if (text.data != 'Normal') text.data!,
     ];
 
     testWidgets('completed tasks by day, the latest first', (tester) async {

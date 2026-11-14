@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/application/task_actions.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/priority_dropdown.dart';
 
@@ -28,7 +29,7 @@ class QuickAddSheet extends ConsumerStatefulWidget {
 class _QuickAddSheetState extends ConsumerState<QuickAddSheet> {
   final _title = TextEditingController();
 
-  /// Null until the user picks one: then the middle of the scale.
+  /// Null until the user picks one: then Normal.
   int? _priority;
   bool _saving = false;
 
@@ -59,7 +60,7 @@ class _QuickAddSheetState extends ConsumerState<QuickAddSheet> {
       );
     }
     final scale = settings.priorityScale;
-    final priority = (_priority ?? defaultPriority(scale)).clamp(1, scale);
+    final priority = _priority ?? PriorityLabels.normal;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(

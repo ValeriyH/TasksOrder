@@ -54,14 +54,14 @@ void main() {
       await AppHarness.start(
         tester,
         tasks: [
-          testTask('low', priority: 4),
-          testTask('high', priority: 1, dueDate: LocalDate(2026, 11, 20)),
+          testTask('low', priority: 7),
+          testTask('high', priority: 2, dueDate: LocalDate(2026, 11, 20)),
         ],
       );
 
       expect(tiles(tester), ['Task high']);
       expect(find.text('Planned 1/1'), findsOneWidget);
-      expect(inTile('high', find.text('Critical (1)')), findsOneWidget);
+      expect(inTile('high', find.text('Critical')), findsOneWidget);
       expect(inTile('high', find.text('Due Fri, Nov 20')), findsOneWidget);
       expect(find.textContaining('Done today'), findsNothing);
     });
@@ -107,6 +107,38 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(find.text('Task completed'), findsNothing);
+    });
+
+    testWidgets('header and banner count the done tasks with the rest', (
+      tester,
+    ) async {
+      // Friday holds 2, deadlines may add 2: four due today all fit.
+      await AppHarness.start(
+        tester,
+        settings: Settings(
+          weeklyCapacity: const [1, 1, 1, 1, 2, 3, 0],
+          maxOverflowPerDay: 2,
+        ),
+        tasks: [
+          for (var i = 1; i <= 4; i++)
+            testTask('d$i', dueDate: today, minute: i),
+        ],
+      );
+      expect(find.text('Planned 4/4'), findsOneWidget);
+      expect(
+        find.text('More than planned: 4 tasks, capacity 2'),
+        findsOneWidget,
+      );
+
+      await tick(tester, 'd1');
+
+      // Three left of the four the day holds; still four against two.
+      expect(find.text('Planned 3/4'), findsOneWidget);
+      expect(find.text('Done today: 1'), findsOneWidget);
+      expect(
+        find.text('More than planned: 4 tasks, capacity 2'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a deadline slot is refilled (D16)', (tester) async {
@@ -323,7 +355,7 @@ void main() {
     );
     expect(find.text('Фокус'), findsOneWidget);
     expect(find.text('Прострочено на 5 днів'), findsOneWidget);
-    expect(find.text('Заплановано 2/1'), findsOneWidget);
+    expect(find.text('Заплановано 2/2'), findsOneWidget);
     expect(find.text('Термін сьогодні'), findsNWidgets(2));
     expect(find.text('Дедлайн'), findsNWidgets(2));
     expect(find.text('1 завдання не встигне до терміну'), findsOneWidget);

@@ -6,6 +6,7 @@ import 'package:tasks_order/application/backup.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/backup_repository.dart';
@@ -87,7 +88,7 @@ class AppHarness {
 /// order of equal priorities is the order of the minutes.
 Task testTask(
   String id, {
-  int priority = 3,
+  int priority = PriorityLabels.normal,
   int minute = 0,
   LocalDate? dueDate,
   LocalDate? pinnedDate,

@@ -9,6 +9,7 @@ import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/task_repository.dart';
@@ -98,7 +99,7 @@ void main() {
       await openNew(tester);
 
       expect(find.text('New task'), findsOneWidget);
-      expect(find.text('Normal (3)'), findsOneWidget);
+      expect(find.text('Normal'), findsOneWidget);
       expect(find.byIcon(Icons.delete_outline), findsNothing);
       // The keyboard is ready for the title.
       expect(tester.testTextInput.isVisible, isTrue);
@@ -111,7 +112,7 @@ void main() {
       final task = (await stored(tester)).single;
       expect(task.title, 'Buy milk');
       expect(task.notes, isNull);
-      expect(task.priority, 3);
+      expect(task.priority, PriorityLabels.normal);
       expect(task.dueDate, isNull);
       expect(task.pinnedDate, isNull);
       expect(task.isFocused, isFalse);
@@ -137,11 +138,11 @@ void main() {
       await tester.enterText(field('Title'), 'Tax return');
       await tester.enterText(field('Notes'), 'Form 3');
 
-      await tester.tap(find.text('Normal (3)'));
+      await tester.tap(find.text('Normal'));
       await tester.pumpAndSettle();
-      expect(find.text('Critical (1)'), findsOneWidget);
-      expect(find.text('Someday (5)'), findsOneWidget);
-      await tester.tap(find.text('High (2)').last);
+      expect(find.text('Critical'), findsOneWidget);
+      expect(find.text('Someday'), findsOneWidget);
+      await tester.tap(find.text('High').last);
       await tester.pumpAndSettle();
 
       // The picker opens on today; a tap on the 20th chooses that day.
@@ -159,7 +160,7 @@ void main() {
       final task = (await stored(tester)).single;
       expect(task.title, 'Tax return');
       expect(task.notes, 'Form 3');
-      expect(task.priority, 2);
+      expect(task.priority, 3);
       expect(task.dueDate, LocalDate(2026, 11, 20));
       expect(task.pinnedDate, today);
       expect(task.isFocused, isTrue);
@@ -172,11 +173,11 @@ void main() {
       await pumpApp(tester, settings: Settings(priorityScale: 10));
       await openNew(tester);
 
-      expect(find.text('Normal (5)'), findsOneWidget);
-      await tester.tap(find.text('Normal (5)'));
+      expect(find.text('Normal'), findsOneWidget);
+      await tester.tap(find.text('Normal'));
       await tester.pumpAndSettle();
-      expect(find.text('Catastrophic (1)'), findsOneWidget);
-      expect(find.text('Never (10)'), findsOneWidget);
+      expect(find.text('Catastrophic'), findsOneWidget);
+      expect(find.text('Never'), findsOneWidget);
     });
 
     testWidgets('in Ukrainian', (tester) async {
@@ -184,7 +185,7 @@ void main() {
       await openNew(tester);
 
       expect(find.text('Нове завдання'), findsOneWidget);
-      expect(find.text('Звичайний (3)'), findsOneWidget);
+      expect(find.text('Звичайний'), findsOneWidget);
       expect(find.text('Термін'), findsOneWidget);
       expect(find.text('Не вказано'), findsNWidgets(2));
       expect(find.text('Зберегти'), findsOneWidget);
@@ -198,7 +199,7 @@ void main() {
       id: 'a',
       title: 'Call the bank',
       notes: 'Ask about the card',
-      priority: 2,
+      priority: 3,
       dueDate: LocalDate(2026, 11, 18),
       isFocused: true,
       now: created,
@@ -211,7 +212,7 @@ void main() {
       expect(find.text('Edit task'), findsOneWidget);
       expect(find.text('Call the bank'), findsOneWidget);
       expect(find.text('Ask about the card'), findsOneWidget);
-      expect(find.text('High (2)'), findsOneWidget);
+      expect(find.text('High'), findsOneWidget);
       expect(find.text('Wednesday, November 18, 2026'), findsOneWidget);
       expect(find.text('Monday, November 16, 2026'), findsOneWidget);
       expect(
@@ -242,7 +243,7 @@ void main() {
       expect(task.id, before.id);
       expect(task.title, 'Call the bank again');
       expect(task.notes, isNull);
-      expect(task.priority, 2);
+      expect(task.priority, 3);
       expect(task.dueDate, isNull);
       expect(task.pinnedDate, isNull);
       expect(task.isFocused, isFalse);
@@ -260,16 +261,18 @@ void main() {
       expect((await stored(tester)).single.focusedAt, created.toUtc());
     });
 
-    testWidgets('a priority above the scale shows as the last level', (
-      tester,
-    ) async {
+    testWidgets('a level the scale does not offer shows as the nearest one '
+        'and is kept on save', (tester) async {
       await pumpApp(tester, settings: Settings(priorityScale: 3));
       await openExisting(
         tester,
-        Task.create(id: 'b', title: 'Old', priority: 5, now: created),
+        Task.create(id: 'b', title: 'Old', priority: 9, now: created),
       );
 
-      expect(find.text('Low (3)'), findsOneWidget);
+      expect(find.text('Low'), findsOneWidget);
+      await save(tester);
+
+      expect((await stored(tester)).single.priority, 9);
     });
 
     testWidgets('delete moves the task to the Trash, undo brings it back', (

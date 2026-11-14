@@ -1,6 +1,7 @@
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/plan.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/planner/capacity_resolver.dart';
@@ -220,8 +221,9 @@ class Planner {
   }
 
   /// Sets every candidate's effective priority for the day at [dayOffset]
-  /// (D10): a task due within `urgencySoonDays` counts one level higher,
-  /// within `urgencyNearDays` two levels, never above priority 1.
+  /// (D10): a task due within `urgencySoonDays` counts one level of the
+  /// scale higher, within `urgencyNearDays` two levels, never above the first
+  /// level of the scale (`PriorityLabels.raise`).
   ///
   /// Returns whether any value changed.
   static bool _applyUrgencyBoost(
@@ -239,8 +241,11 @@ class Planner {
           : slack <= settings.urgencySoonDays
           ? 1
           : 0;
-      final boosted = candidate.task.priority - boost;
-      final effective = boosted < 1 ? 1 : boosted;
+      final effective = PriorityLabels.raise(
+        candidate.task.priority,
+        boost,
+        settings.priorityScale,
+      );
       if (effective != candidate.effectivePriority) {
         candidate.effectivePriority = effective;
         changed = true;

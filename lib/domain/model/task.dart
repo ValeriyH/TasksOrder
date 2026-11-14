@@ -12,8 +12,7 @@ enum TaskStatus { active, done }
 ///
 /// Invariants, checked by assertions:
 /// - [title] is not blank;
-/// - [priority] is at least 1 (the upper bound depends on the current scale,
-///   see [isValidPriority]);
+/// - [priority] is a level of the table, 1..10 (D1, ADR-17);
 /// - [completedAt] is set exactly when [status] is [TaskStatus.done];
 /// - [focusedAt] is set exactly when [isFocused] is true;
 /// - [completedOnPlan] is true only for a done task.
@@ -24,7 +23,7 @@ enum TaskStatus { active, done }
 @freezed
 abstract class Task with _$Task {
   @Assert('title.trim().isNotEmpty', 'title must not be blank')
-  @Assert('priority >= 1', 'priority starts at 1')
+  @Assert('priority >= 1 && priority <= 10', 'priority is a level 1..10')
   @Assert(
     '(status == TaskStatus.done) == (completedAt != null)',
     'completedAt must be set exactly when the task is done',
@@ -44,7 +43,8 @@ abstract class Task with _$Task {
     required String title,
     String? notes,
 
-    /// 1 = highest .. `Settings.priorityScale` = lowest (D1).
+    /// A level of the table: 1 = highest .. 10 = lowest, whatever the scale
+    /// (D1, ADR-17); Normal is 5. See `PriorityLabels`.
     required int priority,
     LocalDate? dueDate,
 
@@ -83,8 +83,8 @@ abstract class Task with _$Task {
 
   /// A new active task with a fresh UUID, created at [now].
   ///
-  /// The [title] is trimmed; a blank title or a [priority] below 1 throws
-  /// [ArgumentError]. Pass [id] only to get a predictable value in tests.
+  /// The [title] is trimmed; a blank title or a [priority] outside 1..10
+  /// throws [ArgumentError]. Pass [id] only to get a predictable value in tests.
   factory Task.create({
     required String title,
     required int priority,
@@ -98,8 +98,8 @@ abstract class Task with _$Task {
     if (trimmed.isEmpty) {
       throw ArgumentError.value(title, 'title', 'Must not be blank');
     }
-    if (priority < 1) {
-      throw ArgumentError.value(priority, 'priority', 'Must be at least 1');
+    if (!PriorityLabels.isValid(priority)) {
+      throw ArgumentError.value(priority, 'priority', 'Must be in 1..10');
     }
     final utc = now.toUtc();
     return Task(
@@ -119,9 +119,6 @@ abstract class Task with _$Task {
 
   /// In the Trash (soft-deleted).
   bool get isDeleted => deletedAt != null;
-
-  /// Whether [priority] fits the given priority [scale] (3, 5 or 10).
-  bool isValidPriority(int scale) => PriorityLabels.isValid(priority, scale);
 
   /// Marks the task done at [now].
   ///

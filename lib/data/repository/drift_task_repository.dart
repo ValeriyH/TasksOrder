@@ -62,26 +62,6 @@ class DriftTaskRepository implements TaskRepository {
       (_db.delete(_db.tasks)..where((t) => t.id.equals(id))).go();
 
   @override
-  Future<int> remapPriorities(int Function(int priority) remap, DateTime now) =>
-      _db.transaction(() async {
-        var changed = 0;
-        for (final row in await _db.select(_db.tasks).get()) {
-          final task = row.toDomain();
-          final priority = remap(task.priority);
-          if (priority == task.priority) continue;
-          await _db
-              .update(_db.tasks)
-              .replace(
-                task
-                    .copyWith(priority: priority, updatedAt: now.toUtc())
-                    .toRow(),
-              );
-          changed++;
-        }
-        return changed;
-      });
-
-  @override
   Future<int> purgeDeleted(Duration olderThan, DateTime now) {
     final cutoff = const UtcMillisConverter().toSql(now.subtract(olderThan));
     return (_db.delete(

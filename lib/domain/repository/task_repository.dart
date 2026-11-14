@@ -41,10 +41,6 @@ abstract interface class TaskRepository {
   /// Removes the task for good, wherever it is. There is no way back.
   Future<void> deleteForever(String id);
 
-  /// Gives every task, the done and the deleted ones too, the priority
-  /// [remap] returns for its current one (T-406). Returns how many changed.
-  Future<int> remapPriorities(int Function(int priority) remap, DateTime now);
-
   /// Removes for good the tasks that have been in the Trash for longer than
   /// [olderThan]. Returns how many were removed.
   Future<int> purgeDeleted(Duration olderThan, DateTime now);

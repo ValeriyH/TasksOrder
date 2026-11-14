@@ -5,6 +5,7 @@
     // in the editor, and for a file from test/ that means the tests.
     { "name": "TasksOrder (Windows)", "request": "launch", "type": "dart", "program": "lib/main.dart", "deviceId": "windows" },
     { "name": "TasksOrder (Chrome)", "request": "launch", "type": "dart", "program": "lib/main.dart", "deviceId": "chrome" },
-    { "name": "TasksOrder (Android)", "request": "launch", "type": "dart", "program": "lib/main.dart" }
+    // Starts the AVD (tool/start_emulator.cmd) and waits for it to boot first.
+    { "name": "TasksOrder (Android)", "request": "launch", "type": "dart", "program": "lib/main.dart", "deviceId": "emulator-5554", "preLaunchTask": "emulator: start" }
   ]
 }

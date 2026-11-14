@@ -3,6 +3,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:tasks_order/data/db/converters.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/task.dart' show TaskStatus;
 
 part 'database.g.dart';
@@ -110,8 +111,11 @@ class AppDatabase extends _$AppDatabase {
     isUtc: true,
   );
 
+  /// 2 (ADR-17): `tasks.priority` holds a level of the ten-level table; the
+  /// tables did not change. 1: it was the position in the scale of the
+  /// settings.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -121,7 +125,32 @@ class AppDatabase extends _$AppDatabase {
       await into(settingsTable)
           .insert(SettingsTableCompanion.insert(updatedAt: seedTimestamp));
     },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) await _prioritiesToLevels();
+    },
   );
+
+  /// Schema 1 → 2: a priority was the position in the scale of the settings,
+  /// now it is the level that stands at that position (ADR-17). `updated_at`
+  /// stays: the meaning of a task did not change.
+  Future<void> _prioritiesToLevels() async {
+    final row = await customSelect(
+      'SELECT priority_scale FROM settings WHERE id = 1',
+    ).getSingleOrNull();
+    final scale = row?.read<int>('priority_scale') ?? 5;
+    if (!PriorityLabels.scales.contains(scale)) return;
+    final levels = PriorityLabels.levels(scale);
+    // A value past the end of the scale counts as its last level.
+    final cases = [
+      for (var position = 1; position <= levels.length; position++)
+        'WHEN priority = $position THEN ${levels[position - 1]}',
+    ].join(' ');
+    await customStatement(
+      'UPDATE tasks SET priority = CASE '
+      'WHEN priority < 1 THEN ${levels.first} '
+      '$cases ELSE ${levels.last} END',
+    );
+  }
 
   static QueryExecutor _openConnection() => driftDatabase(
     name: databaseName,

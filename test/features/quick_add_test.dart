@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/application/providers.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/features/today/quick_add_sheet.dart';
@@ -50,7 +51,7 @@ void main() {
     await open(tester);
     // Ready to type, nothing to add yet.
     expect(tester.testTextInput.isVisible, isTrue);
-    expect(find.text('Normal (3)'), findsOneWidget);
+    expect(find.text('Normal'), findsOneWidget);
     expect(addEnabled(tester), isFalse);
 
     await tester.enterText(find.byType(TextField), ' Buy milk ');
@@ -62,7 +63,7 @@ void main() {
     expect(find.byType(QuickAddSheet), findsNothing);
     final task = (await stored(app)).single;
     expect(task.title, 'Buy milk');
-    expect(task.priority, 3);
+    expect(task.priority, PriorityLabels.normal);
     expect(task.createdAt, AppHarness.now.toUtc());
     expect(find.widgetWithText(TaskTile, 'Buy milk'), findsOneWidget);
     expect(haptics, ['HapticFeedbackType.lightImpact']);
@@ -101,17 +102,19 @@ void main() {
       settings: Settings(priorityScale: 3),
     );
     await open(tester);
-    expect(find.text('Normal (2)'), findsOneWidget);
+    expect(find.text('Normal'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'Fix the tap');
-    await tester.tap(find.text('Normal (2)'));
+    await tester.tap(find.text('Normal'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Critical (1)').last);
+    // Scale 3 offers Critical, Normal and Low only.
+    expect(find.text('High'), findsNothing);
+    await tester.tap(find.text('Critical').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
 
-    expect((await stored(app)).single.priority, 1);
+    expect((await stored(app)).single.priority, 2);
   });
 
   testWidgets('ticking a task gives haptic feedback', (tester) async {
@@ -130,6 +133,6 @@ void main() {
 
     expect(find.text('Назва'), findsOneWidget);
     expect(find.text('Додати'), findsOneWidget);
-    expect(find.text('Звичайний (3)'), findsOneWidget);
+    expect(find.text('Звичайний'), findsOneWidget);
   });
 }

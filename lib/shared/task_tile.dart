@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
@@ -53,9 +51,7 @@ class TaskTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
-    // A value above the scale (the scale was made smaller) shows as the last
-    // level.
-    final priority = math.min(task.priority, scale);
+    final priority = task.priority;
     final dueDate = task.dueDate;
     final overdueDays = dueDate == null ? 0 : dueDate.daysUntil(today);
     final moveDueDate = onMoveDueDate;
@@ -73,7 +69,7 @@ class TaskTile extends StatelessWidget {
           runSpacing: 4,
           children: [
             TaskBadge(
-              label: priorityLabel(l10n, priority, scale),
+              label: priorityName(l10n, priority, scale),
               dotColor: priorityColor(priority, scale),
             ),
             if (dueDate != null)

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/plan.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/planner/planner.dart';
@@ -17,19 +18,23 @@ void main() {
   /// Thresholds 0 / 0 leave only deadline forcing.
   final noBoost = Settings(urgencySoonDays: 0, urgencyNearDays: 0);
 
-  /// A task whose id doubles as its title. [age] orders `createdAt`: a lower
-  /// value is an older task. [focused] is the minute the Focus mark was set.
+  /// A task whose id doubles as its title. [priority] is the position on the
+  /// default scale 5, as in the examples of docs/04: 1 Critical, 2 High,
+  /// 3 Normal, 4 Low, 5 Someday ([level] sets a level of the table instead).
+  /// [age] orders `createdAt`: a lower value is an older task. [focused] is
+  /// the minute the Focus mark was set.
   Task task(
     String id,
     int priority, {
     required int age,
     LocalDate? due,
     int? focused,
+    int? level,
   }) {
     final t = Task.create(
       id: id,
       title: id,
-      priority: priority,
+      priority: level ?? PriorityLabels.fromPosition(priority, 5),
       dueDate: due,
       now: epoch.add(Duration(minutes: age)),
     );
@@ -887,6 +892,44 @@ void main() {
 
       expect(plannedIds(p).indexOf('low-due'), 7);
       expect(p.atRiskTaskIds, isEmpty);
+    });
+
+    group('steps are levels of the scale (ADR-17)', () {
+      /// Today's order of a Normal task due in [slack] days among plain
+      /// tasks of the given levels, on [scale].
+      List<String> order(int scale, int slack, List<int> levels) {
+        final p = plan(
+          [
+            for (final l in levels) task('l$l', 0, age: l, level: l),
+            task('due', 0, age: 20, level: 5, due: today.addDays(slack)),
+          ],
+          settings: Settings(
+            priorityScale: scale,
+            weeklyCapacity: const [9, 9, 9, 9, 9, 9, 9],
+          ),
+        );
+        return [for (final e in p.days.first.entries) e.taskId];
+      }
+
+      test('scale 10: one step is Elevated, two are High', () {
+        expect(order(10, 5, [3, 4]), ['l3', 'l4', 'due']);
+        expect(order(10, 2, [3, 4]), ['l3', 'due', 'l4']);
+      });
+
+      test('scale 3: one step is Critical', () {
+        expect(order(3, 5, [2, 3, 4]), ['l2', 'due', 'l3', 'l4']);
+      });
+
+      test('a level the scale does not offer steps from the one it shows', () {
+        // Elevated (4) shows as High on scale 5: one step is Critical.
+        final p = plan([
+          task('critical', 0, age: 1, level: 2),
+          task('elevated-due', 0, age: 2, level: 4, due: today.addDays(5)),
+          task('high', 0, age: 3, level: 3),
+        ], settings: Settings(weeklyCapacity: everyDayThree));
+
+        expect(schedule(p)['2026-11-16'], ['critical', 'elevated-due', 'high']);
+      });
     });
 
     test('later is listed in plain priority order, without boost', () {

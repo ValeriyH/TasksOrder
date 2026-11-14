@@ -13,7 +13,7 @@ updated: 2026-11-14
 | `id` | `String` (UUID v4) | |
 | `title` | `String` | required, trimmed, non-empty |
 | `notes` | `String?` | |
-| `priority` | `int` | 1 = highest … `settings.priorityScale` = lowest (D1). Shown as "Label (n)"; label tables per scale in [[01 Brainstorm]] |
+| `priority` | `int` | a level of the ten-level table: 1 = highest … 10 = lowest, Normal = 5, whatever the scale (D1, ADR-17). Shown as its name only; a level the scale does not offer reads as the nearest one. Table in [[01 Brainstorm]] |
 | `dueDate` | `LocalDate?` | calendar day, no time |
 | `isFocused` | `bool` | Focus mark (D17): kept in sight in the Focus view; the task is planned like any other. Persists until done or unmarked |
 | `focusedAt` | `DateTime?` (UTC) | set when `isFocused` becomes true; Focus tie-breaker |
@@ -33,7 +33,7 @@ Sync-readiness (D12): `id` is a UUID, every write bumps `updatedAt`, delete is s
 ### Settings (single row)
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
-| `priorityScale` | `int` | 5 | allowed 3, 5, 10 |
+| `priorityScale` | `int` | 5 | allowed 3, 5, 10: which levels the app offers (3 → Critical, Normal, Low; 5 adds High, Someday; 10 all); tasks keep their levels when it changes |
 | `weeklyCapacity` | `List<int>` (7) | `[1,1,1,1,1,3,0]` Mon..Sun | tasks per weekday, 0 = rest day |
 | `maxOverflowPerDay` | `int` | 1 | extra tasks a deadline may add to a day: 1, 2 or 3 in the UI (D5); the domain also accepts 0 = no overflow |
 | `planningHorizonDays` | `int` | 90 | number of planned days including today (≥ 1); tasks beyond are "Later" |
@@ -139,7 +139,8 @@ CREATE TABLE day_overrides (
   deleted_at  INTEGER
 );
 ```
-Schema version 1 (snapshot: `drift_schemas/drift_schema_v1.json`). Migrations handled by drift `MigrationStrategy`; every schema change gets a test with the drift schema verifier.
+Schema version 2 (snapshots: `drift_schemas/drift_schema_v1.json`, `drift_schema_v2.json`; the tables are the same). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart`.
+- 1 → 2 (ADR-17): `tasks.priority` was the position in the scale of the settings, `1..priority_scale`; it becomes the level at that position (`PriorityLabels.fromPosition`): scale 5 → 2, 3, 5, 7, 8; scale 3 → 2, 5, 7; scale 10 unchanged. A value past either end becomes that end. `updated_at` stays.
 
 The `settings` row is seeded when the database is created, with the column defaults and `updated_at = 0`: the epoch marks a row the user never changed, so it loses any last-write-wins merge. Drift row classes are named `TaskRow`, `SettingsRow`, `DayOverrideRow`; they stay inside `lib/data`.
 
@@ -158,7 +159,6 @@ abstract interface class TaskRepository {
   Future<void> delete(String id, DateTime now);  // soft delete: sets deletedAt (Trash)
   Future<void> restore(String id, DateTime now); // clears deletedAt
   Future<void> deleteForever(String id);         // "Delete forever" in the Trash
-  Future<int> remapPriorities(int Function(int priority) remap, DateTime now); // smaller scale (T-406)
   Future<int> purgeDeleted(Duration olderThan, DateTime now); // housekeeping, 30 days
 }
 abstract interface class SettingsRepository {
@@ -176,17 +176,17 @@ abstract interface class DeviceSettingsRepository { // SharedPreferences, never 
 }
 ```
 
-## Backup format (version 1)
+## Backup format (version 2)
 One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `BackupCodec` (ADR-16 in [[02 Architecture]]):
 ```json
 {
   "app": "TasksOrder",
-  "version": 1,
+  "version": 2,
   "exportedAt": "2026-11-14T00:28:44.345Z",
   "settings": { "priorityScale": 5, "weeklyCapacity": [1,1,1,1,1,3,0], "maxOverflowPerDay": 1,
                 "planningHorizonDays": 90, "urgencySoonDays": 7, "urgencyNearDays": 2,
                 "focusVisibleLimit": 3, "dayStartHour": 0 },
-  "tasks": [ { "id": "…", "title": "…", "priority": 3, "isFocused": false, "status": "active",
+  "tasks": [ { "id": "…", "title": "…", "priority": 5, "isFocused": false, "status": "active",
                "createdAt": "…", "updatedAt": "…", "completedOnPlan": false } ],
   "dayOverrides": [ { "date": "2026-12-25", "capacity": 0, "note": "holiday" } ]
 }
@@ -194,7 +194,8 @@ One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `Backu
 - Task fields are those of the `Task` table above; a field without a value (`notes`, `dueDate`, `focusedAt`, `pinnedDate`, `notBefore`, `completedAt`, `deletedAt`) is left out. `status` is `active` or `done`.
 - Instants are ISO-8601 UTC text, calendar days `yyyy-MM-dd`.
 - `tasks` holds the Trash too (`deletedAt`); `dayOverrides` only the ones in force. Device settings are not in the file.
-- Reading checks the invariants of `Task` and `Settings`; a file that breaks them, or with `version` above 1, is refused and nothing changes. A priority outside the scale of the file is moved to the nearest end. Unknown fields are ignored.
+- `priority` is the level 1..10 (ADR-17). In version 1 it was the position in the file's `priorityScale`; such a file is still read, each priority turned into the level at that position, as the schema migration does.
+- Reading checks the invariants of `Task` and `Settings`; a file that breaks them, or with `version` above 2, is refused and nothing changes. A priority outside 1..10 (or outside the scale of a version 1 file) is moved to the nearest end. Unknown fields are ignored.
 - Restore replaces everything after a confirmation (`BackupRepository.replaceAll`, one transaction). Tasks keep their timestamps.
 
 ```dart

@@ -37,7 +37,8 @@ abstract class Settings with _$Settings {
   )
   // Not const: the capacity assertion calls a method.
   factory Settings({
-    /// Lowest priority value: 3, 5 or 10 (D1).
+    /// How many priority levels the app offers: 3, 5 or 10 (D1, ADR-17).
+    /// The levels of a task do not depend on it.
     @Default(5) int priorityScale,
 
     /// Tasks per weekday, Monday first; 0 = rest day (D6).
@@ -51,10 +52,10 @@ abstract class Settings with _$Settings {
     /// fit are "Later".
     @Default(90) int planningHorizonDays,
 
-    /// Due within this many days: one priority level higher (D10).
+    /// Due within this many days: one level of the scale higher (D10).
     @Default(7) int urgencySoonDays,
 
-    /// Due within this many days: two priority levels higher (D10).
+    /// Due within this many days: two levels of the scale higher (D10).
     @Default(2) int urgencyNearDays,
 
     /// How many tasks the Focus strip shows at once (D17).

@@ -18,7 +18,11 @@ class BackupCodec {
   static const appName = 'TasksOrder';
 
   /// Format version this app writes, and the highest one it reads.
-  static const version = 1;
+  ///
+  /// 2: a priority is a level of the ten-level table (ADR-17). 1: it was the
+  /// position in the scale of the file, `1..priorityScale`; read as the level
+  /// that stands at that position.
+  static const version = 2;
 
   String encode(Backup backup) => const JsonEncoder.withIndent('  ').convert({
     'app': appName,
@@ -41,7 +45,8 @@ class BackupCodec {
   ///
   /// The rules of the domain objects are checked here and not left to their
   /// assertions, which a release build does not run. A priority outside the
-  /// scale of the backup is moved to its nearest end.
+  /// table (or, in a version 1 file, outside the scale of the file) is moved
+  /// to its nearest end.
   Backup decode(String text) {
     try {
       final json = jsonDecode(text) as Map<String, dynamic>;
@@ -55,7 +60,12 @@ class BackupCodec {
       final settings = _readSettings(json['settings'] as Map<String, dynamic>);
       final tasks = [
         for (final task in json['tasks'] as List<dynamic>)
-          _readTask(task as Map<String, dynamic>, settings.priorityScale),
+          _readTask(
+            task as Map<String, dynamic>,
+            readPriority: fileVersion == 1
+                ? (p) => PriorityLabels.fromPosition(p, settings.priorityScale)
+                : (p) => p.clamp(PriorityLabels.highest, PriorityLabels.lowest),
+          ),
       ];
       _require({for (final task in tasks) task.id}.length == tasks.length);
       final overrides = [
@@ -138,7 +148,10 @@ class BackupCodec {
     'deletedAt': ?_instantOrNull(task.deletedAt),
   };
 
-  static Task _readTask(Map<String, dynamic> json, int scale) {
+  static Task _readTask(
+    Map<String, dynamic> json, {
+    required int Function(int priority) readPriority,
+  }) {
     final id = json['id'] as String;
     final title = (json['title'] as String).trim();
     final status = TaskStatus.values.byName(json['status'] as String);
@@ -154,7 +167,7 @@ class BackupCodec {
       id: id,
       title: title,
       notes: json['notes'] as String?,
-      priority: (json['priority'] as int).clamp(1, scale),
+      priority: readPriority(json['priority'] as int),
       dueDate: _readDate(json['dueDate']),
       isFocused: isFocused,
       focusedAt: focusedAt,

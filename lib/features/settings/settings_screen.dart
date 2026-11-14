@@ -5,7 +5,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/application/backup.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
 import 'package:tasks_order/application/providers.dart';
-import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/domain/model/backup.dart';
 import 'package:tasks_order/domain/model/device_settings.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
@@ -248,9 +247,8 @@ class _PlanningSection extends ConsumerWidget {
                 ),
             ],
             selected: {settings.priorityScale},
-            onSelectionChanged: (selection) => unawaited(
-              _changeScale(context, ref, settings, selection.single),
-            ),
+            onSelectionChanged: (selection) =>
+                unawaited(_changeScale(ref, settings, selection.single)),
           ),
         ),
         Padding(
@@ -380,55 +378,13 @@ class _PlanningSection extends ConsumerWidget {
   }
 }
 
-/// Stores a new priority scale. A smaller one first squeezes the priorities
-/// of the tasks into it, after the user agreed (T-406); a bigger one keeps
-/// them (D1).
-Future<void> _changeScale(
-  BuildContext context,
-  WidgetRef ref,
-  Settings settings,
-  int scale,
-) async {
-  final from = settings.priorityScale;
-  if (scale == from) return;
-  final repository = ref.read(settingsRepositoryProvider);
-  final clock = ref.read(clockProvider);
-  final actions = ref.read(taskActionsProvider);
-
-  if (scale < from) {
-    final tasks = ref.read(allTasksProvider).value ?? const [];
-    final affected = tasks
-        .where(
-          (task) =>
-              PriorityLabels.remap(task.priority, from: from, to: scale) !=
-              task.priority,
-        )
-        .length;
-    if (affected > 0) {
-      final l10n = context.l10n;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(l10n.scaleShrinkTitle),
-          content: Text(l10n.scaleShrinkBody(affected, scale)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(l10n.actionCancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(l10n.actionChange),
-            ),
-          ],
-        ),
-      );
-      if (!(confirmed ?? false)) return;
-    }
-    // Also without a question: tasks in the Trash are not counted above.
-    await actions.remapPriorities(from: from, to: scale);
-  }
-  await repository.save(settings.copyWith(priorityScale: scale), clock());
+/// Stores a new priority scale. The tasks keep their levels: the scale only
+/// chooses which levels the app offers (D1, ADR-17), so nothing is asked.
+Future<void> _changeScale(WidgetRef ref, Settings settings, int scale) async {
+  if (scale == settings.priorityScale) return;
+  await ref
+      .read(settingsRepositoryProvider)
+      .save(settings.copyWith(priorityScale: scale), ref.read(clockProvider)());
 }
 
 class _Header extends StatelessWidget {

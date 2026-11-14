@@ -239,29 +239,6 @@ void main() {
     });
   });
 
-  group('remapPriorities', () {
-    test('changes every task the mapping changes, the Trash too', () async {
-      await repo.upsert(task('p1', priority: 1), t0);
-      await repo.upsert(task('p4', priority: 4), t0);
-      await repo.upsert(task('done', priority: 9), t0);
-      await repo.upsert(task('trashed', priority: 10), t0);
-      await repo.complete('done', t0, onPlan: false);
-      await repo.delete('trashed', t0);
-
-      final changed = await repo.remapPriorities((p) => (p + 1) ~/ 2, t2);
-
-      expect(changed, 3);
-      expect((await stored('p1')).priority, 1);
-      expect((await stored('p1')).updatedAt, t0);
-      expect((await stored('p4')).priority, 2);
-      expect((await stored('p4')).updatedAt, t2);
-      expect((await stored('done')).priority, 5);
-      expect((await stored('done')).isDone, isTrue);
-      expect((await stored('trashed')).priority, 5);
-      expect((await stored('trashed')).isDeleted, isTrue);
-    });
-  });
-
   group('purgeDeleted', () {
     const month = Duration(days: 30);
 

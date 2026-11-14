@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -293,7 +292,7 @@ class _DoneList extends ConsumerWidget {
           ),
         );
       }
-      final priority = math.min(task.priority, scale);
+      final priority = task.priority;
       rows.add(
         ListTile(
           key: ValueKey(task.id),
@@ -317,7 +316,7 @@ class _DoneList extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.only(top: 4),
               child: TaskBadge(
-                label: priorityLabel(l10n, priority, scale),
+                label: priorityName(l10n, priority, scale),
                 dotColor: priorityColor(priority, scale),
               ),
             ),

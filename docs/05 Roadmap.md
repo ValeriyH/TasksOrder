@@ -29,6 +29,12 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 - **Scope creep**: parking lot in [[01 Brainstorm]] exists for a reason.
 
 ## Retro
+### M3 — 2026-11-14 (closed after M4, with T-308)
+- **Done:** T-301 … T-308. The device walkthrough ([[07 Device Test M3]]) ran on the emulator (`TasksOrder_API36`, debug build; midnight and overdue checked by moving the emulator clock); the owner checked the web app (a task survives a reload), vibration and light/dark on the phone. Fixes in 0.2.2; 460 tests.
+- **Demo:** emulator, driven over adb; release 0.2.x in everyday use on the owner's phone.
+- **Changed decisions:** ADR-17: a priority is a fixed level of the ten-level table, the scale only chooses the levels offered, a scale change touches no task, the number is not shown (D1 rewritten; T-406's remap removed; schema 2, backup format 2). Today: header "Planned left/total", the overload banner and the Plan header of today count the done tasks against the full capacity. "Rest day" in the Plan header. Ukrainian level 8 is "Якось" everywhere.
+- **New backlog items:** none; the light system navigation bar under the dark theme went into T-503.
+- **Learned:** keeping the position in the scale as the stored value made every scale change lossy, a fixed table is simpler; in a drift migration `CASE WHEN cond … WHEN 1 THEN` mixes the two `CASE` forms and `WHEN 1` is always true (caught by the migration test on a temp file); `timeout` refuses to run without a console (VS Code tasks), `ping -n` is the pause; a debug build left behind by a closed debug session can show a white screen until it is restarted; `uiautomator dump` reads Flutter's semantics, so the emulator can be driven by labels instead of guessed coordinates.
 ### M4 — 2026-11-14
 - **Done:** T-401 … T-406: Plan screen, pin from the plan, capacity of single days, ways out for at-risk tasks, Trash with a 30-day purge, priority remap for a smaller scale; 414 tests.
 - **Demo:** web build in Chrome (Plan with five tasks over the days). Not on a phone yet.

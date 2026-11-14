@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' hide isNull;
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tasks_order/data/db/database.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
@@ -33,8 +36,73 @@ void main() {
     updatedAt: DateTime.utc(2026, 11, 13, 8),
   );
 
-  test('schema version is 1', () {
-    expect(db.schemaVersion, 1);
+  test('schema version is 2', () {
+    expect(db.schemaVersion, 2);
+  });
+
+  group('migration 1 -> 2: priorities become levels (ADR-17)', () {
+    late Directory dir;
+
+    // Two instances on one file, one after the other, on purpose.
+    setUpAll(() => driftRuntimeOptions.dontWarnAboutMultipleDatabases = true);
+    tearDownAll(
+      () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+    );
+
+    setUp(() => dir = Directory.systemTemp.createTempSync('tasks_order_'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    /// A schema 1 database file with the given scale and task priorities,
+    /// opened again with the current schema.
+    Future<List<int>> migrate(int scale, List<int> priorities) async {
+      final file = File('${dir.path}/db.sqlite');
+      final old = AppDatabase(NativeDatabase(file));
+      await old
+          .update(old.settingsTable)
+          .write(SettingsTableCompanion(priorityScale: Value(scale)));
+      for (var i = 0; i < priorities.length; i++) {
+        await old
+            .into(old.tasks)
+            .insert(taskRow(id: '$i').copyWith(priority: Value(priorities[i])));
+      }
+      await old.customStatement('PRAGMA user_version = 1');
+      await old.close();
+
+      final migrated = AppDatabase(NativeDatabase(file));
+      addTearDown(migrated.close);
+      final rows = await (migrated.select(
+        migrated.tasks,
+      )..orderBy([(t) => OrderingTerm.asc(t.id)])).get();
+      return [for (final row in rows) row.priority];
+    }
+
+    test('scale 5: each task keeps its name', () async {
+      expect(await migrate(5, [1, 2, 3, 4, 5]), [2, 3, 5, 7, 8]);
+    });
+
+    test('scale 3: Critical, Normal, Low', () async {
+      expect(await migrate(3, [1, 2, 3]), [2, 5, 7]);
+    });
+
+    test('scale 10 is already the table', () async {
+      expect(await migrate(10, [1, 4, 10]), [1, 4, 10]);
+    });
+
+    test('a value past either end of the scale becomes the end', () async {
+      expect(await migrate(5, [0, 7]), [2, 8]);
+    });
+
+    test('the scale and updatedAt stay', () async {
+      final file = File('${dir.path}/db.sqlite');
+      await migrate(3, [2]);
+      final db = AppDatabase(NativeDatabase(file));
+      addTearDown(db.close);
+      expect((await db.select(db.settingsTable).getSingle()).priorityScale, 3);
+      expect(
+        (await db.select(db.tasks).getSingle()).updatedAt,
+        DateTime.utc(2026, 11, 13, 8),
+      );
+    });
   });
 
   group('columns match docs/03 Data Model.md', () {

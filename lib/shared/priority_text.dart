@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 
-/// The name of a priority, for example "High" (D1).
+/// The name a priority has on [scale], for example "High" (D1). The number
+/// is not shown: a level keeps its number on every scale (ADR-17), so scale 3
+/// would read 2, 5, 7.
 ///
 /// The domain gives a logical key and the ARB files hold the words (ADR-11);
 /// this is the table between them. `priority_text_test.dart` checks that it
@@ -30,11 +32,7 @@ String priorityName(AppLocalizations l10n, int priority, int scale) =>
       final key => throw StateError('No text for $key'),
     };
 
-/// A priority as the app always shows it: "High (2)" (D1).
-String priorityLabel(AppLocalizations l10n, int priority, int scale) =>
-    l10n.priorityWithNumber(priorityName(l10n, priority, scale), priority);
-
-/// The colour of a priority: red for 1, green for the middle of the scale,
-/// blue for the last.
+/// The colour a priority has on [scale]: red for the first level of the
+/// scale, green for Normal, blue for the last.
 Color priorityColor(int priority, int scale) =>
     Color(PriorityLabels.color(priority, scale));

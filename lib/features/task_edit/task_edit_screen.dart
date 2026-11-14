@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/priority_dropdown.dart';
@@ -34,7 +35,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   bool _saving = false;
 
   /// Null until the user or the loaded task says otherwise: a new task then
-  /// gets the middle of the scale.
+  /// gets Normal.
   int? _priority;
   LocalDate? _dueDate;
   LocalDate? _pinnedDate;
@@ -170,9 +171,8 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     }
 
     final scale = settings.priorityScale;
-    // A value above the scale (the scale was made smaller) shows as the last
-    // level and is stored as such on save.
-    final priority = (_priority ?? defaultPriority(scale)).clamp(1, scale);
+    // A level the scale does not offer is kept unless the user picks another.
+    final priority = _priority ?? PriorityLabels.normal;
     final dates = MaterialLocalizations.of(context);
 
     return Scaffold(

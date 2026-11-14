@@ -12,6 +12,7 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/plan.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/planner/capacity_resolver.dart';
+import 'package:tasks_order/domain/planner/planner.dart';
 import 'package:tasks_order/features/plan/day_override_dialog.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/at_risk_sheet.dart';
@@ -60,6 +61,13 @@ class _PlanBody extends ConsumerWidget {
     final today = plan.today;
     final scale = settings.priorityScale;
     final resolver = CapacityResolver(settings, overrides);
+    // Today counts what was done from its list too, against the full
+    // capacity: the numbers of the Today screen.
+    final doneToday = Planner.countCompletedToday(
+      tasks,
+      today: today,
+      dayStartHour: settings.dayStartHour,
+    );
 
     TaskTile tile(Task task, {required bool onPlan, List<Widget>? badges}) =>
         TaskTile(
@@ -112,6 +120,8 @@ class _PlanBody extends ConsumerWidget {
           _DayHeader(
             day: day,
             today: today,
+            count: day.entries.length + (day.date == today ? doneToday : 0),
+            capacity: resolver.capacityFor(day.date),
             dayOverride: overrides[day.date],
             onTap: () => unawaited(
               showDayOverrideDialog(
@@ -159,12 +169,21 @@ class _DayHeader extends StatelessWidget {
   const _DayHeader({
     required this.day,
     required this.today,
+    required this.count,
+    required this.capacity,
     required this.dayOverride,
     required this.onTap,
   });
 
   final PlannedDay day;
   final LocalDate today;
+
+  /// Tasks the day holds; for today the ones done from its list too.
+  final int count;
+
+  /// The day's full capacity. At 0 (a rest day) the header reads "Rest day"
+  /// like the steppers of Settings, unless a pinned task is on it.
+  final int capacity;
 
   /// The capacity set for this date, when there is one.
   final DayOverride? dayOverride;
@@ -227,7 +246,9 @@ class _DayHeader extends StatelessWidget {
                 ),
               ),
             Text(
-              l10n.planDayCount(day.entries.length, day.capacity),
+              capacity == 0 && count == 0
+                  ? l10n.capacityRestDay
+                  : l10n.planDayCount(count, capacity),
               style: theme.textTheme.bodyMedium?.copyWith(color: countColor),
             ),
           ],
