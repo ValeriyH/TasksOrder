@@ -76,6 +76,7 @@ class _TodayBody extends ConsumerWidget {
     );
 
     final paused = ref.watch(pausedTaskIdsProvider);
+    final older = ref.watch(olderCompletionIdsProvider);
     final byId = {for (final task in tasks) task.id: task};
     final today = plan.today;
     final day = plan.days.first;
@@ -130,6 +131,7 @@ class _TodayBody extends ConsumerWidget {
       isDone: isDone,
       doneOn: isDone ? today : null,
       paused: !isDone && paused.contains(task.id),
+      locked: isDone && older.contains(task.id),
       // Today has its own Focus section (D22).
       showFocus: false,
       chips: chips,

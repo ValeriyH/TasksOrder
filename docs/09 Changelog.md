@@ -6,6 +6,16 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.5.3+11 — 2026-11-16 (T-714)
+- **Not before** in the task editor: the task stays off the plan until that day, then is planned by priority ("From <date>" on the card). A due date before it is refused; a pin still wins, and a pinned card no longer shows "From". On a repeating task it moves the current repeat.
+
+## 0.5.2+10 — 2026-11-16 (T-713)
+- **Taking back a completion of a repeating task** (T-713): only the last completion of a series can be taken back; in Done the Completed button of an older one is dimmed and explains. When the next repeat was changed since, the app asks and brings the task back as an ordinary one. Taking back older completions no longer leaves extra copies without the repeat.
+- A series can no longer end up with two repeating tasks: a repeat set on a returned copy starts a series of its own.
+
+## 0.5.1+8 — 2026-11-16 (T-712)
+- **Repeats from completion** (T-712, ADR-24): no repeats ahead in the Plan any more, only the task itself; the next one comes when it is done (that many days later) or skipped. A skip ahead of the day counts from the day the task was meant for, so it no longer comes back on the same date. A pinned task gives a pinned next one; a due date is not repeated.
+
 ## 0.5.0+7 — 2026-11-15 (M9)
 - **New look** (D22, ADR-23): the owner's design for Today, Plan and Tasks, in light and dark; the other screens take the same colours. Priorities keep their colours, made readable in both themes.
 - **Task cards** with a **Done** button in place of the check box. A done task stays in sight, dimmed, with "Completed today", and **Completed** takes the completion back, so there is no "Undo" message after a completion any more.

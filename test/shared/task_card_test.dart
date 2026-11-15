@@ -71,7 +71,7 @@ void main() {
       expect(find.text('No due date'), findsOneWidget);
     });
 
-    testWidgets('focus, pin, repeat, list chips, paused and from in order', (
+    testWidgets('focus, pin, repeat, list chips and paused in order', (
       tester,
     ) async {
       final task = testTask('a', isFocused: true, pinnedDate: today)
@@ -97,8 +97,15 @@ void main() {
         'Every month',
         'list',
         'Paused until tomorrow',
-        'From Sun, Nov 15',
+        // No "From": the pin leads (T-714).
       ]);
+    });
+
+    testWidgets('"From" a later day when not pinned (T-714)', (tester) async {
+      final task = testTask('a').copyWith(notBefore: today.addDays(2));
+      await pump(tester, card(task));
+
+      expect(chipTexts(tester), ['priority', 'From Sun, Nov 15']);
     });
 
     testWidgets('no focus chip where the screen says so (Today)', (

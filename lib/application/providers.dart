@@ -10,6 +10,7 @@ import 'package:tasks_order/data/repository/drift_task_repository.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/plan.dart';
+import 'package:tasks_order/domain/model/series.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/planner/planner.dart';
@@ -129,6 +130,15 @@ Set<String> pausedTaskIds(Ref ref) {
     today: today,
     dayStartHour: settings.dayStartHour,
   );
+}
+
+/// Done tasks that cannot be taken back: older completions of a series
+/// (T-713, `Series.olderCompletions`). Empty until the tasks have arrived.
+@Riverpod(keepAlive: true)
+Set<String> olderCompletionIds(Ref ref) {
+  final tasks = ref.watch(allTasksProvider).value;
+  if (tasks == null) return const {};
+  return Series.olderCompletions(tasks);
 }
 
 /// The plan (ADR-1: derived, never stored). Recomputed when tasks, settings,

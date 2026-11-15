@@ -80,6 +80,18 @@
   "@taskFocusHint": {
     "description": "Explains the Focus switch"
   },
+  "taskNotBeforeLabel": "Not before",
+  "@taskNotBeforeLabel": {
+    "description": "Task editor: the first day the task may be planned on (T-714)"
+  },
+  "taskNotBeforeHint": "Kept off the plan until this day, then planned by priority",
+  "@taskNotBeforeHint": {
+    "description": "Task editor: what \"Not before\" does, under the date"
+  },
+  "taskDueBeforeNotBefore": "The due date is before this day",
+  "@taskDueBeforeNotBefore": {
+    "description": "Task editor: error under \"Not before\" when the due date is earlier"
+  },
   "taskPinDateLabel": "Do on this day",
   "@taskPinDateLabel": {
     "description": "Editor field: the day the user fixes the task to"
@@ -953,7 +965,7 @@
   "@deleteRecurringTitle": {
     "description": "Dialog title when a recurring task is deleted"
   },
-  "deleteRecurringBody": "The task goes to the Trash and stops repeating. To skip only this repeat, use \"Skip this time\" from a long press in the Plan or Today.",
+  "deleteRecurringBody": "The task goes to the Trash and stops repeating. To skip only this repeat, tap the task and choose \"Skip this time\".",
   "@deleteRecurringBody": {
     "description": "Dialog text when a recurring task is deleted"
   },
@@ -1007,5 +1019,22 @@
   "@markUndoneA11y": {
     "description": "Screen reader label of the Completed button",
     "placeholders": {"title": {"type": "String"}}
+  },
+  "uncompleteNotLast": "Only the last completion of this series can be taken back.",
+  "@uncompleteNotLast": {
+    "description": "Snack bar when the Completed button of an older completion of a series is pressed (T-713)"
+  },
+  "seriesChangedTitle": "The series has changed",
+  "@seriesChangedTitle": {
+    "description": "Dialog title: a completion is taken back but the next repeat was changed since (T-713)"
+  },
+  "seriesChangedBody": "The next \"{title}\" has been changed since. Bring this task back as an ordinary one, without the repeat?",
+  "@seriesChangedBody": {
+    "description": "Dialog text: a completion is taken back but the next repeat was changed since (T-713)",
+    "placeholders": {"title": {"type": "String"}}
+  },
+  "bringBackAsOrdinary": "Bring back as ordinary",
+  "@bringBackAsOrdinary": {
+    "description": "Dialog button: take the completion back, the task returns without its repeat rule (T-713)"
   }
 }

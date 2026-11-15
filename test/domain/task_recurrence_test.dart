@@ -114,8 +114,16 @@ void main() {
   group('successor', () {
     final doneAt = DateTime.utc(2026, 11, 15, 18);
 
-    Task recurring(Recurrence rule, {LocalDate? due, LocalDate? pin}) =>
-        task(due: due, pin: pin).setRecurrence(rule, today: today, now: now);
+    Task recurring(
+      Recurrence rule, {
+      LocalDate? due,
+      LocalDate? pin,
+      LocalDate? notBefore,
+    }) => task(
+      due: due,
+      pin: pin,
+      notBefore: notBefore,
+    ).setRecurrence(rule, today: today, now: now);
 
     test('copies the task, gets a fresh active instance without Focus', () {
       final t = recurring(monthly, due: d(2026, 11, 15));
@@ -232,19 +240,91 @@ void main() {
       });
     });
 
-    group('from completion', () {
-      test('counts from the day it is done, late or early', () {
-        final t = recurring(every10DaysAfterDone, due: d(2026, 11, 15));
+    group('from completion (T-712)', () {
+      // Haircut every 10 days, available from Nov 25.
+      final haircut = recurring(
+        every10DaysAfterDone,
+        notBefore: d(2026, 11, 25),
+      );
 
-        final late = t.successor(now: doneAt, today: d(2026, 11, 20));
-        expect(late.occurrenceDate, d(2026, 11, 30));
-        expect(late.dueDate, d(2026, 11, 30));
-        // Free from the day after the completion.
-        expect(late.notBefore, d(2026, 11, 21));
-
-        final early = t.successor(now: doneAt, today: d(2026, 11, 10));
-        expect(early.occurrenceDate, d(2026, 11, 20));
+      test('a completion counts from the day it is done, early, on the day '
+          'or late', () {
+        for (final (done, next) in [
+          (d(2026, 11, 15), d(2026, 11, 25)),
+          (d(2026, 11, 25), d(2026, 12, 5)),
+          (d(2026, 11, 27), d(2026, 12, 7)),
+        ]) {
+          final s = haircut.successor(now: doneAt, today: done);
+          expect(s.occurrenceDate, next, reason: '$done');
+          expect(s.notBefore, next, reason: '$done');
+          expect(s.pinnedDate, isNull);
+          expect(s.dueDate, isNull);
+        }
       });
+
+      test(
+        'a skip counts from the later of today and the instance\'s date',
+        () {
+          for (final (skipped, next) in [
+            // Ahead: "not this time" means not on the 25th.
+            (d(2026, 11, 15), d(2026, 12, 5)),
+            (d(2026, 11, 25), d(2026, 12, 5)),
+            // Late: from today, so the next one is never in the past.
+            (d(2026, 11, 27), d(2026, 12, 7)),
+          ]) {
+            final s = haircut.successor(
+              now: doneAt,
+              today: skipped,
+              skipped: true,
+            );
+            expect(s.occurrenceDate, next, reason: '$skipped');
+            expect(s.notBefore, next, reason: '$skipped');
+          }
+        },
+      );
+
+      test('a pinned instance gives a pinned successor; a skip counts from '
+          'the pin', () {
+        final pinned = recurring(every10DaysAfterDone, pin: d(2026, 11, 25));
+
+        final done = pinned.successor(now: doneAt, today: d(2026, 11, 20));
+        expect(done.pinnedDate, d(2026, 11, 30));
+        expect(done.notBefore, isNull);
+
+        final skip = pinned.successor(
+          now: doneAt,
+          today: d(2026, 11, 20),
+          skipped: true,
+        );
+        expect(skip.pinnedDate, d(2026, 12, 5));
+        expect(skip.occurrenceDate, d(2026, 12, 5));
+      });
+
+      test('a due date is not carried over', () {
+        final t = recurring(
+          every10DaysAfterDone,
+          pin: d(2026, 11, 15),
+          due: d(2026, 11, 18),
+        );
+        expect(t.successor(now: doneAt, today: today).dueDate, isNull);
+
+        final dueOnly = recurring(
+          every10DaysAfterDone,
+          due: d(2026, 11, 15),
+        ).successor(now: doneAt, today: d(2026, 11, 20));
+        expect(dueOnly.dueDate, isNull);
+        expect(dueOnly.notBefore, d(2026, 11, 30));
+      });
+    });
+
+    test('a skip by schedule is the same as a completion', () {
+      final t = recurring(monthly, due: d(2026, 12, 15));
+      final today = d(2026, 11, 20);
+
+      expect(
+        t.successor(now: doneAt, today: today, skipped: true),
+        t.successor(now: doneAt, today: today),
+      );
     });
   });
 }

@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tasks_order/data/db/database.dart';
 import 'package:tasks_order/data/repository/drift_task_repository.dart';
+import 'package:tasks_order/data/repository/task_mapper.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/recurrence.dart';
+import 'package:tasks_order/domain/model/series.dart';
 import 'package:tasks_order/domain/model/task.dart';
 
 import 'test_database.dart';
@@ -406,13 +408,19 @@ void main() {
 
     test('no successor while the series has another active instance', () async {
       final a = await storeRecurring('a');
-      // A second active instance of the same series, e.g. a restored skip.
-      await repo.upsert(
-        task(
-          'b',
-        ).copyWith(recurrence: monthly, seriesId: 'a', occurrenceDate: today),
-        t0,
-      );
+      // A second active instance of the same series, as in data broken
+      // before T-713 (upsert no longer lets it happen): written directly.
+      await db
+          .into(db.tasks)
+          .insert(
+            task('b')
+                .copyWith(
+                  recurrence: monthly,
+                  seriesId: 'a',
+                  occurrenceDate: today,
+                )
+                .toRow(),
+          );
 
       await repo.complete('a', t1, onPlan: true, today: today);
 
@@ -431,13 +439,19 @@ void main() {
       expect(back.recurrence, monthly);
     });
 
-    test('undo keeps a touched successor and the returning task loses its '
-        'rule', () async {
+    test('undo with a touched successor is refused until asked as an '
+        'ordinary task; then the task loses its rule (T-713)', () async {
       final a = await storeRecurring('a');
       await repo.complete('a', t1, onPlan: true, today: today);
       await repo.setFocus(a.successorId, true, t2);
 
-      await repo.uncomplete('a', t2);
+      expect(await repo.uncomplete('a', t2), UncompleteCheck.successorChanged);
+      expect((await stored('a')).isDone, isTrue);
+
+      expect(
+        await repo.uncomplete('a', t2, asOrdinary: true),
+        UncompleteCheck.allowed,
+      );
 
       final next = await stored(a.successorId);
       expect(next.recurrence, monthly);
@@ -447,6 +461,87 @@ void main() {
       expect(back.seriesId, 'a');
     });
 
+    test('an older completion cannot be taken back (T-713)', () async {
+      final a = await storeRecurring('a');
+      await repo.complete('a', t1, onPlan: true, today: today);
+      await repo.complete(a.successorId, t2, onPlan: true, today: today);
+      final second = await stored(a.successorId);
+
+      expect(await repo.uncomplete('a', t2), UncompleteCheck.notLast);
+      expect((await stored('a')).isDone, isTrue);
+      expect(
+        await repo.uncomplete('a', t2, asOrdinary: true),
+        UncompleteCheck.notLast,
+      );
+
+      // The last one still can, and takes its own successor away.
+      expect(await repo.uncomplete(second.id, t2), UncompleteCheck.allowed);
+      expect(await repo.getById(second.successorId), isNull);
+      expect((await stored(second.id)).recurrence, monthly);
+      // The second is active again (and changed): the first is now the
+      // last completion, but may come back only as an ordinary task.
+      expect(await repo.uncomplete('a', t2), UncompleteCheck.successorChanged);
+    });
+
+    test('an ordinary task of a series comes back as before', () async {
+      await repo.upsert(task('o').copyWith(seriesId: 'a'), t0);
+      await storeRecurring('a');
+      await repo.complete('o', t1, onPlan: false);
+
+      expect(await repo.uncomplete('o', t2), UncompleteCheck.allowed);
+      expect((await stored('o')).isDone, isFalse);
+    });
+
+    group('one active instance with a rule per series (T-713)', () {
+      test(
+        'a rule set on a copy of a going series starts its own series',
+        () async {
+          final a = await storeRecurring('a');
+          await repo.complete('a', t1, onPlan: true, today: today);
+          await repo.setFocus(a.successorId, true, t2);
+          await repo.uncomplete('a', t2, asOrdinary: true);
+          final copy = await stored('a');
+          expect(copy.recurrence, isNull);
+          expect(copy.seriesId, 'a');
+
+          // The editor sets a rule on the copy.
+          await repo.upsert(
+            copy.setRecurrence(monthly, today: today, now: t2),
+            t2,
+          );
+
+          // It becomes a new task of a new series: with the old id its
+          // successor would take the id of the old successor and overwrite
+          // it (found on the emulator).
+          expect(await repo.getById('a'), isNull);
+          final edited = (await repo.watchActive().first).singleWhere(
+            (t) => t.id != a.successorId,
+          );
+          expect(edited.title, 'Task a');
+          expect(edited.recurrence, isNotNull);
+          expect(edited.seriesId, edited.id);
+          final next = await stored(a.successorId);
+          expect(next.seriesId, 'a');
+          expect(next.recurrence, monthly);
+
+          // Completing it leaves the old series alone.
+          await repo.complete(edited.id, t2, onPlan: false, today: today);
+          final kept = await stored(a.successorId);
+          expect(kept.isFocused, isTrue);
+          expect(kept.seriesId, 'a');
+          expect((await stored(edited.successorId)).seriesId, edited.id);
+        },
+      );
+
+      test('editing the active instance keeps its series', () async {
+        final a = await storeRecurring('a');
+
+        await repo.upsert(a.copyWith(title: 'Rent'), t1);
+
+        expect((await stored('a')).seriesId, 'a');
+      });
+    });
+
     test('skip: the instance to the Trash, the successor comes', () async {
       final a = await storeRecurring('a');
 
@@ -454,6 +549,42 @@ void main() {
 
       expect((await stored('a')).isDeleted, isTrue);
       expect((await stored(a.successorId)).isDeleted, isFalse);
+    });
+
+    group('from completion ahead of its day (T-712)', () {
+      final every10 = Recurrence.interval(
+        every: 10,
+        unit: RecurrenceUnit.day,
+        afterDone: true,
+      );
+      final ahead = today.addDays(10);
+
+      /// A haircut available from ten days on, as a successor stores it.
+      Future<Task> storeHaircut() async {
+        final t = task('h')
+            .copyWith(notBefore: ahead)
+            .setRecurrence(every10, today: today, now: t0);
+        await repo.upsert(t, t0);
+        return stored('h');
+      }
+
+      test('a skip counts from the instance\'s date', () async {
+        final h = await storeHaircut();
+
+        await repo.skip('h', t1, today: today);
+
+        final next = await stored(h.successorId);
+        expect(next.notBefore, ahead.addDays(10));
+        expect(next.occurrenceDate, ahead.addDays(10));
+      });
+
+      test('a completion counts from today', () async {
+        final h = await storeHaircut();
+
+        await repo.complete('h', t1, onPlan: false, today: today);
+
+        expect((await stored(h.successorId)).notBefore, today.addDays(10));
+      });
     });
 
     test('delete the series: to the Trash with its rule, no successor; '

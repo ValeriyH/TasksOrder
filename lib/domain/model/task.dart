@@ -254,42 +254,59 @@ abstract class Task with _$Task {
   /// every device (D12) and known to undo without a search (ADR-18).
   String get successorId => const Uuid().v5(_seriesNamespace, 'next/$id');
 
-  /// The next instance of the series when this one is completed or skipped
-  /// on [today] (docs/03 Data Model.md, "Rules of a series").
+  /// The next instance of the series when this one is completed or
+  /// ([skipped]) skipped on [today] (docs/03 Data Model.md, "Rules of a
+  /// series").
   ///
-  /// The next date: from completion, [today] + the interval; by schedule,
-  /// the first date of the rule after the later of [today] and
-  /// [occurrenceDate], so missed repeats are dropped and an early completion
-  /// does not give a second instance for the same date. The dates follow
-  /// the ones this task has: a pin moves to the next date (a due date keeps
-  /// its distance from it); a due date alone moves there and the task is
-  /// released the day after this occurrence (after [today] for a rule from
-  /// completion); with neither the task is released on the next date.
+  /// By schedule: the next date is the first date of the rule after the
+  /// later of [today] and [occurrenceDate], so missed repeats are dropped
+  /// and an early completion does not give a second instance for the same
+  /// date. The dates follow the ones this task has: a pin moves to the next
+  /// date (a due date keeps its distance from it); a due date alone moves
+  /// there and the task is released the day after this occurrence; with
+  /// neither the task is released on the next date.
+  ///
+  /// From completion (T-712): a completion counts from [today], whenever it
+  /// is; a skip ("not this time") counts from the later of [today] and the
+  /// date of this instance (its pin, else [occurrenceDate]), so a repeat
+  /// skipped ahead does not come back on the same date. A pinned instance
+  /// gives a successor pinned on the next date; otherwise it is released on
+  /// that date. A due date is not carried over: when such a repeat starts is
+  /// not known ahead.
   ///
   /// Throws [StateError] when the task does not repeat.
-  Task successor({required DateTime now, required LocalDate today}) {
+  Task successor({
+    required DateTime now,
+    required LocalDate today,
+    bool skipped = false,
+  }) {
     final rule = recurrence;
     final occurrence = occurrenceDate;
     if (rule == null || occurrence == null) {
       throw StateError('Task $id does not repeat');
     }
-    final next = rule.isAfterDone
-        ? rule.addTo(today)
-        : rule.firstAfter(today > occurrence ? today : occurrence);
-
     final pin = pinnedDate;
     final due = dueDate;
+    final own = pin ?? occurrence;
+    final next = rule.isAfterDone
+        ? rule.addTo(skipped && own > today ? own : today)
+        : rule.firstAfter(today > occurrence ? today : occurrence);
+
     final LocalDate? nextPin;
     final LocalDate? nextDue;
     final LocalDate? release;
-    if (pin != null) {
+    if (rule.isAfterDone) {
+      nextPin = pin == null ? null : next;
+      nextDue = null;
+      release = pin == null ? next : null;
+    } else if (pin != null) {
       nextPin = next;
       nextDue = due == null ? null : next.addDays(pin.daysUntil(due));
       release = null;
     } else if (due != null) {
       nextPin = null;
       nextDue = next;
-      release = (rule.isAfterDone ? today : occurrence).addDays(1);
+      release = occurrence.addDays(1);
     } else {
       nextPin = null;
       nextDue = null;

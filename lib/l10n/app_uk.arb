@@ -20,6 +20,9 @@
   "taskDueDateLabel": "Кінцевий термін",
   "taskFocusLabel": "Фокус",
   "taskFocusHint": "Тримати на видноті на екрані «Сьогодні»",
+  "taskNotBeforeLabel": "Не раніше",
+  "taskNotBeforeHint": "До цього дня не потрапляє в план, далі — за пріоритетом",
+  "taskDueBeforeNotBefore": "Кінцевий термін раніше за цей день",
   "taskPinDateLabel": "Зробити цього дня",
   "taskMovedToTrash": "Переміщено до кошика",
   "taskNotFound": "Завдання не знайдено",
@@ -190,7 +193,7 @@
   "repeatYearly": "Щороку",
   "availableFrom": "З {date}",
   "deleteRecurringTitle": "Видалити серію?",
-  "deleteRecurringBody": "Завдання піде в кошик, і повтори припиняться. Щоб пропустити лише цей повтор, скористайтеся «Пропустити цього разу» з довгого натискання в Плані чи на «Сьогодні».",
+  "deleteRecurringBody": "Завдання піде в кошик, і повтори припиняться. Щоб пропустити лише цей повтор, торкніться завдання і виберіть «Пропустити цього разу».",
   "skipThisTime": "Пропустити цього разу",
   "deleteSeries": "Видалити серію",
   "taskSkipped": "Пропущено; наступний повтор уже в плані",
@@ -202,5 +205,9 @@
   "completedOn": "Виконано {date}",
   "noDueDate": "Без терміну",
   "markDoneA11y": "Виконати завдання: {title}",
-  "markUndoneA11y": "Повернути завдання: {title}"
+  "markUndoneA11y": "Повернути завдання: {title}",
+  "uncompleteNotLast": "Повернути можна лише останнє виконання цієї серії.",
+  "seriesChangedTitle": "Серію змінено",
+  "seriesChangedBody": "Наступне «{title}» уже змінено. Повернути це завдання як звичайне, без повтору?",
+  "bringBackAsOrdinary": "Повернути як звичайне"
 }

@@ -42,6 +42,12 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   int? _priority;
   LocalDate? _dueDate;
   LocalDate? _pinnedDate;
+
+  /// The first day the planner may place the task on (T-714).
+  LocalDate? _notBefore;
+
+  /// The due date is before [_notBefore]: shown under the field, not saved.
+  bool _dueBeforeNotBefore = false;
   bool _focused = false;
 
   /// How the task repeats (D20); null for an ordinary task.
@@ -75,13 +81,22 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
       _priority = task.priority;
       _dueDate = task.dueDate;
       _pinnedDate = task.pinnedDate;
+      _notBefore = task.notBefore;
       _focused = task.isFocused;
       _recurrence = task.recurrence;
     });
   }
 
   Future<void> _save(int priority, LocalDate today) async {
-    if (_saving || !_formKey.currentState!.validate()) return;
+    final valid = _formKey.currentState!.validate();
+    // A task due before the day it may start cannot be done (T-714).
+    final notBefore = _notBefore;
+    final due = _dueDate;
+    setState(
+      () => _dueBeforeNotBefore =
+          notBefore != null && due != null && due < notBefore,
+    );
+    if (_saving || !valid || _dueBeforeNotBefore) return;
     setState(() => _saving = true);
 
     final now = ref.read(clockProvider)();
@@ -96,6 +111,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
           priority: priority,
           dueDate: _dueDate,
           pinnedDate: _pinnedDate,
+          notBefore: _notBefore,
         )
         .setFocus(_focused, now);
     final rule = _recurrence;
@@ -105,7 +121,8 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     } else if (original == null ||
         rule != original.recurrence ||
         _dueDate != original.dueDate ||
-        _pinnedDate != original.pinnedDate) {
+        _pinnedDate != original.pinnedDate ||
+        _notBefore != original.notBefore) {
       // "Start" in docs/03 Data Model.md: a new rule or new dates move the
       // schedule; a save that changed neither keeps the anchor, so a month
       // end (Jan 31 -> Feb 28) does not stick to the 28th.
@@ -152,7 +169,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     final choice = await showRepeatSheet(
       context,
       current: _recurrence,
-      anchor: _pinnedDate ?? _dueDate ?? today,
+      anchor: _pinnedDate ?? _dueDate ?? _notBefore ?? today,
     );
     if (choice != null && mounted) {
       setState(() => _recurrence = choice.rule);
@@ -269,6 +286,24 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
               ),
               onClear: () => setState(() => _dueDate = null),
             ),
+            _DateTile(
+              key: const ValueKey('notBefore'),
+              icon: Icons.hourglass_empty,
+              label: l10n.taskNotBeforeLabel,
+              value: _notBefore == null
+                  ? null
+                  : dates.formatFullDate(_dateTime(_notBefore!)),
+              hint: l10n.taskNotBeforeHint,
+              error: _dueBeforeNotBefore ? l10n.taskDueBeforeNotBefore : null,
+              onTap: () => unawaited(
+                _pickDate(
+                  current: _notBefore,
+                  today: today,
+                  onPicked: (date) => _notBefore = date,
+                ),
+              ),
+              onClear: () => setState(() => _notBefore = null),
+            ),
             SwitchListTile(
               secondary: const Icon(Icons.center_focus_strong_outlined),
               title: Text(l10n.taskFocusLabel),
@@ -323,6 +358,9 @@ class _DateTile extends StatelessWidget {
     required this.onTap,
     required this.onClear,
     this.shortcut,
+    this.hint,
+    this.error,
+    super.key,
   });
 
   final IconData icon;
@@ -336,13 +374,36 @@ class _DateTile extends StatelessWidget {
   /// An extra button before the clear button.
   final Widget? shortcut;
 
+  /// What the field does, under the date.
+  final String? hint;
+
+  /// Why the date cannot be saved, in place of [hint].
+  final String? error;
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final note = error ?? hint;
+    final date = value ?? l10n.dateNotSet;
     return ListTile(
       leading: Icon(icon),
       title: Text(label),
-      subtitle: Text(value ?? l10n.dateNotSet),
+      subtitle: note == null
+          ? Text(date)
+          : Text.rich(
+              TextSpan(
+                text: '$date\n',
+                children: [
+                  TextSpan(
+                    text: note,
+                    style: error == null
+                        ? null
+                        : TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ],
+              ),
+            ),
+      isThreeLine: note != null,
       onTap: onTap,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

@@ -292,6 +292,7 @@ class _TaskList extends ConsumerWidget {
     final scale = settings.priorityScale;
     final today = plan.today;
     final paused = ref.watch(pausedTaskIdsProvider);
+    final older = ref.watch(olderCompletionIdsProvider);
 
     // The day of the task itself: the ghosts of a recurring task (T-704)
     // carry its id too, and the last of them would win.
@@ -325,9 +326,18 @@ class _TaskList extends ConsumerWidget {
             today: today,
             isDone: true,
             doneOn: Planner.completionDay(task, settings.dayStartHour),
+            locked: older.contains(task.id),
             onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
-            onToggleDone: () =>
-                unawaited(ref.read(taskActionsProvider).uncomplete(task.id)),
+            onToggleDone: () => unawaited(
+              toggleDone(
+                context,
+                ref,
+                task,
+                onPlan: false,
+                plannedDate: null,
+                isDone: true,
+              ),
+            ),
           );
         }
 
@@ -438,7 +448,8 @@ class _Empty extends StatelessWidget {
 }
 
 /// Completed tasks, the latest first, under a header for each day. A tap on
-/// "Completed" returns the task to the active ones.
+/// "Completed" returns the task to the active ones; an older completion of
+/// a series cannot come back (T-713).
 class _DoneList extends ConsumerWidget {
   const _DoneList({required this.today});
 
@@ -450,6 +461,7 @@ class _DoneList extends ConsumerWidget {
     final c = AppColors.of(context);
     final settings = ref.watch(settingsProvider).requireValue;
     final scale = settings.priorityScale;
+    final older = ref.watch(olderCompletionIdsProvider);
     final done =
         ref
             .watch(allTasksProvider)
@@ -496,9 +508,18 @@ class _DoneList extends ConsumerWidget {
           today: today,
           isDone: true,
           doneOn: day,
+          locked: older.contains(task.id),
           onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
-          onToggleDone: () =>
-              unawaited(ref.read(taskActionsProvider).uncomplete(task.id)),
+          onToggleDone: () => unawaited(
+            toggleDone(
+              context,
+              ref,
+              task,
+              onPlan: false,
+              plannedDate: null,
+              isDone: true,
+            ),
+          ),
         ),
       );
     }

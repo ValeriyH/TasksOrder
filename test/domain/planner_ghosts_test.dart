@@ -179,8 +179,8 @@ void main() {
     expect(occurrences, isNot(contains(today)));
   });
 
-  test('31. from completion: ghosts every 10 days, moving with the '
-      'successor', () {
+  test('31. from completion: no ghosts, only the instance; its successor '
+      'from the day it is done (T-712)', () {
     final rule = Recurrence.interval(
       every: 10,
       unit: RecurrenceUnit.day,
@@ -192,17 +192,32 @@ void main() {
       planningHorizonDays: 30,
     );
 
-    expect(
-      [
-        for (final e in ghosts(plan([a], settings: settings))) e.occurrenceDate,
-      ],
-      [day(10), day(20)],
-    );
+    final before = plan([a], settings: settings);
+    expect(placements(before, 'A'), [(day(0), null)]);
+    expect(ghosts(before), isEmpty);
+    // The free places are not taken by guesses.
+    expect(before.days[10].entries, isEmpty);
 
     final next = a.successor(now: now, today: today);
     final after = plan([next], settings: settings);
-    expect(placements(after, next.id).first, (day(10), null));
-    expect([for (final e in ghosts(after)) e.occurrenceDate], [day(20)]);
+    expect(placements(after, next.id), [(day(10), null)]);
+    expect(ghosts(after), isEmpty);
+  });
+
+  test('31b. a pinned rule from completion has no ghosts either; a rule by '
+      'the calendar beside it keeps its own', () {
+    final fromDone = repeating(
+      task('A', pin: day(2)),
+      Recurrence.interval(every: 3, unit: RecurrenceUnit.day, afterDone: true),
+    );
+    final w = repeating(task('W'), weekly());
+    final result = plan([
+      fromDone,
+      w,
+    ], settings: Settings(planningHorizonDays: 15));
+
+    expect(placements(result, 'A'), [(day(2), null)]);
+    expect([for (final e in ghosts(result)) e.taskId], ['W', 'W']);
   });
 
   test('32. a ghost that misses its date is at risk on its entry only', () {

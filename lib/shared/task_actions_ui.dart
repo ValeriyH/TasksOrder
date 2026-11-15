@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/series.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/task_card.dart';
@@ -35,6 +36,10 @@ SnackBar undoSnackBar({
 ///
 /// [onPlan]: the task is on today's list of the plan right now, so its slot
 /// stays empty (D19). [plannedDate]: the day the plan has it on (T-907).
+///
+/// Taking a completion back follows T-713: an older completion of a series
+/// is refused with a hint; when the next repeat was changed since, a dialog
+/// offers to bring the task back as an ordinary one.
 Future<void> toggleDone(
   BuildContext context,
   WidgetRef ref,
@@ -44,12 +49,42 @@ Future<void> toggleDone(
   required bool isDone,
 }) async {
   final actions = ref.read(taskActionsProvider);
-  if (isDone) {
-    await actions.uncomplete(task.id);
-    return;
-  }
   final messenger = ScaffoldMessenger.of(context);
   final l10n = context.l10n;
+  if (isDone) {
+    switch (await actions.uncomplete(task.id)) {
+      case UncompleteCheck.allowed:
+        break;
+      case UncompleteCheck.notLast:
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(l10n.uncompleteNotLast)));
+      case UncompleteCheck.successorChanged:
+        if (!context.mounted) return;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(l10n.seriesChangedTitle),
+            content: Text(l10n.seriesChangedBody(task.title)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l10n.actionCancel),
+              ),
+              FilledButton(
+                key: const ValueKey('bringBackAsOrdinary'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(l10n.bringBackAsOrdinary),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          await actions.uncomplete(task.id, asOrdinary: true);
+        }
+    }
+    return;
+  }
   if (!await actions.complete(
     task.id,
     onPlan: onPlan,

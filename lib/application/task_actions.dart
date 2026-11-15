@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/series.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/task_repository.dart';
 
@@ -60,7 +61,10 @@ class TaskActions {
   Future<void> skip(String id) =>
       _repository.skip(id, _clock(), today: _today());
 
-  Future<void> uncomplete(String id) => _repository.uncomplete(id, _clock());
+  /// Takes a completion back; only the last one of a series (T-713). See
+  /// [TaskRepository.uncomplete] for [asOrdinary] and the result.
+  Future<UncompleteCheck> uncomplete(String id, {bool asOrdinary = false}) =>
+      _repository.uncomplete(id, _clock(), asOrdinary: asOrdinary);
 
   Future<void> setFocus(String id, bool value) =>
       _repository.setFocus(id, value, _clock());

@@ -436,8 +436,10 @@ class Planner {
     return x.compareTo(y);
   }
 
-  /// The ghosts of the recurring tasks in [tasks]: one per date of the rule
-  /// after `max(today, occurrenceDate)` up to the last day of the horizon.
+  /// The ghosts of the recurring tasks in [tasks] whose rule is by the
+  /// calendar (a rule from completion has none, T-712): one per date of the
+  /// rule after `max(today, occurrenceDate)` up to the last day of the
+  /// horizon.
   /// Their dates follow the ones the stored task has, as for the successor
   /// (docs/03 Data Model.md): a pin moves to the date (a due date keeps its
   /// distance), a due date alone moves there with a release on the day
@@ -454,6 +456,9 @@ class Planner {
       final occurrence = task.occurrenceDate;
       if (rule == null || occurrence == null) continue;
       if (task.isDone || task.isDeleted) continue;
+      // A rule from completion has no ghosts (T-712): its dates depend on
+      // when each repeat is done, so they cannot be known ahead.
+      if (rule.isAfterDone) continue;
       final pin = task.pinnedDate;
       final due = task.dueDate;
       final dueFromPin = pin != null && due != null ? pin.daysUntil(due) : null;

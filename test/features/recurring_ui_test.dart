@@ -288,6 +288,107 @@ void main() {
     });
   });
 
+  group('only the last completion comes back (T-713)', () {
+    DateTime at(int minutes) =>
+        AppHarness.now.subtract(Duration(minutes: 60 - minutes));
+
+    Future<void> openDone(WidgetTester tester) async {
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+      final chip = find.byKey(const ValueKey('filter-done'));
+      await tester.ensureVisible(chip);
+      await tap(tester, chip);
+    }
+
+    Finder completedOf(String id) => find.descendant(
+      of: find.byKey(ValueKey(id)),
+      matching: find.byType(TaskDoneButton),
+    );
+
+    testWidgets('an older completion is dimmed and only explains', (
+      tester,
+    ) async {
+      final a = recurring('w');
+      final s1 = a.successor(now: at(1), today: today);
+      final s2 = s1.successor(now: at(2), today: today);
+      final app = await start(tester, [
+        a.complete(at(1), onPlan: false),
+        s1.complete(at(2), onPlan: false),
+        s2,
+      ]);
+      await openDone(tester);
+
+      Opacity opacityOf(String id) => tester.widget<Opacity>(
+        find
+            .ancestor(of: completedOf(id), matching: find.byType(Opacity))
+            .first,
+      );
+      expect(opacityOf('w').opacity, lessThan(1));
+      expect(opacityOf(s1.id).opacity, 1);
+
+      await tester.ensureVisible(completedOf('w'));
+      await tap(tester, completedOf('w'));
+
+      expect(
+        find.text('Only the last completion of this series can be taken back.'),
+        findsOneWidget,
+      );
+      expect((await app.task('w')).isDone, isTrue);
+      expect(await all(app), hasLength(3));
+    });
+
+    testWidgets('a changed next repeat asks; Cancel keeps it done, the '
+        'answer brings it back without the rule', (tester) async {
+      final a = recurring('w');
+      final next = a.successor(now: at(1), today: today);
+      final app = await start(tester, [a.complete(at(1), onPlan: false), next]);
+      // The next repeat is changed after it came.
+      await app.real(
+        () => app.container
+            .read(taskRepositoryProvider)
+            .setFocus(next.id, true, AppHarness.now),
+      );
+      await tester.pumpAndSettle();
+      await openDone(tester);
+
+      await tester.ensureVisible(completedOf('w'));
+      await tap(tester, completedOf('w'));
+      expect(find.text('The series has changed'), findsOneWidget);
+      expect(
+        find.textContaining('Bring this task back as an ordinary one'),
+        findsOneWidget,
+      );
+      await tap(tester, find.text('Cancel'));
+      expect((await app.task('w')).isDone, isTrue);
+
+      await tap(tester, completedOf('w'));
+      await tap(tester, find.byKey(const ValueKey('bringBackAsOrdinary')));
+
+      final back = await app.task('w');
+      expect(back.isDone, isFalse);
+      expect(back.recurrence, isNull);
+      expect((await app.task(next.id)).recurrence, weekly);
+    });
+
+    testWidgets('the last completion with an untouched next one comes back '
+        'with its rule, without a question', (tester) async {
+      final a = recurring('w');
+      final app = await start(tester, [
+        a.complete(at(1), onPlan: false),
+        a.successor(now: at(1), today: today),
+      ]);
+      await openDone(tester);
+
+      await tester.ensureVisible(completedOf('w'));
+      await tap(tester, completedOf('w'));
+
+      expect(find.text('The series has changed'), findsNothing);
+      final back = await app.task('w');
+      expect(back.isDone, isFalse);
+      expect(back.recurrence, weekly);
+      expect(await all(app), hasLength(1));
+    });
+  });
+
   testWidgets('complete: the successor comes with its date; undo takes it '
       'away', (tester) async {
     final app = await start(tester, [recurring('w')]);

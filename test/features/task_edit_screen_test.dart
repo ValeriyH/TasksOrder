@@ -10,6 +10,7 @@ import 'package:tasks_order/application/device_settings_providers.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/task_repository.dart';
@@ -302,6 +303,151 @@ void main() {
 
       expect(find.text('Task not found'), findsOneWidget);
       expect(find.text('Save'), findsNothing);
+    });
+  });
+
+  group('not before (T-714)', () {
+    Finder notBefore() => find.byKey(const ValueKey('notBefore'));
+
+    Future<void> pickNotBefore(WidgetTester tester, String day) async {
+      await tester.tap(notBefore());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(day));
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('set: stored, off Today, "From" on the card', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      await tester.enterText(field('Title'), 'Renew the passport');
+      expect(
+        find.textContaining(
+          'Kept off the plan until this day, then planned by priority',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+
+      await pickNotBefore(tester, '20');
+      expect(
+        find.textContaining('Friday, November 20, 2026', findRichText: true),
+        findsOneWidget,
+      );
+      await save(tester);
+
+      final task = (await stored(tester)).single;
+      expect(task.notBefore, LocalDate(2026, 11, 20));
+      // The Tasks tab: "From" the day; Today does not have it.
+      expect(find.text('From Fri, Nov 20'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.today_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Renew the passport'), findsNothing);
+    });
+
+    testWidgets('clear', (tester) async {
+      await pumpApp(tester);
+      await openExisting(
+        tester,
+        Task.create(
+          id: 'n',
+          title: 'Later',
+          priority: PriorityLabels.normal,
+          now: now,
+        ).copyWith(notBefore: LocalDate(2026, 11, 20)),
+      );
+
+      await tester.tap(
+        find.descendant(of: notBefore(), matching: find.byTooltip('Clear')),
+      );
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      expect((await stored(tester)).single.notBefore, isNull);
+    });
+
+    testWidgets('a due date before it is refused with a hint', (tester) async {
+      await pumpApp(tester);
+      await openExisting(
+        tester,
+        Task.create(
+          id: 'n',
+          title: 'Later',
+          priority: PriorityLabels.normal,
+          dueDate: LocalDate(2026, 11, 18),
+          now: now,
+        ),
+      );
+
+      await pickNotBefore(tester, '20');
+      await save(tester);
+
+      expect(
+        find.textContaining(
+          'The due date is before this day',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(TaskEditScreen), findsOneWidget);
+      expect((await stored(tester)).single.notBefore, isNull);
+
+      // A later due date makes it right.
+      await tester.tap(find.text('Due date'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('25'));
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      final task = (await stored(tester)).single;
+      expect(task.notBefore, LocalDate(2026, 11, 20));
+      expect(task.dueDate, LocalDate(2026, 11, 25));
+    });
+
+    testWidgets('a pin before it is allowed: the pin leads', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      await tester.enterText(field('Title'), 'Early');
+      await pickNotBefore(tester, '20');
+      await tester.tap(find.text('Today'));
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      final task = (await stored(tester)).single;
+      expect(task.pinnedDate, today);
+      expect(task.notBefore, LocalDate(2026, 11, 20));
+      // Pinned on today: no "From" on the card.
+      expect(find.textContaining('From '), findsNothing);
+    });
+
+    testWidgets('on a repeat from completion it moves the date of the '
+        'repeat', (tester) async {
+      await pumpApp(tester);
+      final rule = Recurrence.interval(
+        every: 10,
+        unit: RecurrenceUnit.day,
+        afterDone: true,
+      );
+      await openExisting(
+        tester,
+        Task.create(
+              id: 'h',
+              title: 'Haircut',
+              priority: PriorityLabels.normal,
+              now: now,
+            )
+            .copyWith(notBefore: LocalDate(2026, 11, 20))
+            .setRecurrence(rule, today: today, now: now),
+      );
+
+      await pickNotBefore(tester, '25');
+      await save(tester);
+
+      final task = (await stored(tester)).single;
+      expect(task.notBefore, LocalDate(2026, 11, 25));
+      expect(task.occurrenceDate, LocalDate(2026, 11, 25));
+      expect(task.recurrence, rule);
     });
   });
 }

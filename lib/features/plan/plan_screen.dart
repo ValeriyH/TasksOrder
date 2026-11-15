@@ -88,6 +88,7 @@ class _PlanBody extends ConsumerWidget {
     );
 
     final paused = ref.watch(pausedTaskIdsProvider);
+    final older = ref.watch(olderCompletionIdsProvider);
     final byId = {for (final task in tasks) task.id: task};
     final today = plan.today;
     final scale = settings.priorityScale;
@@ -131,6 +132,7 @@ class _PlanBody extends ConsumerWidget {
           ? Planner.completionDay(task, settings.dayStartHour)
           : null,
       paused: !isDone && paused.contains(task.id),
+      locked: isDone && older.contains(task.id),
       chips: chips,
       onTap: () => unawaited(showTaskMenu(context, ref, task, today)),
       onToggleDone: () => unawaited(

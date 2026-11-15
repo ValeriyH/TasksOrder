@@ -40,14 +40,15 @@ Priority 1 ("Critical") is an ordinary level: it wins the priority fill but wait
 The app sets `notBefore` for the next instance of a recurring task (D20); there is no field to set it by hand yet.
 
 ## Recurring tasks: ghosts (D20, T-704)
-The stored instance of a series is an ordinary task: the rules above and below apply to it as they are. In addition, for every active task `t` with a `recurrence` the planner adds its later repeats as **ghosts**, candidates that exist only inside this computation:
+The stored instance of a series is an ordinary task: the rules above and below apply to it as they are. In addition, for every active task `t` with a `recurrence` **by schedule** the planner adds its later repeats as **ghosts**, candidates that exist only inside this computation:
 
 ```
 base  = max(today, t.occurrenceDate)
-dates = by schedule:      the dates of the rule after base
-        from completion:  base + k × every units, k = 1, 2, …   // assumes each repeat is done on its day
+dates = the dates of the rule after base
 ghosts = one per date, while date <= today + horizon - 1
 ```
+A rule **from completion** has no ghosts (T-712, owner 2026-11-16): its dates depend on when each repeat is done, so ghosts would only be guesses that take places of the coming days. Its one stored instance is planned as any task; the next one appears when it is completed or skipped ([[03 Data Model]]).
+
 A ghost has the priority of `t`, `createdAt` of `t` (ties between repeats of one series: earlier date first) and its dates follow the dates `t` has, like the successor in [[03 Data Model]]:
 
 | `t` has | Ghost for the date `x` (previous repeat on `p`) |
@@ -58,7 +59,7 @@ A ghost has the priority of `t`, `createdAt` of `t` (ties between repeats of one
 
 - A ghost is never placed today: every ghost is released after `base`, which is today or later.
 - **Order within a series** (found on the emulator, T-709): the stored task and its ghosts are a chain. A member may be placed on `d` only when every earlier member is placed on a day before `d` or has expired. So two repeats of a series never share a day and a ghost never comes before the task it repeats.
-- **A ghost without dates expires** the day before the next date of the rule (`expiresOffset`): by schedule a missed repeat is dropped, from completion the next one counts from the day it is done. A ghost that finds no day in its window is dropped, it does not wait. Without this, a "Mon, Tue, Thu, Sat" task made on a Sunday with full working days put three repeats on the Saturday. Pinned ghosts and due-only ghosts keep their own dates (and the at-risk flag) as before.
+- **A ghost without dates expires** the day before the next date of the rule (`expiresOffset`): a missed repeat is dropped. A ghost that finds no day in its window is dropped, it does not wait. Without this, a "Mon, Tue, Thu, Sat" task made on a Sunday with full working days put three repeats on the Saturday. Pinned ghosts and due-only ghosts keep their own dates (and the at-risk flag) as before.
 - A ghost takes a slot, lowers `avail` and can be forced like a real task: that is the point, the load of the coming weeks is real.
 - Its entry is `PlanEntry(taskId: t.id, occurrenceDate: x)`. The UI shows it in the Plan without a checkbox; a tap opens `t`.
 - Ghosts are not in `focus` and not in `laterTaskIds` (a ghost that found no day inside the horizon is dropped). A ghost placed after its due date has `atRisk` on its entry but is not in `atRiskTaskIds`: the banner and the at-risk list are about tasks the user can act on.
@@ -320,7 +321,7 @@ With T-704 (ghosts), in `test/domain/planner_ghosts_test.dart`:
 28. Weekdays Mon/Wed/Fri with a pin → ghosts pinned on those days, also on a rest day and above the capacity; they lower `avail` for the forcing of other tasks.
 29. Due-only weekly task → each ghost is due on its date and released the day after the previous one; three of them are never packed into the first week, even at the highest priority.
 30. Missed instance (`occurrenceDate` three days ago, weekdays rule) → one real task, overdue and in `focus`; the first ghost is the first rule date after today.
-31. From completion, every 10 days, instance not done yet → ghosts on `base + 10`, `+ 20`, … Done instance removed from the input and its successor added → the ghosts move with it.
+31. From completion, every 10 days, instance not done yet → no ghosts, only the instance; its successor (done today) is planned from day 10, again without ghosts (T-712). 31b. A pinned rule from completion has no ghosts either; a weekly rule beside it keeps its own.
 32. A ghost of a due-only task that cannot make its date → `atRisk` on the entry, `atRiskTaskIds` unchanged. A ghost that fits no day of the horizon → dropped.
 33b. Repeats of a series do not pile up: "Mon, Tue, Thu, Sat" without dates made on a Monday, four older tasks on Mon..Thu → the task on Friday, one ghost on Saturday (Tue and Thu expired), never two of the series on a day; a daily due-only series keeps its members on increasing days.
 33. Determinism and performance with ghosts: 500 tasks, 20 of them daily series, horizon 90 → same plan twice, under 50 ms.
@@ -350,7 +351,7 @@ Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomput
 - Capacity is a task count until D21 is built (T-802); then it is a weight, see "Task size". Forcing with mixed weights is a heuristic, not an exact packing.
 - A task is done within one day (D21): a job longer than the biggest day is split by hand; there is no grouping of the parts yet.
 - Pure EDF forcing can place a forced task on a day where a slightly higher-priority due task would have been the nicer choice; both deadlines are still met, so this is accepted.
-- `notBefore` is a release date (T-703). Setting it by hand (snooze) needs only a field in the editor; not scheduled.
-- Ghosts of a "from completion" rule assume that every repeat is done on its day; the real dates move with each completion.
+- `notBefore` is a release date (T-703). Set by hand in the editor since T-714 ("Not before").
+- A rule from completion shows no repeats ahead (T-712), so its later load is not in the plan; a window "done within N days" is in the parking lot.
 - The forcing formula with release dates checks the periods that start tomorrow. A cluster of unreleased tasks that cannot fit its own period is not solved earlier; it shows as at risk.
 - Boost thresholds are global; per-task "lead time" could come later.

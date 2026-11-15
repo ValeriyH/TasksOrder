@@ -1,4 +1,5 @@
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/series.dart';
 import 'package:tasks_order/domain/model/task.dart';
 
 /// Storage of tasks, as the rest of the app sees it. The local store
@@ -21,6 +22,11 @@ abstract interface class TaskRepository {
   Future<Task?> getById(String id);
 
   /// Inserts the task or replaces the stored one with the same id.
+  ///
+  /// A series keeps one active instance with a rule (T-713): an active task
+  /// with a rule whose series already has another one is stored as a new
+  /// task (new id) of a series of its own, as when a rule is set in the
+  /// editor on a copy that came back without its rule. The old id is gone.
   Future<void> upsert(Task task, DateTime now);
 
   /// Marks the task done. [onPlan]: it was on today's list of the plan at
@@ -40,16 +46,26 @@ abstract interface class TaskRepository {
   });
 
   /// "Not this time" for a recurring task: the instance goes to the Trash
-  /// and the successor is inserted, as on completion (D20).
+  /// and the successor is inserted, as on completion (D20); for a rule from
+  /// completion a skip ahead counts from the instance's date (T-712).
   Future<void> skip(String id, DateTime now, {LocalDate? today});
 
   /// Returns a done task to the active ones.
   ///
-  /// For a recurring task the successor made by [complete] is removed for
-  /// good when it is still active and untouched; otherwise the returning
-  /// task loses its rule and stays as an ordinary task of the series, so the
-  /// series keeps one active instance (D20).
-  Future<void> uncomplete(String id, DateTime now);
+  /// Only the last completion of a series can come back (T-713,
+  /// `Series.checkUncomplete`): an older one is refused
+  /// ([UncompleteCheck.notLast]) and nothing changes. The last one takes
+  /// its untouched successor away and comes back with its rule; when the
+  /// successor was changed since, nothing changes
+  /// ([UncompleteCheck.successorChanged]) unless [asOrdinary] is set, and
+  /// then the task comes back without its rule and the successor carries the
+  /// series on. Returns [UncompleteCheck.allowed] when the task came back
+  /// (or there was nothing to do).
+  Future<UncompleteCheck> uncomplete(
+    String id,
+    DateTime now, {
+    bool asOrdinary = false,
+  });
 
   /// Sets or clears the Focus mark (D17).
   Future<void> setFocus(String id, bool value, DateTime now);

@@ -44,6 +44,7 @@ class TaskCard extends StatelessWidget {
     required this.onTap,
     this.isDone = false,
     this.paused = false,
+    this.locked = false,
     this.showFocus = true,
     this.chips = const [],
     this.doneOn,
@@ -75,6 +76,11 @@ class TaskCard extends StatelessWidget {
   /// [onToggleDone], which explains instead of completing.
   final bool paused;
 
+  /// A done card of an older completion of a series (T-713): it cannot be
+  /// taken back, so the Completed button is dimmed. A press still calls
+  /// [onToggleDone], which explains instead of taking it back.
+  final bool locked;
+
   /// Show the focus chip of a focused task.
   final bool showFocus;
 
@@ -90,9 +96,11 @@ class TaskCard extends StatelessWidget {
     final overdue = overdueDays > 0 && !isDone;
     final pinned = task.pinnedDate;
     final rule = task.recurrence;
-    // Not released yet (D20): the planner keeps it until that day.
+    // Not released yet (D20): the planner keeps it until that day. A pin
+    // leads (T-714): the pinned day is the one that counts.
     final release = task.notBefore;
-    final waits = release != null && release > today && !isDone;
+    final waits =
+        release != null && release > today && !isDone && pinned == null;
 
     final doneOn = isDone ? this.doneOn : null;
     final dueText = switch (dueDate) {
@@ -175,7 +183,7 @@ class TaskCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Opacity(
-                opacity: paused && !isDone ? 0.38 : 1,
+                opacity: (paused && !isDone) || (locked && isDone) ? 0.38 : 1,
                 child: TaskDoneButton(
                   title: task.title,
                   isDone: isDone,
