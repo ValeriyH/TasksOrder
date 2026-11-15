@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:tasks_order/data/db/converters.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/task.dart' show TaskStatus;
 
 part 'database.g.dart';
@@ -12,6 +13,7 @@ part 'database.g.dart';
 @DataClassName('TaskRow')
 @TableIndex(name: 'idx_tasks_status', columns: {#status, #deletedAt})
 @TableIndex(name: 'idx_tasks_due', columns: {#dueDate})
+@TableIndex(name: 'idx_tasks_series', columns: {#seriesId})
 class Tasks extends Table {
   /// UUID v4.
   TextColumn get id => text()();
@@ -39,6 +41,17 @@ class Tasks extends Table {
   /// Soft delete: Trash (D14) and sync tombstone (D12).
   IntColumn get deletedAt =>
       integer().map(const UtcMillisConverter()).nullable()();
+
+  /// Schema 3 (D20): the repeat rule as JSON, null for an ordinary task.
+  TextColumn get recurrence =>
+      text().map(const RecurrenceConverter()).nullable()();
+
+  /// Schema 3: the id of the first task of the series.
+  TextColumn get seriesId => text().nullable()();
+
+  /// Schema 3: the date of this instance in the series' schedule.
+  TextColumn get occurrenceDate =>
+      text().map(const LocalDateConverter()).nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -111,11 +124,12 @@ class AppDatabase extends _$AppDatabase {
     isUtc: true,
   );
 
-  /// 2 (ADR-17): `tasks.priority` holds a level of the ten-level table; the
-  /// tables did not change. 1: it was the position in the scale of the
-  /// settings.
+  /// 3 (D20, ADR-18): `tasks.recurrence`, `series_id`, `occurrence_date` and
+  /// the index `idx_tasks_series`. 2 (ADR-17): `tasks.priority` holds a level
+  /// of the ten-level table; the tables did not change. 1: it was the
+  /// position in the scale of the settings.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -127,6 +141,13 @@ class AppDatabase extends _$AppDatabase {
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) await _prioritiesToLevels();
+      if (from < 3) {
+        // Every existing task is an ordinary one: no row changes.
+        await m.addColumn(tasks, tasks.recurrence);
+        await m.addColumn(tasks, tasks.seriesId);
+        await m.addColumn(tasks, tasks.occurrenceDate);
+        await m.createIndex(idxTasksSeries);
+      }
     },
   );
 

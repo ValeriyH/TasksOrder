@@ -25,6 +25,7 @@ class TaskTile extends StatelessWidget {
     this.badges = const [],
     this.onMoveDueDate,
     this.onClearDueDate,
+    this.paused = false,
     super.key,
   });
 
@@ -47,6 +48,11 @@ class TaskTile extends StatelessWidget {
   final VoidCallback? onMoveDueDate;
   final VoidCallback? onClearDueDate;
 
+  /// Its series counts from completion and was completed today (T-710): the
+  /// checkbox is dimmed and a badge says so. A tick still calls
+  /// [onCompleted], which explains instead of completing.
+  final bool paused;
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -56,11 +62,17 @@ class TaskTile extends StatelessWidget {
     final overdueDays = dueDate == null ? 0 : dueDate.daysUntil(today);
     final moveDueDate = onMoveDueDate;
     final clearDueDate = onClearDueDate;
+    // Not released yet (D20): the planner keeps it until that day.
+    final release = task.notBefore;
+    final waits = release != null && release > today;
 
     return ListTile(
       onTap: onTap,
       onLongPress: onLongPress,
-      leading: Checkbox(value: false, onChanged: (_) => onCompleted()),
+      leading: Opacity(
+        opacity: paused ? 0.38 : 1,
+        child: Checkbox(value: false, onChanged: (_) => onCompleted()),
+      ),
       title: Text(task.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
@@ -85,6 +97,16 @@ class TaskTile extends StatelessWidget {
                       : l10n.dueOn(shortDate(context, dueDate)),
                   icon: Icons.event_outlined,
                 ),
+            if (paused)
+              TaskBadge(
+                label: l10n.taskPausedBadge,
+                icon: Icons.pause_circle_outline,
+              ),
+            if (waits)
+              TaskBadge(
+                label: l10n.availableFrom(shortDate(context, release)),
+                icon: Icons.hourglass_empty,
+              ),
             ...badges,
           ],
         ),
@@ -92,6 +114,11 @@ class TaskTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (task.recurrence != null)
+            Tooltip(
+              message: l10n.repeatTitle,
+              child: Icon(Icons.repeat, size: 20, color: colors.outline),
+            ),
           if (task.isFocused)
             Tooltip(
               message: l10n.taskFocusLabel,
@@ -116,6 +143,62 @@ class TaskTile extends StatelessWidget {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A coming repeat of a recurring task in the Plan (a ghost, T-704/T-708):
+/// dimmed, the repeat icon instead of a checkbox, no menu; a tap opens the
+/// task the ghost repeats.
+class GhostTaskTile extends StatelessWidget {
+  const GhostTaskTile({
+    required this.task,
+    required this.scale,
+    required this.onTap,
+    this.badges = const [],
+    super.key,
+  });
+
+  /// The stored task of the series.
+  final Task task;
+  final int scale;
+  final VoidCallback onTap;
+
+  /// Badges of the entry (reasons).
+  final List<Widget> badges;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final colors = Theme.of(context).colorScheme;
+    return Opacity(
+      opacity: 0.6,
+      child: ListTile(
+        onTap: onTap,
+        leading: Padding(
+          // Where the checkbox of a task row sits.
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Tooltip(
+            message: l10n.ghostTooltip,
+            child: Icon(Icons.repeat, color: colors.outline),
+          ),
+        ),
+        title: Text(task.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              TaskBadge(
+                label: priorityName(l10n, task.priority, scale),
+                dotColor: priorityColor(task.priority, scale),
+              ),
+              ...badges,
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:tasks_order/data/backup/backup_codec.dart';
 import 'package:tasks_order/domain/model/backup.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 
@@ -97,7 +98,7 @@ void main() {
     final json = jsonDecode(codec.encode(sample())) as Map<String, dynamic>;
 
     expect(json['app'], 'TasksOrder');
-    expect(json['version'], 2);
+    expect(json['version'], 3);
     expect(json['exportedAt'], '2026-11-13T08:30:15.250Z');
     expect(firstTask(json)['createdAt'], '2026-11-13T08:30:15.250Z');
   });
@@ -202,7 +203,7 @@ void main() {
 
   test('a backup of a newer format is told apart', () {
     expect(
-      () => codec.decode(changed((json) => json['version'] = 3)),
+      () => codec.decode(changed((json) => json['version'] = 4)),
       fails(BackupProblem.newerVersion),
     );
   });
@@ -268,5 +269,127 @@ void main() {
     );
 
     expect(read.tasks, sample().tasks);
+  });
+
+  group('format 3: repeat rules (D20, T-706)', () {
+    final today = LocalDate(2026, 11, 13);
+    final rules = [
+      Recurrence.interval(every: 1, unit: RecurrenceUnit.month, anchor: today),
+      Recurrence.interval(every: 2, unit: RecurrenceUnit.week, anchor: today),
+      Recurrence.interval(every: 1, unit: RecurrenceUnit.year, anchor: today),
+      Recurrence.interval(every: 10, unit: RecurrenceUnit.day, afterDone: true),
+      Recurrence.weekdays(const {0, 2, 4}),
+    ];
+
+    Backup withSeries() {
+      final base = sample();
+      return Backup(
+        exportedAt: base.exportedAt,
+        settings: base.settings,
+        dayOverrides: base.dayOverrides,
+        tasks: [
+          ...base.tasks,
+          for (final (i, rule) in rules.indexed)
+            Task.create(
+              id: 'r$i',
+              title: 'Repeat $i',
+              priority: 5,
+              dueDate: today,
+              now: now,
+            ).setRecurrence(rule, today: today, now: now),
+        ],
+      );
+    }
+
+    /// The JSON of [withSeries], changed by [change], as text again.
+    String changedSeries(void Function(List<dynamic> tasks) change) {
+      final json =
+          jsonDecode(codec.encode(withSeries())) as Map<String, dynamic>;
+      change(json['tasks'] as List<dynamic>);
+      return jsonEncode(json);
+    }
+
+    Map<String, dynamic> series(List<dynamic> tasks, String id) =>
+        tasks.cast<Map<String, dynamic>>().singleWhere((t) => t['id'] == id);
+
+    test('every kind of rule is read back', () {
+      final backup = withSeries();
+
+      final read = codec.decode(codec.encode(backup));
+
+      expect(read.tasks, backup.tasks);
+      expect([for (final t in read.tasks) ?t.recurrence], rules);
+    });
+
+    test('an ordinary task carries none of the three fields', () {
+      final json = jsonDecode(codec.encode(sample())) as Map<String, dynamic>;
+
+      expect(firstTask(json).containsKey('recurrence'), isFalse);
+      expect(firstTask(json).containsKey('seriesId'), isFalse);
+      expect(firstTask(json).containsKey('occurrenceDate'), isFalse);
+    });
+
+    test('a file of version 2 is read as before', () {
+      final read = codec.decode(changed((json) => json['version'] = 2));
+
+      expect(read.tasks, sample().tasks);
+    });
+
+    test('a broken rule is refused', () {
+      expect(
+        () => codec.decode(
+          changedSeries((tasks) {
+            series(tasks, 'r0')['recurrence'] = {
+              'kind': 'interval',
+              'every': 0,
+              'unit': 'month',
+              'afterDone': false,
+              'anchor': '2026-11-13',
+            };
+          }),
+        ),
+        fails(BackupProblem.notABackup),
+      );
+    });
+
+    test('a rule without seriesId or occurrenceDate is refused', () {
+      for (final field in ['seriesId', 'occurrenceDate']) {
+        expect(
+          () => codec.decode(
+            changedSeries((tasks) => series(tasks, 'r1').remove(field)),
+          ),
+          fails(BackupProblem.notABackup),
+          reason: field,
+        );
+      }
+    });
+
+    test('two active instances of one series are refused', () {
+      expect(
+        () => codec.decode(
+          changedSeries((tasks) => series(tasks, 'r2')['seriesId'] = 'r1'),
+        ),
+        fails(BackupProblem.notABackup),
+      );
+    });
+
+    test('a done or deleted instance next to the active one is fine', () {
+      final read = codec.decode(
+        changedSeries((tasks) {
+          final done = Map<String, dynamic>.of(series(tasks, 'r1'))
+            ..['id'] = 'r1-done'
+            ..['status'] = 'done'
+            ..['completedAt'] = '2026-11-13T09:00:00.000Z';
+          final deleted = Map<String, dynamic>.of(series(tasks, 'r1'))
+            ..['id'] = 'r1-deleted'
+            ..['deletedAt'] = '2026-11-13T09:00:00.000Z';
+          tasks
+            ..add(done)
+            ..add(deleted);
+        }),
+      );
+
+      expect(read.tasks.where((t) => t.seriesId == 'r1'), hasLength(3));
+    });
   });
 }

@@ -1514,6 +1514,121 @@ void main() {
     });
   });
 
+  group('release dates (T-703)', () {
+    final mon = today;
+    final tue = today.addDays(1);
+    final wed = today.addDays(2);
+    final thu = today.addDays(3);
+    final sat = today.addDays(5);
+
+    Task released(Task t, LocalDate on) => t.copyWith(notBefore: on);
+
+    test(
+      '22. a task waits for its release, the others fill the days before',
+      () {
+        final tasks = [
+          released(task('C', 1, age: 0), thu),
+          for (var i = 1; i <= 4; i++) task('L$i', 4, age: i),
+        ];
+
+        final result = schedule(
+          plan(tasks, settings: noBoost.copyWith(weeklyCapacity: everyDayOne)),
+        );
+        expect(result[mon.toIso()], ['L1']);
+        expect(result[tue.toIso()], ['L2']);
+        expect(result[wed.toIso()], ['L3']);
+        expect(result[thu.toIso()], ['C']);
+        expect(result[today.addDays(4).toIso()], ['L4']);
+      },
+    );
+
+    test('22. a release today or in the past changes nothing', () {
+      for (final on in [mon, today.addDays(-3)]) {
+        final tasks = [
+          released(task('C', 1, age: 0), on),
+          task('L1', 4, age: 1),
+        ];
+        final result = schedule(
+          plan(tasks, settings: noBoost.copyWith(weeklyCapacity: everyDayOne)),
+        );
+
+        expect(result[mon.toIso()], ['C'], reason: '$on');
+      }
+    });
+
+    test('23. a pin earlier than the release wins', () {
+      final t = released(task('P', 3, age: 0), thu).copyWith(pinnedDate: tue);
+
+      expect(entryOf(plan([t]), 'P').reason, PlanReason.pinned);
+      expect(schedule(plan([t]))[tue.toIso()], ['P']);
+    });
+
+    test('23. released after the horizon: later', () {
+      final t = released(task('F', 1, age: 0), today.addDays(10));
+      final result = plan([t], settings: Settings(planningHorizonDays: 7));
+
+      expect(plannedIds(result), isEmpty);
+      expect(result.laterTaskIds, ['F']);
+    });
+
+    test('23. focused and not released: in Focus with its planned day', () {
+      final t = released(task('F', 3, age: 0, focused: 1), wed);
+      final result = plan([t]);
+
+      expect(focusIds(result), ['F']);
+      expect(result.focus.single.plannedDate, wed);
+      expect(stripIds(result), ['F']);
+    });
+
+    test('24. an unreleased task due the same day keeps its slot', () {
+      // X and Y due Thu; X released only on Thu. Three High tasks without a
+      // date would take Mon..Wed and leave Y for Thu, where X needs the
+      // only slot: need(Thu) counts X, so Y is forced by Wed.
+      final tasks = [
+        released(task('X', 3, age: 0, due: thu), thu),
+        task('Y', 3, age: 1, due: thu),
+        for (var i = 1; i <= 3; i++) task('H$i', 2, age: 10 + i),
+      ];
+      final result = plan(
+        tasks,
+        settings: noBoost.copyWith(weeklyCapacity: everyDayOne),
+      );
+      final days = schedule(result);
+
+      expect(days[thu.toIso()], ['X']);
+      expect(
+        [mon, tue, wed].any((d) => days[d.toIso()]!.contains('Y')),
+        isTrue,
+      );
+      expect(result.atRiskTaskIds, isEmpty);
+    });
+
+    test('25. an unreleased cluster does not force an unrelated task', () {
+      // U1, U2 due Thu and released Thu, one slot there; R due Sat. On Wed
+      // need(Thu) - avail = 1, but no task due by Thu is released, so R is
+      // not pulled into Wed.
+      final tasks = [
+        released(task('U1', 3, age: 0, due: thu), thu),
+        released(task('U2', 3, age: 1, due: thu), thu),
+        task('R', 3, age: 2, due: sat),
+        for (var i = 1; i <= 3; i++) task('H$i', 2, age: 10 + i),
+      ];
+      final result = plan(
+        tasks,
+        settings: noBoost.copyWith(
+          weeklyCapacity: everyDayOne,
+          maxOverflowPerDay: 0,
+        ),
+      );
+      final days = schedule(result);
+
+      expect(days[wed.toIso()], ['H3']);
+      expect(days[thu.toIso()], ['U1']);
+      expect(result.atRiskTaskIds, ['U2']);
+      expect(entryOf(result, 'R').atRisk, isFalse);
+    });
+  });
+
   group('performance', () {
     /// 500 tasks of every kind: plain, due (near, far, overdue), focused
     /// and pinned.

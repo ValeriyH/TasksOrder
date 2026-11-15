@@ -1,0 +1,308 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:tasks_order/application/providers.dart';
+import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
+import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/shared/task_tile.dart';
+
+import 'app_harness.dart';
+
+/// T-708: recurring tasks and their ghosts in the lists. The harness day is
+/// Friday 13 November 2026; capacity Mon..Fri 1, Sat 3, Sun 0.
+void main() {
+  final today = AppHarness.today;
+  final weekly = Recurrence.interval(
+    every: 1,
+    unit: RecurrenceUnit.week,
+    anchor: today,
+  );
+
+  /// Weekly from today, without dates.
+  Task recurring(String id) =>
+      testTask(id).setRecurrence(weekly, today: today, now: AppHarness.now);
+
+  Future<AppHarness> start(WidgetTester tester, List<Task> tasks) {
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    return AppHarness.start(tester, tasks: tasks);
+  }
+
+  Future<void> tap(WidgetTester tester, Finder finder) async {
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  Future<List<Task>> all(AppHarness app) => app.real(
+    () => app.container.read(taskRepositoryProvider).watchAll().first,
+  );
+
+  group('Plan', () {
+    testWidgets('ghosts are dimmed, without a checkbox, and open the task', (
+      tester,
+    ) async {
+      await start(tester, [recurring('w')]);
+      await tap(tester, find.byIcon(Icons.calendar_month_outlined));
+
+      final ghost = find.byKey(const ValueKey('w@2026-11-20'));
+      expect(ghost, findsOneWidget);
+      expect(tester.widget(ghost), isA<GhostTaskTile>());
+      expect(
+        find.descendant(of: ghost, matching: find.byType(Checkbox)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: ghost, matching: find.byIcon(Icons.repeat)),
+        findsOneWidget,
+      );
+      // The stored task itself is today, with its checkbox.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('w')),
+          matching: find.byType(Checkbox),
+        ),
+        findsOneWidget,
+      );
+      // Its day counts it: Friday Nov 20, capacity 1.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('day-2026-11-20')),
+          matching: find.text('1/1'),
+        ),
+        findsOneWidget,
+      );
+
+      await tap(tester, ghost);
+      expect(find.text('Edit task'), findsOneWidget);
+    });
+  });
+
+  group('lists', () {
+    testWidgets('a recurring task shows the repeat icon', (tester) async {
+      await start(tester, [recurring('w'), testTask('p', minute: 1)]);
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+
+      expect(
+        find.descendant(
+          of: find.widgetWithText(TaskTile, 'Task w'),
+          matching: find.byIcon(Icons.repeat),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.widgetWithText(TaskTile, 'Task p'),
+          matching: find.byIcon(Icons.repeat),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('the Tasks list shows the day of the task, not of a ghost', (
+      tester,
+    ) async {
+      await start(tester, [recurring('w')]);
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+
+      expect(
+        find.descendant(
+          of: find.widgetWithText(TaskTile, 'Task w'),
+          matching: find.text('Planned for today'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the Recurring filter shows only recurring tasks', (
+      tester,
+    ) async {
+      await start(tester, [recurring('w'), testTask('p', minute: 1)]);
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+      final chip = find.widgetWithText(ChoiceChip, 'Recurring');
+      await tester.ensureVisible(chip);
+      await tap(tester, chip);
+
+      expect(find.widgetWithText(TaskTile, 'Task w'), findsOneWidget);
+      expect(find.widgetWithText(TaskTile, 'Task p'), findsNothing);
+    });
+
+    testWidgets('a task that is not released yet says from when', (
+      tester,
+    ) async {
+      await start(tester, [
+        testTask('n').copyWith(notBefore: LocalDate(2026, 11, 20)),
+        testTask('r', minute: 1).copyWith(notBefore: today),
+      ]);
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+
+      expect(
+        find.descendant(
+          of: find.widgetWithText(TaskTile, 'Task n'),
+          matching: find.textContaining('From '),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.widgetWithText(TaskTile, 'Task r'),
+          matching: find.textContaining('From '),
+        ),
+        findsNothing,
+      );
+    });
+  });
+
+  group('delete warns that the series stops (T-711)', () {
+    Future<AppHarness> openEditor(WidgetTester tester) async {
+      final app = await start(tester, [recurring('w')]);
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+      await tap(tester, find.text('Task w'));
+      await tap(tester, find.byIcon(Icons.delete_outline));
+      expect(find.text('Delete the series?'), findsOneWidget);
+      expect(find.text('Skip this time'), findsNothing);
+      return app;
+    }
+
+    testWidgets('delete the series: nothing comes after it', (tester) async {
+      final app = await openEditor(tester);
+
+      await tap(tester, find.byKey(const ValueKey('deleteSeries')));
+
+      expect((await app.task('w')).isDeleted, isTrue);
+      expect(await all(app), isEmpty);
+      expect(find.text('Moved to Trash'), findsOneWidget);
+    });
+
+    testWidgets('cancel keeps the task and the editor', (tester) async {
+      final app = await openEditor(tester);
+
+      await tap(tester, find.text('Cancel'));
+
+      expect((await app.task('w')).isDeleted, isFalse);
+      expect(find.text('Edit task'), findsOneWidget);
+    });
+  });
+
+  group('skip this time from the long-press menu (T-711)', () {
+    testWidgets('Today: the next repeat comes', (tester) async {
+      final app = await start(tester, [recurring('w')]);
+
+      await tester.longPress(find.text('Task w'));
+      await tester.pumpAndSettle();
+      await tap(tester, find.byKey(const ValueKey('menuSkip')));
+
+      expect((await app.task('w')).isDeleted, isTrue);
+      final next = await app.task(recurring('w').successorId);
+      expect(next.isDeleted, isFalse);
+      expect(next.notBefore, LocalDate(2026, 11, 20));
+      expect(find.textContaining('Skipped'), findsOneWidget);
+    });
+
+    testWidgets('Plan: undo takes the next repeat away again', (tester) async {
+      final app = await start(tester, [recurring('w')]);
+      await tap(tester, find.byIcon(Icons.calendar_month_outlined));
+
+      await tester.longPress(find.byKey(const ValueKey('w')));
+      await tester.pumpAndSettle();
+      await tap(tester, find.byKey(const ValueKey('menuSkip')));
+      await tap(tester, find.text('Undo'));
+
+      expect((await app.task('w')).isDeleted, isFalse);
+      expect((await all(app)).map((t) => t.id), ['w']);
+    });
+
+    testWidgets('an ordinary task has no skip', (tester) async {
+      await start(tester, [testTask('p')]);
+
+      await tester.longPress(find.text('Task p'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Move to a day…'), findsOneWidget);
+      expect(find.byKey(const ValueKey('menuSkip')), findsNothing);
+    });
+  });
+
+  group('from completion: one completion a day (T-710)', () {
+    final every10 = Recurrence.interval(
+      every: 10,
+      unit: RecurrenceUnit.day,
+      afterDone: true,
+    );
+    Task haircut() =>
+        testTask('h').setRecurrence(every10, today: today, now: AppHarness.now);
+
+    testWidgets('the next one is paused, a tick explains and does nothing', (
+      tester,
+    ) async {
+      final app = await start(tester, [haircut()]);
+      final nextId = haircut().successorId;
+      await tap(tester, find.byType(Checkbox).first);
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+
+      final tile = find.widgetWithText(TaskTile, 'Task h');
+      expect(
+        find.descendant(of: tile, matching: find.text('Paused until tomorrow')),
+        findsOneWidget,
+      );
+
+      await tap(
+        tester,
+        find.descendant(of: tile, matching: find.byType(Checkbox)),
+      );
+
+      expect(
+        find.text(
+          'Already done today. The next one can be ticked from tomorrow.',
+        ),
+        findsOneWidget,
+      );
+      expect((await app.task(nextId)).isDone, isFalse);
+      expect(await all(app), hasLength(2));
+    });
+
+    testWidgets('undo of the completion lifts the pause', (tester) async {
+      await start(tester, [haircut()]);
+      await tap(tester, find.byType(Checkbox).first);
+      await tap(tester, find.text('Undo'));
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+
+      expect(find.text('Paused until tomorrow'), findsNothing);
+    });
+
+    testWidgets('a series by the calendar is not paused', (tester) async {
+      final app = await start(tester, [recurring('w')]);
+      final nextId = recurring('w').successorId;
+      await tap(tester, find.byType(Checkbox).first);
+      await tap(tester, find.byIcon(Icons.checklist_outlined));
+
+      expect(find.text('Paused until tomorrow'), findsNothing);
+      await tap(
+        tester,
+        find.descendant(
+          of: find.widgetWithText(TaskTile, 'Task w'),
+          matching: find.byType(Checkbox),
+        ),
+      );
+      expect((await app.task(nextId)).isDone, isTrue);
+    });
+  });
+
+  testWidgets('complete: the successor comes with its date; undo takes it '
+      'away', (tester) async {
+    final app = await start(tester, [recurring('w')]);
+    final successorId = recurring('w').successorId;
+
+    await tap(tester, find.byType(Checkbox).first);
+
+    final next = await app.task(successorId);
+    expect(next.isDone, isFalse);
+    expect(next.notBefore, LocalDate(2026, 11, 20));
+    expect(next.occurrenceDate, LocalDate(2026, 11, 20));
+
+    await tap(tester, find.text('Undo'));
+
+    expect((await all(app)).map((t) => t.id), ['w']);
+    expect((await app.task('w')).isDone, isFalse);
+  });
+}

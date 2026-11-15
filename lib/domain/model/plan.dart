@@ -112,5 +112,16 @@ abstract class PlanEntry with _$PlanEntry {
 
     /// Placed after its due date.
     @Default(false) bool atRisk,
+
+    /// Set for a ghost: the repeat of the recurring task [taskId] for this
+    /// date of its schedule (D20, T-704). Null for a stored task. A ghost is
+    /// identified by ([taskId], [occurrenceDate]).
+    LocalDate? occurrenceDate,
   }) = _PlanEntry;
+
+  const PlanEntry._();
+
+  /// A future repeat that exists only in the plan: shown without a
+  /// checkbox, a tap opens [taskId].
+  bool get isGhost => occurrenceDate != null;
 }

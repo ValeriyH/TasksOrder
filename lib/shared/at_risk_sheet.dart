@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/providers.dart';
-import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
@@ -98,7 +97,6 @@ Future<void> _showActions(
   LocalDate today,
 ) async {
   final l10n = context.l10n;
-  final actions = ref.read(taskActionsProvider);
   final choice = await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
@@ -149,7 +147,7 @@ Future<void> _showActions(
             ref.read(clockProvider)(),
           );
     case 'delete':
-      await actions.delete(task.id);
+      await deleteWithUndo(context, ref, task);
     case 'edit':
       // The editor opens over the tabs, not over this sheet.
       final router = GoRouter.of(context);

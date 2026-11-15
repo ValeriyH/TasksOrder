@@ -136,6 +136,33 @@ void main() {
     });
   });
 
+  group('addMonths / addYears (D20)', () {
+    test('keep the day of the month when it exists', () {
+      expect(LocalDate(2026, 1, 15).addMonths(1), LocalDate(2026, 2, 15));
+      expect(LocalDate(2026, 11, 30).addMonths(2), LocalDate(2027, 1, 30));
+      expect(LocalDate(2026, 3, 10).addMonths(-3), LocalDate(2025, 12, 10));
+    });
+
+    test('fall back to the last day of a shorter month', () {
+      expect(LocalDate(2026, 1, 31).addMonths(1), LocalDate(2026, 2, 28));
+      expect(LocalDate(2028, 1, 31).addMonths(1), LocalDate(2028, 2, 29));
+      expect(LocalDate(2026, 3, 31).addMonths(1), LocalDate(2026, 4, 30));
+      expect(LocalDate(2026, 1, 30).addMonths(1), LocalDate(2026, 2, 28));
+      expect(LocalDate(2028, 1, 29).addMonths(1), LocalDate(2028, 2, 29));
+      expect(LocalDate(2027, 1, 29).addMonths(1), LocalDate(2027, 2, 28));
+    });
+
+    test('zero is the same date', () {
+      expect(LocalDate(2026, 5, 31).addMonths(0), LocalDate(2026, 5, 31));
+    });
+
+    test('years: Feb 29 falls back to Feb 28 in a common year', () {
+      expect(LocalDate(2028, 2, 29).addYears(1), LocalDate(2029, 2, 28));
+      expect(LocalDate(2028, 2, 29).addYears(4), LocalDate(2032, 2, 29));
+      expect(LocalDate(2026, 6, 1).addYears(-1), LocalDate(2025, 6, 1));
+    });
+  });
+
   group('daysUntil', () {
     test('is zero for the same day', () {
       expect(LocalDate(2026, 11, 13).daysUntil(LocalDate(2026, 11, 13)), 0);

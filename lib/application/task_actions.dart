@@ -10,13 +10,19 @@ part 'task_actions.g.dart';
 ///
 /// Safe to keep after the widget that read it is gone (a snackbar's "Undo").
 class TaskActions {
-  const TaskActions(this._repository, this._clock);
+  const TaskActions(this._repository, this._clock, this._today, this._paused);
 
   /// How long a deleted task stays in the Trash (D14).
   static const trashRetention = Duration(days: 30);
 
   final TaskRepository _repository;
   final Clock _clock;
+
+  /// The planning day (D15), for the successor of a recurring task.
+  final LocalDate? Function() _today;
+
+  /// Ids of the tasks paused until tomorrow (T-710).
+  final Set<String> Function() _paused;
 
   /// Creates a task with a title and a priority only (quick add).
   Future<void> add({required String title, required int priority}) {
@@ -28,8 +34,19 @@ class TaskActions {
   }
 
   /// [onPlan]: the task is on today's list of the plan right now (D19).
-  Future<void> complete(String id, {required bool onPlan}) =>
-      _repository.complete(id, _clock(), onPlan: onPlan);
+  ///
+  /// Returns false and changes nothing when the task is paused: its series
+  /// counts from completion and was already completed today (T-710).
+  Future<bool> complete(String id, {required bool onPlan}) async {
+    if (_paused().contains(id)) return false;
+    await _repository.complete(id, _clock(), onPlan: onPlan, today: _today());
+    return true;
+  }
+
+  /// "Not this time" for a recurring task (D20): to the Trash, and the next
+  /// instance comes.
+  Future<void> skip(String id) =>
+      _repository.skip(id, _clock(), today: _today());
 
   Future<void> uncomplete(String id) => _repository.uncomplete(id, _clock());
 
@@ -60,5 +77,9 @@ class TaskActions {
 }
 
 @Riverpod(keepAlive: true)
-TaskActions taskActions(Ref ref) =>
-    TaskActions(ref.watch(taskRepositoryProvider), ref.watch(clockProvider));
+TaskActions taskActions(Ref ref) => TaskActions(
+  ref.watch(taskRepositoryProvider),
+  ref.watch(clockProvider),
+  () => ref.read(todayProvider).value,
+  () => ref.read(pausedTaskIdsProvider),
+);

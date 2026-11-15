@@ -18,6 +18,9 @@ extension TaskRowMapper on TaskRow {
     completedAt: completedAt,
     completedOnPlan: completedOnPlan,
     deletedAt: deletedAt,
+    recurrence: recurrence,
+    seriesId: seriesId,
+    occurrenceDate: occurrenceDate,
   );
 }
 
@@ -38,5 +41,8 @@ extension TaskMapper on Task {
     completedAt: completedAt,
     completedOnPlan: completedOnPlan,
     deletedAt: deletedAt,
+    recurrence: recurrence,
+    seriesId: seriesId,
+    occurrenceDate: occurrenceDate,
   );
 }

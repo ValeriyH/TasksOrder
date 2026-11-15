@@ -84,6 +84,26 @@ final class LocalDate implements Comparable<LocalDate> {
     return LocalDate(utc.year, utc.month, utc.day);
   }
 
+  /// The same day of the month [months] months later (earlier, when
+  /// negative); the last day of the month when the target month is shorter,
+  /// so Jan 31 + 1 month is Feb 28 (29 in a leap year). D20.
+  LocalDate addMonths(int months) {
+    if (months == 0) return this;
+    final index = year * 12 + (month - 1) + months;
+    final targetYear = index ~/ 12;
+    final targetMonth = index % 12 + 1;
+    final lastDay = daysInMonth(targetYear, targetMonth);
+    return LocalDate(targetYear, targetMonth, day > lastDay ? lastDay : day);
+  }
+
+  /// [addMonths] by whole years: Feb 29 + 1 year is Feb 28.
+  LocalDate addYears(int years) => addMonths(years * 12);
+
+  /// Number of days in [month] (1..12) of [year].
+  static int daysInMonth(int year, int month) =>
+      // Day 0 of the next month is the last day of this one.
+      DateTime.utc(year, month + 1, 0).day;
+
   /// Whole days from this date to [other]: positive when [other] is later,
   /// negative when it is earlier.
   int daysUntil(LocalDate other) => other._epochDay - _epochDay;

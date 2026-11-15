@@ -35,6 +35,8 @@ class Planner {
     // Pinned tasks by the day offset they are fixed to. They wait outside
     // the pool, so neither the priority fill nor the deadline math moves them.
     final pinned = <int, List<_Candidate>>{};
+    // The stored instance and the ghosts of each recurring task, in order.
+    final series = <String, _Series>{};
     for (final task in activeTasks) {
       if (task.isDone || task.isDeleted) continue;
       final due = task.dueDate;
@@ -42,8 +44,17 @@ class Planner {
       final overdue = dueOffset != null && dueOffset < 0;
       // A missed deadline has nothing left to protect: the task is planned
       // as one without a due date and stays in Focus instead (D18).
-      final candidate = _Candidate(task, overdue ? null : dueOffset);
+      // A release date in the past or today changes nothing (T-703).
+      final release = task.notBefore;
+      final candidate = _Candidate(
+        task,
+        overdue ? null : dueOffset,
+        release == null ? 0 : _atLeastZero(today.daysUntil(release)),
+      );
       if (task.isFocused || overdue) focus.add(candidate);
+      if (task.recurrence != null && task.occurrenceDate != null) {
+        series[task.id] = _Series()..add(candidate);
+      }
       final pin = task.pinnedDate;
       if (pin == null) {
         pool.add(candidate);
@@ -51,6 +62,22 @@ class Planner {
         // The user fixed the day; a pin in the past means today.
         final pinOffset = _atLeastZero(today.daysUntil(pin));
         (pinned[pinOffset] ??= []).add(candidate);
+      }
+    }
+    // 1b. Ghosts: the later repeats of recurring tasks inside the horizon
+    // (D20, T-704). They take slots like real tasks, but never today, never
+    // in Focus, later or the at-risk list.
+    for (final ghost in _ghosts(
+      activeTasks,
+      today,
+      settings.planningHorizonDays,
+    )) {
+      series[ghost.task.id]?.add(ghost);
+      final pinOffset = ghost.pinOffset;
+      if (pinOffset == null) {
+        pool.add(ghost);
+      } else {
+        (pinned[pinOffset] ??= []).add(ghost);
       }
     }
     focus.sort(_compareFocus);
@@ -90,15 +117,22 @@ class Planner {
       for (final candidate in pinned.remove(offset) ?? const <_Candidate>[]) {
         picked.add(candidate);
         reasons.add(PlanReason.pinned);
+        _settle(candidate, offset);
       }
       if (hardLimit > 0) {
-        // 2. The minimum that must happen today to keep deadlines feasible.
-        // Above the hard limit the tail (latest deadlines) stays in the pool
-        // and ends up at risk on a later day.
-        final forced = _forcedCount(dueFirst, offset, future);
-        for (var i = 0; i < forced && picked.length < hardLimit; i++) {
-          picked.add(dueFirst[i]);
+        // 2. The minimum that must happen today to keep deadlines feasible,
+        // taken from the released tasks in deadline order. Above the hard
+        // limit the tail (latest deadlines) stays in the pool and ends up at
+        // risk on a later day.
+        var forced = _forcedCount(dueFirst, offset, future);
+        for (final candidate in dueFirst) {
+          if (forced == 0 || picked.length >= hardLimit) break;
+          if (candidate.releaseOffset > offset) continue;
+          if (!_ready(candidate, offset)) continue;
+          picked.add(candidate);
           reasons.add(PlanReason.deadline);
+          _settle(candidate, offset);
+          forced--;
         }
         // 3. Priority fill, up to the capacity and never above it.
         if (picked.length < capacity && pool.isNotEmpty) {
@@ -113,8 +147,12 @@ class Planner {
           for (final candidate in pool) {
             if (picked.length >= capacity) break;
             if (taken.contains(candidate)) continue;
+            // Not released yet: it waits for its day (T-703).
+            if (candidate.releaseOffset > offset) continue;
+            if (!_ready(candidate, offset)) continue;
             picked.add(candidate);
             reasons.add(PlanReason.priority);
+            _settle(candidate, offset);
           }
         }
       }
@@ -123,7 +161,10 @@ class Planner {
       for (var i = 0; i < picked.length; i++) {
         final dueOffset = picked[i].dueOffset;
         final late = dueOffset != null && offset > dueOffset;
-        if (late) atRisk.add(picked[i].task.id);
+        final ghostDate = picked[i].ghostDate;
+        // The at-risk list is about tasks the user can act on: a ghost keeps
+        // the flag on its entry only.
+        if (late && ghostDate == null) atRisk.add(picked[i].task.id);
         picked[i].plannedDate = date;
         entries.add(
           PlanEntry(
@@ -131,6 +172,7 @@ class Planner {
             reason: reasons[i],
             overflow: i >= capacity,
             atRisk: late,
+            occurrenceDate: ghostDate,
           ),
         );
       }
@@ -144,10 +186,11 @@ class Planner {
     }
 
     // What is left did not fit the horizon (or is pinned beyond it); list it
-    // without any boost.
+    // without any boost. A ghost that found no day is dropped.
     for (final sameDay in pinned.values) {
       pool.addAll(sameDay);
     }
+    pool.removeWhere((candidate) => candidate.ghostDate != null);
     for (final candidate in pool) {
       candidate.effectivePriority = candidate.task.priority;
     }
@@ -194,12 +237,47 @@ class Planner {
     return count;
   }
 
-  /// How many tasks from the head of [dueFirst] must be done on the day at
+  /// The active tasks that cannot be completed until the next day (T-710):
+  /// their rule counts from completion and another task of their series was
+  /// completed on the planning day [today]. A second completion on the same
+  /// day would bring the same next date again, so it is always a slip.
+  /// Rules by the calendar are not paused: doing the next one ahead (a rent
+  /// paid for two months) is real.
+  ///
+  /// A completion belongs to the day given by its local time and
+  /// [dayStartHour] (D15).
+  static Set<String> pausedToday(
+    Iterable<Task> tasks, {
+    required LocalDate today,
+    required int dayStartHour,
+  }) {
+    final doneToday = <String>{};
+    for (final task in tasks) {
+      final completedAt = task.completedAt;
+      final series = task.seriesId;
+      if (completedAt == null || series == null) continue;
+      final day = LocalDate.todayFor(completedAt.toLocal(), dayStartHour);
+      if (day == today) doneToday.add(series);
+    }
+    if (doneToday.isEmpty) return const {};
+    return {
+      for (final task in tasks)
+        if (!task.isDone &&
+            (task.recurrence?.isAfterDone ?? false) &&
+            doneToday.contains(task.seriesId))
+          task.id,
+    };
+  }
+
+  /// How many released tasks of [dueFirst] must be done on the day at
   /// [dayOffset] so that every deadline can still be met.
   ///
   /// Earliest-deadline-first is optimal for unit-size tasks: for each due
   /// date D, the tasks due by D that do not fit the capacity of the days
-  /// after today up to D have to happen today.
+  /// after today up to D have to happen today. Tasks not released yet count
+  /// in that need (they will take a slot before their due date), but only
+  /// released ones can be done today, so the result for D is cut to the
+  /// released tasks due by D (T-703, docs/04 "With release dates").
   static int _forcedCount(
     List<_Candidate> dueFirst,
     int dayOffset,
@@ -207,13 +285,17 @@ class Planner {
   ) {
     final total = dueFirst.length;
     var forced = 0;
+    var released = 0;
     for (var i = 0; i < total; i++) {
+      if (dueFirst[i].releaseOffset <= dayOffset) released++;
       final dueOffset = dueFirst[i].dueOffset!;
       // Evaluate once per distinct due date, at its last task.
       if (i + 1 < total && dueFirst[i + 1].dueOffset == dueOffset) continue;
       final need = i + 1;
       final available = future.between(dayOffset, dueOffset, enough: total);
-      if (need - available > forced) forced = need - available;
+      final short = need - available;
+      final now = short < released ? short : released;
+      if (now > forced) forced = now;
       // Capacity only grows with later dates and need never exceeds total.
       if (available >= total) break;
     }
@@ -299,7 +381,8 @@ class Planner {
     if (c != 0) return c;
     c = _compareNullsLast<num>(a.dueOffset, b.dueOffset);
     if (c != 0) return c;
-    return _compareAge(a.task, b.task);
+    c = _compareAge(a.task, b.task);
+    return c != 0 ? c : _compareRepeat(a, b);
   }
 
   /// Deadline order for candidates that all have a due date: due date,
@@ -309,7 +392,103 @@ class Planner {
     if (c != 0) return c;
     c = a.task.priority.compareTo(b.task.priority);
     if (c != 0) return c;
-    return _compareAge(a.task, b.task);
+    c = _compareAge(a.task, b.task);
+    return c != 0 ? c : _compareRepeat(a, b);
+  }
+
+  /// Repeats of one series: the stored task first, then the ghosts by date.
+  static int _compareRepeat(_Candidate a, _Candidate b) {
+    final x = a.ghostDate;
+    final y = b.ghostDate;
+    if (x == null) return y == null ? 0 : -1;
+    if (y == null) return 1;
+    return x.compareTo(y);
+  }
+
+  /// The ghosts of the recurring tasks in [tasks]: one per date of the rule
+  /// after `max(today, occurrenceDate)` up to the last day of the horizon.
+  /// Their dates follow the ones the stored task has, as for the successor
+  /// (docs/03 Data Model.md): a pin moves to the date (a due date keeps its
+  /// distance), a due date alone moves there with a release on the day
+  /// after the previous repeat, with neither the ghost is released on its
+  /// date.
+  static Iterable<_Candidate> _ghosts(
+    List<Task> tasks,
+    LocalDate today,
+    int horizon,
+  ) sync* {
+    final last = today.addDays(horizon - 1);
+    for (final task in tasks) {
+      final rule = task.recurrence;
+      final occurrence = task.occurrenceDate;
+      if (rule == null || occurrence == null) continue;
+      if (task.isDone || task.isDeleted) continue;
+      final pin = task.pinnedDate;
+      final due = task.dueDate;
+      final dueFromPin = pin != null && due != null ? pin.daysUntil(due) : null;
+      var previous = occurrence > today ? occurrence : today;
+      for (final date in rule.datesAfter(previous, last)) {
+        final offset = today.daysUntil(date);
+        if (pin != null) {
+          yield _Candidate(
+            task,
+            dueFromPin == null ? null : offset + dueFromPin,
+            offset,
+            ghostDate: date,
+            pinOffset: offset,
+          );
+        } else if (due != null) {
+          yield _Candidate(
+            task,
+            offset,
+            today.daysUntil(previous) + 1,
+            ghostDate: date,
+          );
+        } else {
+          // Without dates of its own a repeat is gone once the next one is
+          // due: by schedule the missed repeats are dropped, from completion
+          // the next one counts from the day it is done.
+          yield _Candidate(
+            task,
+            null,
+            offset,
+            ghostDate: date,
+            expiresOffset: today.daysUntil(rule.firstAfter(date)) - 1,
+          );
+        }
+        previous = date;
+      }
+    }
+  }
+
+  /// Whether [candidate] may be placed on the day at [offset] as far as its
+  /// series goes (T-709): every earlier member is placed on an earlier day
+  /// or has expired. So two repeats of a series never share a day and a
+  /// ghost never comes before the task it repeats. Not a recurring task:
+  /// always.
+  static bool _ready(_Candidate candidate, int offset) {
+    final series = candidate.series;
+    if (series == null) return true;
+    final last = series.lastPlaced;
+    if (last != null && last >= offset) return false;
+    final members = series.members;
+    while (series.next < members.length) {
+      final expires = members[series.next].expiresOffset;
+      if (expires == null || offset <= expires) break;
+      series.next++;
+    }
+    return series.next < members.length &&
+        identical(members[series.next], candidate);
+  }
+
+  /// Records that [candidate] was placed on the day at [offset].
+  static void _settle(_Candidate candidate, int offset) {
+    final series = candidate.series;
+    if (series == null) return;
+    series.lastPlaced = offset;
+    if (candidate.seriesIndex >= series.next) {
+      series.next = candidate.seriesIndex + 1;
+    }
   }
 
   /// Older first; the id makes the order total, so the plan does not depend
@@ -330,13 +509,39 @@ class Planner {
 
 /// A task to plan, with its due date as a day offset from today.
 class _Candidate {
-  _Candidate(this.task, this.dueOffset) : effectivePriority = task.priority;
+  _Candidate(
+    this.task,
+    this.dueOffset,
+    this.releaseOffset, {
+    this.ghostDate,
+    this.pinOffset,
+    this.expiresOffset,
+  }) : effectivePriority = task.priority;
+
+  /// For a ghost without dates of its own: the last day offset it may be
+  /// placed on, the day before the next date of the rule.
+  final int? expiresOffset;
+
+  /// The series of a recurring task and this candidate's place in it.
+  _Series? series;
+  int seriesIndex = 0;
 
   final Task task;
 
   /// Days from today to the due date; `null` without one and for an overdue
   /// task, whose due date no longer counts (D18). Never negative.
   final int? dueOffset;
+
+  /// Days from today to the release date (`Task.notBefore`); 0 when there is
+  /// none or it is not in the future. The task is planned from that day on.
+  final int releaseOffset;
+
+  /// For a ghost: the date of the repeat it stands for (T-704); null for a
+  /// stored task.
+  final LocalDate? ghostDate;
+
+  /// For a pinned ghost: the day offset it is pinned to.
+  final int? pinOffset;
 
   /// The day the task was placed on; `null` until then.
   LocalDate? plannedDate;
@@ -404,5 +609,24 @@ class _FutureCapacity {
       if (next > from) from = next;
     }
     return from;
+  }
+}
+
+/// The stored instance of a recurring task and its ghosts in date order,
+/// with how far the day loop has got through them (T-709).
+class _Series {
+  final members = <_Candidate>[];
+
+  /// Index of the first member that is neither placed nor expired.
+  int next = 0;
+
+  /// Day offset of the last placed member.
+  int? lastPlaced;
+
+  void add(_Candidate candidate) {
+    candidate
+      ..series = this
+      ..seriesIndex = members.length;
+    members.add(candidate);
   }
 }

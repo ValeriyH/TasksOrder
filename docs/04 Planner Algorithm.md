@@ -29,7 +29,7 @@ An overdue task is planned exactly like a task without a date: its deadline is g
 
 Priority 1 ("Critical") is an ordinary level: it wins the priority fill but waits for a slot like everything else. "Do it on this day whatever the capacity" is a pin. (One planned exception, D21: a large task of level 1 or 2 that does not fit a day, see "Task size".)
 
-## Release dates: `notBefore` (planned, T-703)
+## Release dates: `notBefore` (T-703)
 `release(t)` = `t.notBefore`, or today when it is empty or in the past. A task is **released** on the day `d` when `release(t) <= d`.
 - The priority fill of `d` takes released tasks only.
 - A pin beats it: a pinned task sits on its day whatever `notBefore` says.
@@ -39,7 +39,7 @@ Priority 1 ("Critical") is an ordinary level: it wins the priority fill but wait
 
 The app sets `notBefore` for the next instance of a recurring task (D20); there is no field to set it by hand yet.
 
-## Recurring tasks: ghosts (D20; planned, T-704)
+## Recurring tasks: ghosts (D20, T-704)
 The stored instance of a series is an ordinary task: the rules above and below apply to it as they are. In addition, for every active task `t` with a `recurrence` the planner adds its later repeats as **ghosts**, candidates that exist only inside this computation:
 
 ```
@@ -57,6 +57,8 @@ A ghost has the priority of `t`, `createdAt` of `t` (ties between repeats of one
 | neither | released on `x`, then by priority |
 
 - A ghost is never placed today: every ghost is released after `base`, which is today or later.
+- **Order within a series** (found on the emulator, T-709): the stored task and its ghosts are a chain. A member may be placed on `d` only when every earlier member is placed on a day before `d` or has expired. So two repeats of a series never share a day and a ghost never comes before the task it repeats.
+- **A ghost without dates expires** the day before the next date of the rule (`expiresOffset`): by schedule a missed repeat is dropped, from completion the next one counts from the day it is done. A ghost that finds no day in its window is dropped, it does not wait. Without this, a "Mon, Tue, Thu, Sat" task made on a Sunday with full working days put three repeats on the Saturday. Pinned ghosts and due-only ghosts keep their own dates (and the at-risk flag) as before.
 - A ghost takes a slot, lowers `avail` and can be forced like a real task: that is the point, the load of the coming weeks is real.
 - Its entry is `PlanEntry(taskId: t.id, occurrenceDate: x)`. The UI shows it in the Plan without a checkbox; a tap opens `t`.
 - Ghosts are not in `focus` and not in `laterTaskIds` (a ghost that found no day inside the horizon is dropped). A ghost placed after its due date has `atRisk` on its entry but is not in `atRiskTaskIds`: the banner and the at-risk list are about tasks the user can act on.
@@ -201,7 +203,7 @@ return first forcedCount tasks of dueTasks   (EDF order)
 - Because today's priority fill only consumes today's slots (which `avail` never counted), it cannot break future feasibility.
 - A focused task is an ordinary pool task: with a due date it is forced and boosted like any other.
 
-### With release dates (planned, T-703)
+### With release dates (T-703)
 A task that is not released on `d` cannot be done on `d`, but it still needs a slot between its release and its due date, and that slot is no longer free for the others. So `need` counts every due-dated task, and the result is cut to what can be pulled into `d`:
 ```
 need(D)     = count of dueTasks with effDue <= D                       // released or not
@@ -304,14 +306,14 @@ Capacity Sun 0. Task due Sun. On Sat: need(Sun)=1, avail(Sun)=0 → forced on Sa
 20. Deadline refill (D16): capacity 2, overflow 1, five tasks due today → 3 today, 2 `atRisk`. One completed (`completedTodayCount = 1`, four left) → still 3 today, 1 `atRisk`. Plain tasks in the same setup: one completed → 1 today, no refill.
 21. Same with overflow 0 → 2 today, 3 `atRisk`; one completed → 2 today, 2 `atRisk`.
 
-Planned with T-703 (release dates):
+With T-703 (release dates), in `test/domain/planner_test.dart`:
 
 22. `notBefore` in three days, Critical, next to Low tasks, capacity 1 → the Low tasks take the first three days, the Critical one its release day. `notBefore` in the past or today → no effect.
 23. A pin earlier than `notBefore` → placed on the pin. `notBefore` beyond the horizon → in `later`. Focused and not released → in `focus` with its `plannedDate`.
 24. Forcing with an unreleased task: capacity 1; X due Thu and released Thu, Y due Thu and released today (Mon), a High task without a date → Y is not left for Thu (X needs that slot): `need(Thu) = 2`. Y is forced no later than Wed, X is on Thu, nothing at risk.
 25. Two unreleased tasks due on the same day with one slot there, plus a released task with a later due date → the released one is not forced today (the `min`), one of the two is at risk.
 
-Planned with T-704 (ghosts):
+With T-704 (ghosts), in `test/domain/planner_ghosts_test.dart`:
 
 26. Weekly task without dates, `occurrenceDate` today, horizon 30 → the instance by priority from today, ghosts released on days 7, 14, 21, 28, each on its release day or the next free one; all with `occurrenceDate`, none in `later` or `focus`.
 27. Monthly by schedule, anchor Jan 31, horizon 90 from Jan 31 → ghosts for Feb 28 (29 in a leap year), Mar 31, Apr 30.
@@ -320,6 +322,7 @@ Planned with T-704 (ghosts):
 30. Missed instance (`occurrenceDate` three days ago, weekdays rule) → one real task, overdue and in `focus`; the first ghost is the first rule date after today.
 31. From completion, every 10 days, instance not done yet → ghosts on `base + 10`, `+ 20`, … Done instance removed from the input and its successor added → the ghosts move with it.
 32. A ghost of a due-only task that cannot make its date → `atRisk` on the entry, `atRiskTaskIds` unchanged. A ghost that fits no day of the horizon → dropped.
+33b. Repeats of a series do not pile up: "Mon, Tue, Thu, Sat" without dates made on a Monday, four older tasks on Mon..Thu → the task on Friday, one ghost on Saturday (Tue and Thu expired), never two of the series on a day; a daily due-only series keeps its members on increasing days.
 33. Determinism and performance with ghosts: 500 tasks, 20 of them daily series, horizon 90 → same plan twice, under 50 ms.
 
 Planned with T-802 and T-803 (task size, D21). Sizes: S = small (½), N = normal (1), L = large (2). Where a scenario says "capacity 1", the week is `[1,1,1,1,1,3,0]` starting on Monday unless it says "on every working day", so an L weighs two slots:

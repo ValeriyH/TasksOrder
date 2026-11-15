@@ -33,6 +33,12 @@ M7 was designed on 2026-11-14 and does not depend on the open tasks of M5 or on 
 - **Scope creep**: parking lot in [[01 Brainstorm]] exists for a reason.
 
 ## Retro
+### M7 — 2026-11-15
+- **Done:** T-701 … T-709. Repeat rules (every N days / weeks / months / years by schedule or from completion, weekdays), series fields and the successor, release dates in the planner, ghosts over the horizon, schema 3 with a verified migration, backup format 3, the Repeat sheet in the editor, ghosts and the skip-or-delete question in the lists; 587 tests. Release 0.4.0+6.
+- **Demo:** emulator, release APK over 0.3.1 (the database moved from schema 2 to 3 with the tasks kept): a monthly task without dates, weekdays with a pin, every 10 days from completion; complete, undo, skip; the clock moved three days on (a missed pinned instance is one task today, the ghosts start after it); backup of format 3 and restore of a deleted series.
+- **Changed decisions:** `Recurrence` is a plain sealed class, not `freezed`, so a broken rule is refused in a release build too; the successor id is a UUID v5 of `next/<id>` in a namespace of the app; a save of the editor re-anchors only for a new rule or new dates; `restore` also removes the untouched successor of a skip, so Undo of a skip puts everything back.
+- **New backlog items:** none.
+- **Learned:** the Tasks list mapped task → day over every plan entry, so the last ghost won (found on the emulator, fixed with a test); gen-l10n folds `=1` and `one` into one branch, so "every day" needs its own key; after `flutter test` a release build can fail on `integration_test` in `GeneratedPluginRegistrant.java`: delete that file (git-ignored) instead of `flutter clean`, which also wipes the generated l10n; drift's `SchemaVerifier` needs `drift_dev schema generate` helpers, and the old migration tests had to start from the real schema 1; `adb root` and `settings put global auto_time 0` move the emulator clock.
 ### M5 — 2026-11-14
 - **Done:** T-501 … T-506. Morning notification, icon and launch screen, navigation bar per theme, string review, integration test, release 0.3.0+4, user guide and changelog; 476 tests plus the integration test.
 - **Demo:** emulator, release APK driven over adb: the permission dialog, a notification with the day's task, the same after a cold boot; the app in dark Ukrainian on every screen; the icon in the launcher.

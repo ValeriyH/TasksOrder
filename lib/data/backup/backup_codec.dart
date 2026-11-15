@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:tasks_order/data/db/converters.dart';
 import 'package:tasks_order/domain/model/backup.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
@@ -19,10 +20,12 @@ class BackupCodec {
 
   /// Format version this app writes, and the highest one it reads.
   ///
-  /// 2: a priority is a level of the ten-level table (ADR-17). 1: it was the
-  /// position in the scale of the file, `1..priorityScale`; read as the level
-  /// that stands at that position.
-  static const version = 2;
+  /// 3: a task may carry `recurrence`, `seriesId` and `occurrenceDate` (D20);
+  /// the version went up so that an older app refuses the file instead of
+  /// dropping the rules. 2: a priority is a level of the ten-level table
+  /// (ADR-17). 1: it was the position in the scale of the file,
+  /// `1..priorityScale`; read as the level that stands at that position.
+  static const version = 3;
 
   String encode(Backup backup) => const JsonEncoder.withIndent('  ').convert({
     'app': appName,
@@ -68,6 +71,14 @@ class BackupCodec {
           ),
       ];
       _require({for (final task in tasks) task.id}.length == tasks.length);
+      // At most one instance of a series is active, outside the Trash and
+      // with the rule (docs/03 Data Model.md).
+      final activeSeries = [
+        for (final task in tasks)
+          if (task.recurrence != null && !task.isDone && !task.isDeleted)
+            task.seriesId,
+      ];
+      _require(activeSeries.toSet().length == activeSeries.length);
       final overrides = [
         for (final item in json['dayOverrides'] as List<dynamic>? ?? const [])
           _readOverride(item as Map<String, dynamic>),
@@ -146,6 +157,12 @@ class BackupCodec {
     'completedAt': ?_instantOrNull(task.completedAt),
     'completedOnPlan': task.completedOnPlan,
     'deletedAt': ?_instantOrNull(task.deletedAt),
+    'recurrence': ?switch (task.recurrence) {
+      final rule? => RecurrenceConverter.toJson(rule),
+      null => null,
+    },
+    'seriesId': ?task.seriesId,
+    'occurrenceDate': ?task.occurrenceDate?.toIso(),
   };
 
   static Task _readTask(
@@ -163,6 +180,15 @@ class BackupCodec {
     _require((status == TaskStatus.done) == (completedAt != null));
     _require(isFocused == (focusedAt != null));
     _require(!completedOnPlan || status == TaskStatus.done);
+    final ruleJson = json['recurrence'] as Map<String, dynamic>?;
+    final recurrence = ruleJson == null
+        ? null
+        : RecurrenceConverter.fromJson(ruleJson);
+    final seriesId = json['seriesId'] as String?;
+    final occurrenceDate = _readDate(json['occurrenceDate']);
+    _require(
+      recurrence == null || (seriesId != null && occurrenceDate != null),
+    );
     return Task(
       id: id,
       title: title,
@@ -179,6 +205,9 @@ class BackupCodec {
       completedAt: completedAt,
       completedOnPlan: completedOnPlan,
       deletedAt: _readInstant(json['deletedAt']),
+      recurrence: recurrence,
+      seriesId: seriesId,
+      occurrenceDate: occurrenceDate,
     );
   }
 

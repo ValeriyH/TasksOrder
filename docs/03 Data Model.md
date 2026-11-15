@@ -32,8 +32,8 @@ updated: 2026-11-14
 
 Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`). With D21: `weight >= 1`; the successor of a recurring task copies it.
 
-### Recurrence (value object, D20; planned, T-701)
-Two kinds, a sealed `freezed` class in `lib/domain/model/recurrence.dart`:
+### Recurrence (value object, D20, T-701)
+Two kinds, a sealed class in `lib/domain/model/recurrence.dart` (`IntervalRecurrence`, `WeekdaysRecurrence`; not `freezed`, so the factories refuse a broken rule with `ArgumentError` also in a release build, where assertions are off):
 
 | Kind | Fields | Meaning |
 |------|--------|---------|
@@ -50,7 +50,8 @@ Stored as JSON text, the same in the database column and in the backup:
 Rules of a series (`Task.successor`, T-702):
 - **Start.** Setting a rule in the editor gives the task `seriesId` (its own id when it had none) and `occurrenceDate = pinnedDate ?? dueDate ?? notBefore ?? today`; an interval rule by schedule takes that date as `anchor`. Saving the editor with another pin or due date moves `occurrenceDate` and `anchor` with it (the user changed the schedule). The quick actions (move due date, move to a day, unpin) leave them alone: a one-off move.
 - **Next date** when the instance is completed or skipped on the day `today`: from completion → `today + every` units; by schedule → the first date of the rule after `max(today, occurrenceDate)`. So missed repeats are dropped, and an instance done ahead of its day does not produce a second one for the same date.
-- **Successor** = a new active task: the same `title`, `notes`, `priority`, `recurrence`, `seriesId`; `occurrenceDate` = the next date; no Focus mark; `createdAt = now`. Its id is `uuid.v5(predecessor.id, 'next')`: the same on every device (D12) and known to undo.
+- **One completion a day from completion (T-710):** an active instance whose rule counts from completion cannot be completed on a planning day (D15) on which another task of its series was completed: done again the same day it would bring the same next date (done on the 15th, every 10 days: the 25th, again and again). It is paused until the next day (derived, nothing stored: `Planner.pausedToday`; `TaskActions.complete` refuses it; the tile shows "Paused until tomorrow" and a tick explains). Undo of the completion lifts it. Rules by the calendar are not paused: the next one done ahead moves the series on (a rent paid for two months).
+- **Successor** = a new active task: the same `title`, `notes`, `priority`, `recurrence`, `seriesId`; `occurrenceDate` = the next date; no Focus mark; `createdAt = now`. Its id is a version 5 UUID of the name `next/<predecessor id>` in a fixed namespace of the app (`Task.successorId`): the same on every device (D12) and known to undo. (A namespace of its own instead of the predecessor's id as the namespace: an id need not be a UUID, as in tests.)
 - **Where the date goes** follows the dates the predecessor has:
 
   | Predecessor has | Successor gets | Planned as |
@@ -61,8 +62,8 @@ Rules of a series (`Task.successor`, T-702):
 
 - **Complete**: the repository marks the instance done and inserts the successor in one transaction, unless the series already has another active instance.
 - **Undo** (`uncomplete`): the successor is removed for good when it is still active and untouched (`updatedAt == createdAt`); otherwise the task that returns loses its rule and stays as an ordinary task of the series.
-- **Skip** ("not this time"): the instance goes to the Trash and the successor is inserted, as on completion.
-- **Delete the series**: the instance goes to the Trash with its rule and no successor. Restoring it resumes the series. Restoring a skipped instance while the series has another active one returns it without the rule.
+- **Skip** ("not this time", from the long-press menu of the Plan and Today, T-711): the instance goes to the Trash and the successor is inserted, as on completion.
+- **Delete the series** (Delete in the editor, after a warning that the series stops): the instance goes to the Trash with its rule and no successor. Restoring it resumes the series. Restoring a skipped instance first removes the successor its skip made when that one is still untouched (so "Undo" of a skip puts everything back); when the series still has another active instance, the restored one comes back without the rule.
 - **Stop repeating**: "Repeat: none" in the editor clears `recurrence` and `occurrenceDate`; the task stays as an ordinary one.
 
 Sync-readiness (D12): `id` is a UUID, every write bumps `updatedAt`, delete is soft. When accounts arrive, add `ownerId`/`assigneeId` columns with the local user as default. No other preparation is done now.
@@ -203,9 +204,9 @@ CREATE TABLE day_overrides (
   deleted_at  INTEGER
 );
 ```
-The lines marked "schema 3" are planned (D20, T-705); the code is at schema version 2 (snapshots: `drift_schemas/drift_schema_v1.json`, `drift_schema_v2.json`; the tables are the same). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart`.
+The code is at schema version 3 (snapshots: `drift_schemas/drift_schema_v1.json` … `drift_schema_v3.json`; v1 and v2 have the same tables). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart` with drift's `SchemaVerifier` on the helpers in `test/data/generated_migrations/`. After a schema change: `dart run drift_dev schema dump lib/data/db/database.dart drift_schemas/`, then `dart run drift_dev schema generate drift_schemas/ test/data/generated_migrations/`.
 - 1 → 2 (ADR-17): `tasks.priority` was the position in the scale of the settings, `1..priority_scale`; it becomes the level at that position (`PriorityLabels.fromPosition`): scale 5 → 2, 3, 5, 7, 8; scale 3 → 2, 5, 7; scale 10 unchanged. A value past either end becomes that end. `updated_at` stays.
-- 2 → 3 (D20, ADR-18; planned, T-705): three nullable columns on `tasks` (`recurrence`, `series_id`, `occurrence_date`) and the index `idx_tasks_series`. No row changes: every existing task is an ordinary one. `not_before` is in the table since schema 1 and only starts to be used. New snapshot `drift_schema_v3.json`.
+- 2 → 3 (D20, ADR-18; T-705): three nullable columns on `tasks` (`recurrence`, `series_id`, `occurrence_date`) and the index `idx_tasks_series`. No row changes: every existing task is an ordinary one. `not_before` is in the table since schema 1 and only starts to be used. New snapshot `drift_schema_v3.json`.
 - 3 → 4 (D21, ADR-19; planned, T-804): `tasks.weight INTEGER NOT NULL DEFAULT 2`. Every existing task becomes a normal one, so the plan does not change. New snapshot `drift_schema_v4.json`.
 
 The `settings` row is seeded when the database is created, with the column defaults and `updated_at = 0`: the epoch marks a row the user never changed, so it loses any last-write-wins merge. Drift row classes are named `TaskRow`, `SettingsRow`, `DayOverrideRow`; they stay inside `lib/data`.
@@ -269,7 +270,7 @@ One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `Backu
 - `priority` is the level 1..10 (ADR-17). In version 1 it was the position in the file's `priorityScale`; such a file is still read, each priority turned into the level at that position, as the schema migration does.
 - Reading checks the invariants of `Task` and `Settings`; a file that breaks them, or with `version` above 2, is refused and nothing changes. A priority outside 1..10 (or outside the scale of a version 1 file) is moved to the nearest end. Unknown fields are ignored.
 - Restore replaces everything after a confirmation (`BackupRepository.replaceAll`, one transaction). Tasks keep their timestamps.
-- **Version 3 (planned, T-706, D20):** a task may also carry `recurrence` (the JSON object shown under Recurrence), `seriesId` and `occurrenceDate`; all three are left out for an ordinary task. Reading checks the rule (`every ≥ 1`, a known `unit`, `anchor` exactly when `afterDone` is false, `days` non-empty within 0..6), that a rule comes with `seriesId` and `occurrenceDate`, and that no series has two active instances with a rule outside the Trash. Files of version 1 and 2 are read as before. The version goes up because an older app ignores unknown fields and would silently drop the rules; with 3 it refuses the file.
+- **Version 3 (T-706, D20):** a task may also carry `recurrence` (the JSON object shown under Recurrence), `seriesId` and `occurrenceDate`; all three are left out for an ordinary task. Reading checks the rule (`every ≥ 1`, a known `unit`, `anchor` exactly when `afterDone` is false, `days` non-empty within 0..6), that a rule comes with `seriesId` and `occurrenceDate`, and that no series has two active instances with a rule outside the Trash. Files of version 1 and 2 are read as before. The version goes up because an older app ignores unknown fields and would silently drop the rules; with 3 it refuses the file.
 - **Version 4 (planned, T-804, D21):** a task may carry `weight` (half-slots, ≥ 1); it is left out for a normal task (2), and a file of version 1–3 reads with 2 everywhere. A weight below 1 is refused. The version goes up for the same reason as with 3.
 
 ```dart

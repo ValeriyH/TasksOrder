@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tasks_order/application/providers.dart';
+import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/data/db/database.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/plan.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/task_repository.dart';
@@ -199,5 +201,33 @@ void main() {
 
       expect(idsOn(await plan(), friday), isEmpty);
     });
+  });
+
+  test('a completion counts a series from the planning day (T-705)', () async {
+    // 02:00 on Saturday with the day starting at 04:00: still Friday (D15).
+    await container
+        .read(settingsRepositoryProvider)
+        .save(Settings(dayStartHour: 4), now);
+    now = DateTime(2026, 11, 14, 2);
+    container.invalidate(todayProvider);
+    final daily = Recurrence.interval(
+      every: 1,
+      unit: RecurrenceUnit.day,
+      afterDone: true,
+    );
+    final t = Task.create(
+      id: 'r',
+      title: 'Water plants',
+      priority: 5,
+      now: now,
+    ).setRecurrence(daily, today: friday, now: now);
+    await tasks.upsert(t, now);
+    await plan();
+
+    await container.read(taskActionsProvider).complete('r', onPlan: true);
+
+    // Done on Friday, so the next one is Saturday, not Sunday.
+    final next = (await tasks.getById(t.successorId))!;
+    expect(next.occurrenceDate, saturday);
   });
 }

@@ -6,6 +6,15 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.4.0+6 — 2026-11-15 (M7)
+- **Recurring tasks** (D20, ADR-18): "Repeat" in the editor: every N days, weeks, months or years, by the calendar or counted from the day it is done, or on chosen weekdays. Completing a repeating task brings the next one; "Undo" takes it away again. Deleting asks: skip this time or delete the series.
+- **The coming repeats in the Plan**, dimmed, so the load of the coming weeks is honest; a repeat that finds no day before the next one is dropped, so repeats never pile up on one day. A task that is not open yet says "From <date>".
+- The database moves to schema 3 and the backup to format 3 (an older app refuses such a file instead of dropping the rules).
+- **"Recurring" filter** in Tasks: only the tasks that repeat.
+- **Skip this time** moves to the long-press menu of the Plan and Today (Today gets the menu too); deleting a repeating task only warns that the series stops.
+- A task that repeats from the day it is done takes one completion a day: the next one says "Paused until tomorrow" until then, so a second tick cannot pile up done copies.
+- Ukrainian: the due date in the editor is "Кінцевий термін".
+
 ## 0.3.1+5 — 2026-11-15
 - **Home-screen widget** (T-601, ADR-22): today's tasks on the home screen with "Today · left/total"; follows every change in the app and turns to the next day by itself; a tap opens the app. Light and dark like the phone.
 

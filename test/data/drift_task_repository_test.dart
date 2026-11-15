@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tasks_order/data/db/database.dart';
 import 'package:tasks_order/data/repository/drift_task_repository.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/task.dart';
 
 import 'test_database.dart';
@@ -333,6 +334,164 @@ void main() {
         ['a'],
         <String>[],
       ]);
+    });
+  });
+
+  group('recurring tasks (D20, T-705)', () {
+    final today = LocalDate(2026, 11, 13);
+    final monthly = Recurrence.interval(
+      every: 1,
+      unit: RecurrenceUnit.month,
+      anchor: today,
+    );
+
+    /// A monthly task due today, stored.
+    Future<Task> storeRecurring(String id) async {
+      final t = task(id)
+          .copyWith(dueDate: today)
+          .setRecurrence(monthly, today: today, now: t0);
+      await repo.upsert(t, t0);
+      return stored(id);
+    }
+
+    test('a recurring task is stored with its rule', () async {
+      final t = await storeRecurring('a');
+
+      expect(t.recurrence, monthly);
+      expect(t.seriesId, 'a');
+      expect(t.occurrenceDate, today);
+    });
+
+    test('complete inserts the successor in the same transaction', () async {
+      final a = await storeRecurring('a');
+      final seen = <List<Task>>[];
+      final sub = repo.watchAll().listen(seen.add);
+      addTearDown(sub.cancel);
+      await pumpEventQueue();
+      seen.clear();
+
+      await repo.complete('a', t1, onPlan: true, today: today);
+      await pumpEventQueue();
+
+      // One emission: the plan is recomputed once (ADR-13).
+      expect(seen, hasLength(1));
+      final next = await stored(a.successorId);
+      expect(next.isDone, isFalse);
+      expect(next.seriesId, 'a');
+      expect(next.dueDate, LocalDate(2026, 12, 13));
+      expect(next.createdAt, t1);
+      expect((await stored('a')).isDone, isTrue);
+    });
+
+    test('a second complete changes nothing', () async {
+      await storeRecurring('a');
+      await repo.complete('a', t1, onPlan: true, today: today);
+      await repo.complete('a', t2, onPlan: true, today: today);
+
+      final all = await repo.watchAll().first;
+      expect(all, hasLength(2));
+    });
+
+    test('no successor while the series has another active instance', () async {
+      final a = await storeRecurring('a');
+      // A second active instance of the same series, e.g. a restored skip.
+      await repo.upsert(
+        task(
+          'b',
+        ).copyWith(recurrence: monthly, seriesId: 'a', occurrenceDate: today),
+        t0,
+      );
+
+      await repo.complete('a', t1, onPlan: true, today: today);
+
+      expect(await repo.getById(a.successorId), isNull);
+    });
+
+    test('undo removes an untouched successor', () async {
+      final a = await storeRecurring('a');
+      await repo.complete('a', t1, onPlan: true, today: today);
+
+      await repo.uncomplete('a', t2);
+
+      expect(await repo.getById(a.successorId), isNull);
+      final back = await stored('a');
+      expect(back.isDone, isFalse);
+      expect(back.recurrence, monthly);
+    });
+
+    test('undo keeps a touched successor and the returning task loses its '
+        'rule', () async {
+      final a = await storeRecurring('a');
+      await repo.complete('a', t1, onPlan: true, today: today);
+      await repo.setFocus(a.successorId, true, t2);
+
+      await repo.uncomplete('a', t2);
+
+      final next = await stored(a.successorId);
+      expect(next.recurrence, monthly);
+      final back = await stored('a');
+      expect(back.isDone, isFalse);
+      expect(back.recurrence, isNull);
+      expect(back.seriesId, 'a');
+    });
+
+    test('skip: the instance to the Trash, the successor comes', () async {
+      final a = await storeRecurring('a');
+
+      await repo.skip('a', t1, today: today);
+
+      expect((await stored('a')).isDeleted, isTrue);
+      expect((await stored(a.successorId)).isDeleted, isFalse);
+    });
+
+    test('delete the series: to the Trash with its rule, no successor; '
+        'restore resumes it', () async {
+      final a = await storeRecurring('a');
+
+      await repo.delete('a', t1);
+      expect(await repo.getById(a.successorId), isNull);
+      expect((await stored('a')).recurrence, monthly);
+
+      await repo.restore('a', t2);
+      final back = await stored('a');
+      expect(back.isDeleted, isFalse);
+      expect(back.recurrence, monthly);
+    });
+
+    test('restoring a skipped instance removes the untouched successor '
+        '(undo of a skip)', () async {
+      final a = await storeRecurring('a');
+      await repo.skip('a', t1, today: today);
+
+      await repo.restore('a', t2);
+
+      expect(await repo.getById(a.successorId), isNull);
+      final back = await stored('a');
+      expect(back.isDeleted, isFalse);
+      expect(back.recurrence, monthly);
+    });
+
+    test('restoring a skipped instance while the series goes on returns it '
+        'without the rule', () async {
+      final a = await storeRecurring('a');
+      await repo.skip('a', t1, today: today);
+      // The successor has been used since.
+      await repo.setFocus(a.successorId, true, t2);
+
+      await repo.restore('a', t2);
+
+      final back = await stored('a');
+      expect(back.isDeleted, isFalse);
+      expect(back.recurrence, isNull);
+      expect(back.seriesId, 'a');
+    });
+
+    test('an ordinary task completes as before', () async {
+      await repo.upsert(task('p'), t0);
+
+      await repo.complete('p', t1, onPlan: false);
+
+      expect(await repo.watchAll().first, hasLength(1));
     });
   });
 }

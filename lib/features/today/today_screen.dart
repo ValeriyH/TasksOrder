@@ -63,6 +63,7 @@ class _TodayBody extends ConsumerWidget {
       deviceSettingsProvider.select((settings) => settings.showReasons),
     );
 
+    final paused = ref.watch(pausedTaskIdsProvider);
     final byId = {for (final task in tasks) task.id: task};
     final today = plan.today;
     final day = plan.days.first;
@@ -82,8 +83,10 @@ class _TodayBody extends ConsumerWidget {
           task: task,
           scale: scale,
           today: today,
+          paused: paused.contains(task.id),
           badges: badges ?? const [],
           onTap: () => edit(task),
+          onLongPress: () => unawaited(showTaskMenu(context, ref, task, today)),
           onCompleted: () =>
               unawaited(completeWithUndo(context, ref, task, onPlan: onPlan)),
           onMoveDueDate: () =>

@@ -14,6 +14,8 @@ analyzer:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
     - "lib/l10n/generated/**"
+    # drift_dev schema generate (T-705); regenerate, do not edit.
+    - "test/data/generated_migrations/**"
     - "build/**"
     - android/**
     - windows/**

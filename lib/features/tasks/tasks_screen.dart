@@ -26,6 +26,9 @@ enum TasksFilter {
   /// Tasks with a due date.
   due,
 
+  /// Recurring tasks: the one active task of each series (D20).
+  recurring,
+
   /// Tasks that do not fit the planning horizon.
   later,
 
@@ -108,6 +111,7 @@ class _FilterBar extends StatelessWidget {
                 TasksFilter.all => l10n.filterAll,
                 TasksFilter.focus => l10n.taskFocusLabel,
                 TasksFilter.due => l10n.filterDue,
+                TasksFilter.recurring => l10n.filterRecurring,
                 TasksFilter.later => l10n.plannedLater,
                 TasksFilter.done => l10n.filterDone,
               }),
@@ -136,10 +140,14 @@ class _TaskList extends ConsumerWidget {
     final active = ref.watch(activeTasksProvider).requireValue;
     final scale = ref.watch(settingsProvider).requireValue.priorityScale;
     final today = plan.today;
+    final paused = ref.watch(pausedTaskIdsProvider);
 
+    // The day of the task itself: the ghosts of a recurring task (T-704)
+    // carry its id too, and the last of them would win.
     final plannedDate = <String, LocalDate>{
       for (final day in plan.days)
-        for (final entry in day.entries) entry.taskId: day.date,
+        for (final entry in day.entries)
+          if (!entry.isGhost) entry.taskId: day.date,
     };
     final later = plan.laterTaskIds.toSet();
     final focus = {for (final entry in plan.focus) entry.taskId};
@@ -150,6 +158,7 @@ class _TaskList extends ConsumerWidget {
           TasksFilter.all => true,
           TasksFilter.focus => focus.contains(task.id),
           TasksFilter.due => task.dueDate != null,
+          TasksFilter.recurring => task.recurrence != null,
           TasksFilter.later => later.contains(task.id),
           // Done tasks have their own list.
           TasksFilter.done => false,
@@ -215,6 +224,7 @@ class _TaskList extends ConsumerWidget {
             task: task,
             scale: scale,
             today: today,
+            paused: paused.contains(task.id),
             onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
             onCompleted: () =>
                 unawaited(completeWithUndo(context, ref, task, onPlan: onPlan)),

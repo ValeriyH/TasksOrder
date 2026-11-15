@@ -2,12 +2,16 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
+import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tasks_order/data/db/database.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart' show TaskStatus;
 
+import 'generated_migrations/schema.dart';
+import 'generated_migrations/schema_v1.dart' as v1;
+import 'generated_migrations/schema_v2.dart' as v2;
 import 'test_database.dart';
 
 void main() {
@@ -36,8 +40,8 @@ void main() {
     updatedAt: DateTime.utc(2026, 11, 13, 8),
   );
 
-  test('schema version is 2', () {
-    expect(db.schemaVersion, 2);
+  test('schema version is 3', () {
+    expect(db.schemaVersion, 3);
   });
 
   group('migration 1 -> 2: priorities become levels (ADR-17)', () {
@@ -56,16 +60,20 @@ void main() {
     /// opened again with the current schema.
     Future<List<int>> migrate(int scale, List<int> priorities) async {
       final file = File('${dir.path}/db.sqlite');
-      final old = AppDatabase(NativeDatabase(file));
-      await old
-          .update(old.settingsTable)
-          .write(SettingsTableCompanion(priorityScale: Value(scale)));
+      // The tables of schema 1, from drift_schemas/drift_schema_v1.json.
+      final old = v1.DatabaseAtV1(NativeDatabase(file));
+      final created = DateTime.utc(2026, 11, 13, 8).millisecondsSinceEpoch;
+      await old.customStatement(
+        'INSERT INTO settings (id, priority_scale, updated_at) '
+        'VALUES (1, $scale, 0)',
+      );
       for (var i = 0; i < priorities.length; i++) {
-        await old
-            .into(old.tasks)
-            .insert(taskRow(id: '$i').copyWith(priority: Value(priorities[i])));
+        await old.customStatement(
+          'INSERT INTO tasks (id, title, priority, status, created_at, '
+          "updated_at) VALUES ('$i', 'Pay the bill', ${priorities[i]}, 0, "
+          '$created, $created)',
+        );
       }
-      await old.customStatement('PRAGMA user_version = 1');
       await old.close();
 
       final migrated = AppDatabase(NativeDatabase(file));
@@ -105,6 +113,45 @@ void main() {
     });
   });
 
+  group('migration 2 -> 3: repeat rules (D20, T-705)', () {
+    final verifier = SchemaVerifier(GeneratedHelper());
+
+    test('a schema 2 database with data opens as 3, tasks unchanged', () async {
+      final schema = await verifier.schemaAt(2);
+      final old = v2.DatabaseAtV2(schema.newConnection());
+      final created = DateTime.utc(2026, 11, 13, 8).millisecondsSinceEpoch;
+      await old.customStatement(
+        'INSERT INTO tasks (id, title, notes, priority, due_date, status, '
+        'created_at, updated_at) VALUES '
+        "('a', 'Pay the bill', 'bank', 3, '2026-11-20', 0, $created, "
+        '$created)',
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      addTearDown(db.close);
+      await verifier.migrateAndValidate(db, 3);
+
+      final row = await db.select(db.tasks).getSingle();
+      expect(row.title, 'Pay the bill');
+      expect(row.notes, 'bank');
+      expect(row.priority, 3);
+      expect(row.dueDate, LocalDate(2026, 11, 20));
+      expect(row.updatedAt, DateTime.utc(2026, 11, 13, 8));
+      expect(row.recurrence, isNull);
+      expect(row.seriesId, isNull);
+      expect(row.occurrenceDate, isNull);
+    });
+
+    test('schema 1 migrates to 3 in one go', () async {
+      final schema = await verifier.schemaAt(1);
+      final db = AppDatabase(schema.newConnection());
+      addTearDown(db.close);
+
+      await verifier.migrateAndValidate(db, 3);
+    });
+  });
+
   group('columns match docs/03 Data Model.md', () {
     test('tasks', () async {
       expect(await columnsOf('tasks'), {
@@ -123,6 +170,9 @@ void main() {
         'completed_at': 'INTEGER',
         'completed_on_plan': 'INTEGER NOT NULL',
         'deleted_at': 'INTEGER',
+        'recurrence': 'TEXT',
+        'series_id': 'TEXT',
+        'occurrence_date': 'TEXT',
       });
     });
 
@@ -160,6 +210,7 @@ void main() {
           .get();
       expect(rows.map((row) => row.read<String>('name')), [
         'idx_tasks_due',
+        'idx_tasks_series',
         'idx_tasks_status',
       ]);
     });

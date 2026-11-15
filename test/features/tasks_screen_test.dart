@@ -314,6 +314,7 @@ void main() {
 
     expect(find.widgetWithText(ChoiceChip, 'Усі'), findsOneWidget);
     expect(find.widgetWithText(ChoiceChip, 'З терміном'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, 'Регулярні'), findsOneWidget);
     expect(find.text('Заплановано на сьогодні'), findsOneWidget);
   });
 }

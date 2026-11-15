@@ -1,3 +1,4 @@
+import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
 
 /// Storage of tasks, as the rest of the app sees it. The local store
@@ -24,9 +25,28 @@ abstract interface class TaskRepository {
 
   /// Marks the task done. [onPlan]: it was on today's list of the plan at
   /// that moment (D19).
-  Future<void> complete(String id, DateTime now, {required bool onPlan});
+  ///
+  /// A recurring task gets its successor in the same transaction
+  /// (`Task.successor`, D20), unless its series already has another active
+  /// instance. [today] is the planning day of the completion (D15); without
+  /// it the calendar day of [now] is used.
+  Future<void> complete(
+    String id,
+    DateTime now, {
+    required bool onPlan,
+    LocalDate? today,
+  });
+
+  /// "Not this time" for a recurring task: the instance goes to the Trash
+  /// and the successor is inserted, as on completion (D20).
+  Future<void> skip(String id, DateTime now, {LocalDate? today});
 
   /// Returns a done task to the active ones.
+  ///
+  /// For a recurring task the successor made by [complete] is removed for
+  /// good when it is still active and untouched; otherwise the returning
+  /// task loses its rule and stays as an ordinary task of the series, so the
+  /// series keeps one active instance (D20).
   Future<void> uncomplete(String id, DateTime now);
 
   /// Sets or clears the Focus mark (D17).
@@ -35,7 +55,10 @@ abstract interface class TaskRepository {
   /// Soft delete: moves the task to the Trash (D14).
   Future<void> delete(String id, DateTime now);
 
-  /// Takes the task back out of the Trash.
+  /// Takes the task back out of the Trash. For a recurring task the
+  /// successor its skip made is removed when it is still untouched (undo of
+  /// a skip); when the series has another active instance after that, the
+  /// task comes back without its rule.
   Future<void> restore(String id, DateTime now);
 
   /// Removes the task for good, wherever it is. There is no way back.

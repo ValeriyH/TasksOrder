@@ -57,6 +57,7 @@ class _PlanBody extends ConsumerWidget {
       deviceSettingsProvider.select((settings) => settings.showReasons),
     );
 
+    final paused = ref.watch(pausedTaskIdsProvider);
     final byId = {for (final task in tasks) task.id: task};
     final today = plan.today;
     final scale = settings.priorityScale;
@@ -75,10 +76,10 @@ class _PlanBody extends ConsumerWidget {
           task: task,
           scale: scale,
           today: today,
+          paused: paused.contains(task.id),
           badges: badges ?? const [],
           onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
-          onLongPress: () =>
-              unawaited(_showTaskMenu(context, ref, task, today)),
+          onLongPress: () => unawaited(showTaskMenu(context, ref, task, today)),
           onCompleted: () =>
               unawaited(completeWithUndo(context, ref, task, onPlan: onPlan)),
           onMoveDueDate: () =>
@@ -135,15 +136,30 @@ class _PlanBody extends ConsumerWidget {
           ),
           for (final entry in day.entries)
             if (byId[entry.taskId] case final task?)
-              tile(
-                task,
-                onPlan: day.date == today,
-                badges: planEntryBadges(
-                  context,
-                  entry,
-                  showReasons: showReasons,
+              // A coming repeat of a recurring task (T-704): the date keeps
+              // its key apart from the task's own row.
+              if (entry.occurrenceDate case final occurrence?)
+                GhostTaskTile(
+                  key: ValueKey('${task.id}@$occurrence'),
+                  task: task,
+                  scale: scale,
+                  onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
+                  badges: planEntryBadges(
+                    context,
+                    entry,
+                    showReasons: showReasons,
+                  ),
+                )
+              else
+                tile(
+                  task,
+                  onPlan: day.date == today,
+                  badges: planEntryBadges(
+                    context,
+                    entry,
+                    showReasons: showReasons,
+                  ),
                 ),
-              ),
         ],
         if (later.isNotEmpty) ...[
           Padding(
@@ -255,64 +271,5 @@ class _DayHeader extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// What a long press on a planned task offers: fix it to a day, release it,
-/// or open the editor (T-402).
-Future<void> _showTaskMenu(
-  BuildContext context,
-  WidgetRef ref,
-  Task task,
-  LocalDate today,
-) async {
-  final actions = ref.read(taskActionsProvider);
-  final l10n = context.l10n;
-  final choice = await showModalBottomSheet<String>(
-    context: context,
-    showDragHandle: true,
-    builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.push_pin_outlined),
-            title: Text(l10n.pinMove),
-            onTap: () => Navigator.of(context).pop('move'),
-          ),
-          if (task.pinnedDate != null)
-            ListTile(
-              leading: const Icon(Icons.push_pin),
-              title: Text(l10n.pinRemove),
-              onTap: () => Navigator.of(context).pop('unpin'),
-            ),
-          ListTile(
-            leading: const Icon(Icons.edit_outlined),
-            title: Text(l10n.actionEdit),
-            onTap: () => Navigator.of(context).pop('edit'),
-          ),
-        ],
-      ),
-    ),
-  );
-  if (!context.mounted) return;
-  switch (choice) {
-    case 'move':
-      final pinned = task.pinnedDate;
-      final picked = await showDatePicker(
-        context: context,
-        initialDate: dateTimeOf(
-          pinned != null && pinned >= today ? pinned : today,
-        ),
-        firstDate: dateTimeOf(today),
-        lastDate: DateTime(today.year + 10, 12, 31),
-      );
-      if (picked != null) {
-        await actions.setPinnedDate(task, LocalDate.fromDateTime(picked));
-      }
-    case 'unpin':
-      await actions.setPinnedDate(task, null);
-    case 'edit':
-      unawaited(context.push(AppRoutes.task(task.id)));
   }
 }

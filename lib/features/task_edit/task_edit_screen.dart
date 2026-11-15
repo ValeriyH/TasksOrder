@@ -7,9 +7,12 @@ import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/features/task_edit/repeat_sheet.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/priority_dropdown.dart';
+import 'package:tasks_order/shared/repeat_text.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
 
 /// Creates a task or changes the one with [taskId].
@@ -41,6 +44,9 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   LocalDate? _pinnedDate;
   bool _focused = false;
 
+  /// How the task repeats (D20); null for an ordinary task.
+  Recurrence? _recurrence;
+
   @override
   void initState() {
     super.initState();
@@ -70,10 +76,11 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
       _dueDate = task.dueDate;
       _pinnedDate = task.pinnedDate;
       _focused = task.isFocused;
+      _recurrence = task.recurrence;
     });
   }
 
-  Future<void> _save(int priority) async {
+  Future<void> _save(int priority, LocalDate today) async {
     if (_saving || !_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
@@ -82,7 +89,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     final base =
         _original ??
         Task.create(title: _title.text, priority: priority, now: now);
-    final task = base
+    var task = base
         .copyWith(
           title: _title.text.trim(),
           notes: notes.isEmpty ? null : notes,
@@ -91,29 +98,26 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
           pinnedDate: _pinnedDate,
         )
         .setFocus(_focused, now);
+    final rule = _recurrence;
+    final original = _original;
+    if (rule == null) {
+      task = task.clearRecurrence(now);
+    } else if (original == null ||
+        rule != original.recurrence ||
+        _dueDate != original.dueDate ||
+        _pinnedDate != original.pinnedDate) {
+      // "Start" in docs/03 Data Model.md: a new rule or new dates move the
+      // schedule; a save that changed neither keeps the anchor, so a month
+      // end (Jan 31 -> Feb 28) does not stick to the 28th.
+      task = task.setRecurrence(rule, today: today, now: now);
+    }
     await ref.read(taskRepositoryProvider).upsert(task, now);
     if (mounted) _close();
   }
 
-  Future<void> _delete(String id) async {
-    // Taken now: the snackbar outlives this screen.
-    final repository = ref.read(taskRepositoryProvider);
-    final clock = ref.read(clockProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-
-    await repository.delete(id, clock());
-    if (!mounted) return;
-    _close();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        undoSnackBar(
-          message: l10n.taskMovedToTrash,
-          undoLabel: l10n.actionUndo,
-          onUndo: () => unawaited(repository.restore(id, clock())),
-        ),
-      );
+  /// To the Trash with "Undo"; a recurring task asks first (T-708).
+  Future<void> _delete(Task task) async {
+    if (await deleteWithUndo(context, ref, task) && mounted) _close();
   }
 
   /// Back to where the editor was opened from; to the task list when it was
@@ -141,6 +145,17 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     );
     if (picked != null && mounted) {
       setState(() => onPicked(LocalDate.fromDateTime(picked)));
+    }
+  }
+
+  Future<void> _pickRepeat(LocalDate today) async {
+    final choice = await showRepeatSheet(
+      context,
+      current: _recurrence,
+      anchor: _pinnedDate ?? _dueDate ?? today,
+    );
+    if (choice != null && mounted) {
+      setState(() => _recurrence = choice.rule);
     }
   }
 
@@ -186,10 +201,10 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: l10n.actionDelete,
-              onPressed: () => unawaited(_delete(original.id)),
+              onPressed: () => unawaited(_delete(original)),
             ),
           TextButton(
-            onPressed: _saving ? null : () => unawaited(_save(priority)),
+            onPressed: _saving ? null : () => unawaited(_save(priority, today)),
             child: Text(l10n.actionSave),
           ),
           const SizedBox(width: 8),
@@ -282,6 +297,15 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
                       child: Text(l10n.dateToday),
                     ),
             ),
+            _RepeatTile(
+              rule: _recurrence,
+              hint: _pinnedDate != null
+                  ? l10n.repeatHintPinned
+                  : _dueDate != null
+                  ? l10n.repeatHintDue
+                  : l10n.repeatHintFree,
+              onTap: () => unawaited(_pickRepeat(today)),
+            ),
           ],
         ),
       ),
@@ -332,6 +356,36 @@ class _DateTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The "Repeat" row (D20, T-707): the rule in one line and where the dates
+/// of the repeats go; a tap opens the repeat sheet.
+class _RepeatTile extends StatelessWidget {
+  const _RepeatTile({
+    required this.rule,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final Recurrence? rule;
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final rule = this.rule;
+    return ListTile(
+      key: const ValueKey('repeat'),
+      leading: const Icon(Icons.repeat),
+      title: Text(l10n.repeatTitle),
+      subtitle: Text(
+        rule == null ? l10n.repeatNever : '${repeatSummary(l10n, rule)}\n$hint',
+      ),
+      isThreeLine: rule != null,
+      onTap: onTap,
     );
   }
 }

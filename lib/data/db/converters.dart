@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/recurrence.dart';
 
 /// Calendar day as ISO `yyyy-MM-dd` text (ADR-3). The text form sorts like the
 /// date, so SQL can compare and order it.
@@ -41,4 +42,75 @@ class IntListConverter extends TypeConverter<List<int>, String> {
 
   @override
   String toSql(List<int> value) => jsonEncode(value);
+}
+
+/// A repeat rule as JSON text (D20), the same in the database column and in
+/// the backup (docs/03 Data Model.md, "Recurrence"):
+///
+///     {"kind":"interval","every":1,"unit":"month","afterDone":false,"anchor":"2026-11-30"}
+///     {"kind":"interval","every":30,"unit":"day","afterDone":true}
+///     {"kind":"weekdays","days":[0,2,4]}
+class RecurrenceConverter extends TypeConverter<Recurrence, String> {
+  const RecurrenceConverter();
+
+  @override
+  Recurrence fromSql(String fromDb) =>
+      fromJson(jsonDecode(fromDb) as Map<String, dynamic>);
+
+  @override
+  String toSql(Recurrence value) => jsonEncode(toJson(value));
+
+  /// The JSON object of [rule].
+  static Map<String, Object> toJson(Recurrence rule) => switch (rule) {
+    IntervalRecurrence(
+      :final every,
+      :final unit,
+      :final afterDone,
+      :final anchor,
+    ) =>
+      {
+        'kind': 'interval',
+        'every': every,
+        'unit': unit.name,
+        'afterDone': afterDone,
+        'anchor': ?anchor?.toIso(),
+      },
+    WeekdaysRecurrence(:final days) => {
+      'kind': 'weekdays',
+      'days': days.toList()..sort(),
+    },
+  };
+
+  /// The rule in [json]. Throws [FormatException] when it is not a valid
+  /// rule: an unknown kind or unit, a wrong type, or values the domain
+  /// refuses (`every < 1`, an anchor where there must be none, weekdays
+  /// outside 0..6).
+  static Recurrence fromJson(Map<String, dynamic> json) {
+    try {
+      switch (json['kind']) {
+        case 'interval':
+          final unitName = json['unit'] as String;
+          final unit = RecurrenceUnit.values.where((u) => u.name == unitName);
+          if (unit.isEmpty) throw FormatException('Unknown unit', unitName);
+          final anchor = json['anchor'] as String?;
+          return Recurrence.interval(
+            every: json['every'] as int,
+            unit: unit.single,
+            afterDone: json['afterDone'] as bool,
+            anchor: anchor == null ? null : LocalDate.parse(anchor),
+          );
+        case 'weekdays':
+          return Recurrence.weekdays({
+            for (final day in json['days'] as List<dynamic>) day as int,
+          });
+        default:
+          throw FormatException('Unknown kind of repeat rule', json['kind']);
+      }
+    } on FormatException {
+      rethrow;
+    } on Object catch (e) {
+      // A wrong type (TypeError) or a rule the domain refuses (ArgumentError).
+      throw FormatException('Not a repeat rule: $e', json);
+    }
+  }
 }

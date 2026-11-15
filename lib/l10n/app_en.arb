@@ -302,6 +302,18 @@
   "@filterDue": {
     "description": "Tasks: filter chip, tasks that have a due date"
   },
+  "taskPausedBadge": "Paused until tomorrow",
+  "@taskPausedBadge": {
+    "description": "Badge of a task whose series counts from completion and was already completed today; it can be ticked from tomorrow"
+  },
+  "taskPausedHint": "Already done today. The next one can be ticked from tomorrow.",
+  "@taskPausedHint": {
+    "description": "Snackbar when the checkbox of a paused task is tapped"
+  },
+  "filterRecurring": "Recurring",
+  "@filterRecurring": {
+    "description": "Tasks: filter chip, tasks with a repeat rule"
+  },
   "tasksEmpty": "No tasks here",
   "@tasksEmpty": {
     "description": "Tasks: empty list, also for a filter without matches"
@@ -723,5 +735,238 @@
   "backupReadFailed": "Could not read the file",
   "@backupReadFailed": {
     "description": "Message when the picked file could not be opened"
+  },
+  "repeatTitle": "Repeat",
+  "@repeatTitle": {
+    "description": "Editor row and sheet title: how the task repeats (D20)"
+  },
+  "repeatNever": "Does not repeat",
+  "@repeatNever": {
+    "description": "Editor: the repeat row of an ordinary task"
+  },
+  "repeatKindNone": "No",
+  "@repeatKindNone": {
+    "description": "Repeat sheet: segment for no repeat"
+  },
+  "repeatKindInterval": "Every N",
+  "@repeatKindInterval": {
+    "description": "Repeat sheet: segment for every N days, weeks, months or years"
+  },
+  "repeatKindWeekdays": "Weekdays",
+  "@repeatKindWeekdays": {
+    "description": "Repeat sheet: segment for chosen weekdays"
+  },
+  "repeatEveryLabel": "Every",
+  "@repeatEveryLabel": {
+    "description": "Repeat sheet: label before the number of units"
+  },
+  "repeatAfterDone": "Count from the day it is done",
+  "@repeatAfterDone": {
+    "description": "Repeat sheet: switch; on = the next date counts from the completion, off = by schedule"
+  },
+  "repeatAfterDoneHint": "Off: by the calendar, whenever it is done",
+  "@repeatAfterDoneHint": {
+    "description": "Repeat sheet: hint under the switch"
+  },
+  "repeatEveryDay": "{count, plural, other{Every {count} days}}",
+  "@repeatEveryDay": {
+    "description": "Repeat summary by schedule, unit day; count is 2 or more (1 uses repeatDaily etc.)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "repeatEveryWeek": "{count, plural, other{Every {count} weeks}}",
+  "@repeatEveryWeek": {
+    "description": "Repeat summary by schedule, unit week; count is 2 or more (1 uses repeatDaily etc.)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "repeatEveryMonth": "{count, plural, other{Every {count} months}}",
+  "@repeatEveryMonth": {
+    "description": "Repeat summary by schedule, unit month; count is 2 or more (1 uses repeatDaily etc.)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "repeatEveryYear": "{count, plural, other{Every {count} years}}",
+  "@repeatEveryYear": {
+    "description": "Repeat summary by schedule, unit year; count is 2 or more (1 uses repeatDaily etc.)",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "repeatAfterDoneSummary": "{interval} after it is done",
+  "@repeatAfterDoneSummary": {
+    "description": "Repeat summary from completion; interval is e.g. '30 days'",
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "weeksCount": "{count, plural, =1{1 week} other{{count} weeks}}",
+  "@weeksCount": {
+    "description": "A number of weeks",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "monthsCount": "{count, plural, =1{1 month} other{{count} months}}",
+  "@monthsCount": {
+    "description": "A number of months",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "yearsCount": "{count, plural, =1{1 year} other{{count} years}}",
+  "@yearsCount": {
+    "description": "A number of years",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitDays": "{count, plural, =1{day} other{days}}",
+  "@unitDays": {
+    "description": "Repeat sheet: unit after the number",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitWeeks": "{count, plural, =1{week} other{weeks}}",
+  "@unitWeeks": {
+    "description": "Repeat sheet: unit after the number",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitMonths": "{count, plural, =1{month} other{months}}",
+  "@unitMonths": {
+    "description": "Repeat sheet: unit after the number",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitYears": "{count, plural, =1{year} other{years}}",
+  "@unitYears": {
+    "description": "Repeat sheet: unit after the number",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "weekdayShortMon": "Mon",
+  "@weekdayShortMon": {
+    "description": "Short weekday name"
+  },
+  "weekdayShortTue": "Tue",
+  "@weekdayShortTue": {
+    "description": "Short weekday name"
+  },
+  "weekdayShortWed": "Wed",
+  "@weekdayShortWed": {
+    "description": "Short weekday name"
+  },
+  "weekdayShortThu": "Thu",
+  "@weekdayShortThu": {
+    "description": "Short weekday name"
+  },
+  "weekdayShortFri": "Fri",
+  "@weekdayShortFri": {
+    "description": "Short weekday name"
+  },
+  "weekdayShortSat": "Sat",
+  "@weekdayShortSat": {
+    "description": "Short weekday name"
+  },
+  "weekdayShortSun": "Sun",
+  "@weekdayShortSun": {
+    "description": "Short weekday name"
+  },
+  "repeatHintPinned": "Pinned on each date of the rule",
+  "@repeatHintPinned": {
+    "description": "Editor: where the date of a repeat goes for a pinned task"
+  },
+  "repeatHintDue": "Due on each date, open from the day after the previous one",
+  "@repeatHintDue": {
+    "description": "Editor: where the date of a repeat goes for a task with a due date"
+  },
+  "repeatHintFree": "Comes back on each date of the rule",
+  "@repeatHintFree": {
+    "description": "Editor: where the date of a repeat goes for a task without dates"
+  },
+  "actionDone": "Done",
+  "@actionDone": {
+    "description": "Button: close a sheet and keep the choice"
+  },
+  "repeatDaily": "Every day",
+  "@repeatDaily": {
+    "description": "Repeat summary by schedule, every single unit"
+  },
+  "repeatWeekly": "Every week",
+  "@repeatWeekly": {
+    "description": "Repeat summary by schedule, every single unit"
+  },
+  "repeatMonthly": "Every month",
+  "@repeatMonthly": {
+    "description": "Repeat summary by schedule, every single unit"
+  },
+  "repeatYearly": "Every year",
+  "@repeatYearly": {
+    "description": "Repeat summary by schedule, every single unit"
+  },
+  "availableFrom": "From {date}",
+  "@availableFrom": {
+    "description": "Badge of a task that is not released yet (notBefore in the future)",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteRecurringTitle": "Delete the series?",
+  "@deleteRecurringTitle": {
+    "description": "Dialog title when a recurring task is deleted"
+  },
+  "deleteRecurringBody": "The task goes to the Trash and stops repeating. To skip only this repeat, use \"Skip this time\" from a long press in the Plan or Today.",
+  "@deleteRecurringBody": {
+    "description": "Dialog text when a recurring task is deleted"
+  },
+  "skipThisTime": "Skip this time",
+  "@skipThisTime": {
+    "description": "Long-press menu of a recurring task: skip this repeat, the series goes on"
+  },
+  "deleteSeries": "Delete the series",
+  "@deleteSeries": {
+    "description": "Dialog button: move the task to the Trash and stop the series"
+  },
+  "taskSkipped": "Skipped; the next repeat is in the plan",
+  "@taskSkipped": {
+    "description": "Snack bar after a skip"
+  },
+  "ghostTooltip": "A coming repeat",
+  "@ghostTooltip": {
+    "description": "Tooltip of the repeat icon on a ghost row in the Plan"
   }
 }

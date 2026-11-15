@@ -115,6 +115,22 @@ DateTime _nextDayStart(DateTime now, int dayStartHour) {
   return DateTime(now.year, now.month, now.day + 1, dayStartHour);
 }
 
+/// Active tasks that cannot be completed until the next day: their series
+/// counts from completion and was already completed today (T-710,
+/// `Planner.pausedToday`). Empty until the inputs have arrived.
+@Riverpod(keepAlive: true)
+Set<String> pausedTaskIds(Ref ref) {
+  final tasks = ref.watch(allTasksProvider).value;
+  final settings = ref.watch(settingsProvider).value;
+  final today = ref.watch(todayProvider).value;
+  if (tasks == null || settings == null || today == null) return const {};
+  return Planner.pausedToday(
+    tasks,
+    today: today,
+    dayStartHour: settings.dayStartHour,
+  );
+}
+
 /// The plan (ADR-1: derived, never stored). Recomputed when tasks, settings,
 /// overrides or the day change; loading until all four have arrived.
 @Riverpod(keepAlive: true)
