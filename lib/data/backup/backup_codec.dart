@@ -20,12 +20,14 @@ class BackupCodec {
 
   /// Format version this app writes, and the highest one it reads.
   ///
+  /// 4: a done task may carry `completedPlanDate` (T-907); the version went
+  /// up so that an older app refuses the file instead of dropping it.
   /// 3: a task may carry `recurrence`, `seriesId` and `occurrenceDate` (D20);
   /// the version went up so that an older app refuses the file instead of
   /// dropping the rules. 2: a priority is a level of the ten-level table
   /// (ADR-17). 1: it was the position in the scale of the file,
   /// `1..priorityScale`; read as the level that stands at that position.
-  static const version = 3;
+  static const version = 4;
 
   String encode(Backup backup) => const JsonEncoder.withIndent('  ').convert({
     'app': appName,
@@ -156,6 +158,7 @@ class BackupCodec {
     'updatedAt': _instant(task.updatedAt),
     'completedAt': ?_instantOrNull(task.completedAt),
     'completedOnPlan': task.completedOnPlan,
+    'completedPlanDate': ?task.completedPlanDate?.toIso(),
     'deletedAt': ?_instantOrNull(task.deletedAt),
     'recurrence': ?switch (task.recurrence) {
       final rule? => RecurrenceConverter.toJson(rule),
@@ -180,6 +183,8 @@ class BackupCodec {
     _require((status == TaskStatus.done) == (completedAt != null));
     _require(isFocused == (focusedAt != null));
     _require(!completedOnPlan || status == TaskStatus.done);
+    final completedPlanDate = _readDate(json['completedPlanDate']);
+    _require(completedPlanDate == null || status == TaskStatus.done);
     final ruleJson = json['recurrence'] as Map<String, dynamic>?;
     final recurrence = ruleJson == null
         ? null
@@ -204,6 +209,7 @@ class BackupCodec {
       updatedAt: _readInstant(json['updatedAt'])!,
       completedAt: completedAt,
       completedOnPlan: completedOnPlan,
+      completedPlanDate: completedPlanDate,
       deletedAt: _readInstant(json['deletedAt']),
       recurrence: recurrence,
       seriesId: seriesId,

@@ -6,7 +6,7 @@ import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/features/today/quick_add_sheet.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -65,7 +65,7 @@ void main() {
     expect(task.title, 'Buy milk');
     expect(task.priority, PriorityLabels.normal);
     expect(task.createdAt, AppHarness.now.toUtc());
-    expect(find.widgetWithText(TaskTile, 'Buy milk'), findsOneWidget);
+    expect(find.widgetWithText(TaskCard, 'Buy milk'), findsOneWidget);
     expect(haptics, ['HapticFeedbackType.lightImpact']);
   });
 
@@ -121,7 +121,7 @@ void main() {
     await AppHarness.start(tester, tasks: [testTask('a')]);
     final haptics = recordHaptics(tester);
 
-    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.byType(TaskDoneButton));
     await tester.pumpAndSettle();
 
     expect(haptics, ['HapticFeedbackType.lightImpact']);

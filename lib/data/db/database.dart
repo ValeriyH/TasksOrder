@@ -38,6 +38,10 @@ class Tasks extends Table {
   BoolColumn get completedOnPlan =>
       boolean().withDefault(const Constant(false))();
 
+  /// Schema 4 (T-907): the plan day of the task when it was completed.
+  TextColumn get completedPlanDate =>
+      text().map(const LocalDateConverter()).nullable()();
+
   /// Soft delete: Trash (D14) and sync tombstone (D12).
   IntColumn get deletedAt =>
       integer().map(const UtcMillisConverter()).nullable()();
@@ -124,12 +128,13 @@ class AppDatabase extends _$AppDatabase {
     isUtc: true,
   );
 
-  /// 3 (D20, ADR-18): `tasks.recurrence`, `series_id`, `occurrence_date` and
+  /// 4 (T-907, ADR-23): `tasks.completed_plan_date`. 3 (D20, ADR-18):
+  /// `tasks.recurrence`, `series_id`, `occurrence_date` and
   /// the index `idx_tasks_series`. 2 (ADR-17): `tasks.priority` holds a level
   /// of the ten-level table; the tables did not change. 1: it was the
   /// position in the scale of the settings.
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -147,6 +152,10 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(tasks, tasks.seriesId);
         await m.addColumn(tasks, tasks.occurrenceDate);
         await m.createIndex(idxTasksSeries);
+      }
+      if (from < 4) {
+        // Completions stored before do not know their plan day: null.
+        await m.addColumn(tasks, tasks.completedPlanDate);
       }
     },
   );

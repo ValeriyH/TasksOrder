@@ -16,7 +16,8 @@ enum TaskStatus { active, done }
 /// - [priority] is a level of the table, 1..10 (D1, ADR-17);
 /// - [completedAt] is set exactly when [status] is [TaskStatus.done];
 /// - [focusedAt] is set exactly when [isFocused] is true;
-/// - [completedOnPlan] is true only for a done task;
+/// - [completedOnPlan] is true and [completedPlanDate] is set only for a
+///   done task;
 /// - a [recurrence] comes with a [seriesId] and an [occurrenceDate] (D20).
 ///
 /// Use [Task.create] and the transition methods ([complete], [setFocus],
@@ -37,6 +38,10 @@ abstract class Task with _$Task {
   @Assert(
     '!completedOnPlan || status == TaskStatus.done',
     'completedOnPlan needs a done task',
+  )
+  @Assert(
+    'completedPlanDate == null || status == TaskStatus.done',
+    'completedPlanDate needs a done task',
   )
   @Assert(
     'recurrence == null || (seriesId != null && occurrenceDate != null)',
@@ -82,6 +87,12 @@ abstract class Task with _$Task {
     /// The task was on today's list when it was completed (D19). Only such
     /// completions use up the capacity of that day; false while active.
     @Default(false) bool completedOnPlan,
+
+    /// The day the plan had the task on when it was completed (T-907, D22):
+    /// the Plan keeps the done task at the end of that day until the day is
+    /// past. Null while active, for a task the plan had not placed (Later)
+    /// and for completions stored before schema 4.
+    LocalDate? completedPlanDate,
 
     /// UTC; soft delete: Trash (D14) and sync tombstone (D12).
     DateTime? deletedAt,
@@ -146,13 +157,17 @@ abstract class Task with _$Task {
   /// moment. The plan is not stored, so the caller has to say it: a completion
   /// from today's list leaves its slot empty, any other one (from the Focus
   /// strip, a later day, the task list) leaves today as it is (D3, D19).
-  Task complete(DateTime now, {required bool onPlan}) {
+  ///
+  /// [plannedDate] is the day the plan had the task on at that moment, null
+  /// when the plan had not placed it (T-907).
+  Task complete(DateTime now, {required bool onPlan, LocalDate? plannedDate}) {
     if (isDone) return this;
     final utc = now.toUtc();
     return copyWith(
       status: TaskStatus.done,
       completedAt: utc,
       completedOnPlan: onPlan,
+      completedPlanDate: plannedDate,
       updatedAt: utc,
     );
   }
@@ -164,6 +179,7 @@ abstract class Task with _$Task {
       status: TaskStatus.active,
       completedAt: null,
       completedOnPlan: false,
+      completedPlanDate: null,
       updatedAt: now.toUtc(),
     );
   }

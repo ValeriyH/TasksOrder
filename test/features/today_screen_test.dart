@@ -4,7 +4,8 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/features/task_edit/task_edit_screen.dart';
 import 'package:tasks_order/features/today/today_screen.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/screen_header.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -12,19 +13,37 @@ void main() {
   final today = AppHarness.today;
   final saturday = LocalDate(2026, 11, 14);
 
-  /// The titles of the task tiles, top to bottom.
+  /// The titles of the active task cards, top to bottom.
   List<String> tiles(WidgetTester tester) => [
-    for (final tile in tester.widgetList<TaskTile>(find.byType(TaskTile)))
-      tile.task.title,
+    for (final card in tester.widgetList<TaskCard>(find.byType(TaskCard)))
+      if (!card.isDone) card.task.title,
   ];
 
-  Finder tile(String id) => find.widgetWithText(TaskTile, 'Task $id');
+  /// The section titles and the cards, top to bottom: where a card sits.
+  List<String> layout(WidgetTester tester) => [
+    for (final widget in tester.widgetList(
+      find.descendant(
+        of: find.byType(ListView),
+        matching: find.byWidgetPredicate(
+          (w) => w is TaskCard || w is SectionHeader,
+        ),
+      ),
+    ))
+      switch (widget) {
+        TaskCard(:final task, :final isDone) =>
+          isDone ? '${task.title} (done)' : task.title,
+        SectionHeader(:final title, :final counter) => '$title $counter',
+        _ => '',
+      },
+  ];
+
+  Finder tile(String id) => find.widgetWithText(TaskCard, 'Task $id');
 
   Finder inTile(String id, Finder matching) =>
       find.descendant(of: tile(id), matching: matching);
 
   Future<void> tick(WidgetTester tester, String id) async {
-    await tester.tap(inTile(id, find.byType(Checkbox)));
+    await tester.tap(inTile(id, find.byType(TaskDoneButton)));
     await tester.pumpAndSettle();
   }
 
@@ -34,7 +53,7 @@ void main() {
 
       expect(find.text('Nothing planned for today'), findsOneWidget);
       expect(find.text('Add tasks on the Tasks tab'), findsOneWidget);
-      expect(find.byType(TaskTile), findsNothing);
+      expect(find.byType(TaskCard), findsNothing);
     });
 
     testWidgets('tasks exist, but none for today', (tester) async {
@@ -59,16 +78,15 @@ void main() {
         ],
       );
 
-      expect(tiles(tester), ['Task high']);
-      expect(find.text('Planned 1/1'), findsOneWidget);
+      expect(layout(tester), ['Planned 0/1', 'Task high']);
+      expect(find.text('Friday, 13 November'), findsOneWidget);
+      expect(find.text('0 of 1'), findsOneWidget);
       expect(inTile('high', find.text('Critical')), findsOneWidget);
       expect(inTile('high', find.text('Due Fri, Nov 20')), findsOneWidget);
-      expect(find.textContaining('Done today'), findsNothing);
     });
 
-    testWidgets('a priority slot is not refilled, undo gives it back', (
-      tester,
-    ) async {
+    testWidgets('a done task stays at the end, its slot is not refilled, '
+        '"Completed" gives it back (D22)', (tester) async {
       final app = await AppHarness.start(
         tester,
         tasks: [testTask('a', priority: 1), testTask('b', priority: 2)],
@@ -77,36 +95,44 @@ void main() {
 
       await tick(tester, 'a');
 
-      expect(tiles(tester), isEmpty);
-      expect(find.text('Planned 0/1'), findsOneWidget);
-      expect(find.text('Done today: 1'), findsOneWidget);
+      expect(layout(tester), ['Planned 1/1', 'Task a (done)']);
+      expect(find.text('1 of 1'), findsOneWidget);
       expect(find.text('All done for today'), findsOneWidget);
+      expect(inTile('a', find.text('Completed')), findsOneWidget);
+      // The card undoes: no message with Undo.
+      expect(find.text('Task completed'), findsNothing);
       final done = await app.task('a');
       expect(done.isDone, isTrue);
       expect(done.completedOnPlan, isTrue);
 
-      expect(find.text('Task completed'), findsOneWidget);
-      await tester.tap(find.text('Undo'));
+      await tester.tap(inTile('a', find.text('Completed')));
       await tester.pumpAndSettle();
 
-      expect(tiles(tester), ['Task a']);
+      expect(layout(tester), ['Planned 0/1', 'Task a']);
       expect((await app.task('a')).isDone, isFalse);
     });
 
-    testWidgets('the "Task completed" message goes away by itself', (
-      tester,
-    ) async {
-      await AppHarness.start(tester, tasks: [testTask('a')]);
+    testWidgets('done tasks go after the ones left', (tester) async {
+      await AppHarness.start(
+        tester,
+        settings: Settings(weeklyCapacity: const [3, 3, 3, 3, 3, 3, 3]),
+        tasks: [
+          testTask('a', priority: 1),
+          testTask('b', priority: 2),
+          testTask('c', priority: 3),
+        ],
+      );
 
       await tick(tester, 'a');
-      expect(find.text('Task completed'), findsOneWidget);
+      await tick(tester, 'c');
 
-      await tester.pump(const Duration(seconds: 3));
-      expect(find.text('Task completed'), findsOneWidget);
-      // A snackbar with an action would stay until closed (`persist`).
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
-      expect(find.text('Task completed'), findsNothing);
+      expect(layout(tester), [
+        'Planned 2/3',
+        'Task b',
+        'Task a (done)',
+        'Task c (done)',
+      ]);
+      expect(find.text('2 of 3'), findsOneWidget);
     });
 
     testWidgets('header and banner count the done tasks with the rest', (
@@ -124,7 +150,7 @@ void main() {
             testTask('d$i', dueDate: today, minute: i),
         ],
       );
-      expect(find.text('Planned 4/4'), findsOneWidget);
+      expect(find.text('0 of 4'), findsOneWidget);
       expect(
         find.text('More than planned: 4 tasks, capacity 2'),
         findsOneWidget,
@@ -132,9 +158,9 @@ void main() {
 
       await tick(tester, 'd1');
 
-      // Three left of the four the day holds; still four against two.
-      expect(find.text('Planned 3/4'), findsOneWidget);
-      expect(find.text('Done today: 1'), findsOneWidget);
+      // One done of the four the day holds; still four against two.
+      expect(find.text('1 of 4'), findsOneWidget);
+      expect(find.text('1/4'), findsOneWidget);
       expect(
         find.text('More than planned: 4 tasks, capacity 2'),
         findsOneWidget,
@@ -210,19 +236,26 @@ void main() {
     testWidgets('the reason badges can be switched off', (tester) async {
       await AppHarness.start(
         tester,
-        tasks: [testTask('p', pinnedDate: today)],
+        tasks: [
+          testTask('d1', dueDate: today),
+          testTask('d2', dueDate: today, minute: 1),
+          testTask('d3', dueDate: today, minute: 2),
+        ],
         stored: {'device.showReasons': false},
       );
 
-      expect(tiles(tester), ['Task p']);
-      expect(find.text('Pinned'), findsNothing);
+      // The scenario of "deadlines are forced" without its reason chips.
+      expect(tiles(tester), ['Task d1', 'Task d2']);
+      expect(find.text('Deadline'), findsNothing);
+      expect(find.text('Extra'), findsNothing);
     });
 
-    testWidgets('a tap on a task opens the editor', (tester) async {
+    testWidgets('a tap opens the menu, and Edit the editor (D22)', (
+      tester,
+    ) async {
       await AppHarness.start(tester, tasks: [testTask('a')]);
 
-      await tester.tap(find.text('Task a'));
-      await tester.pumpAndSettle();
+      await openEditorOf(tester, find.text('Task a'));
 
       expect(find.text('Edit task'), findsOneWidget);
     });
@@ -243,9 +276,13 @@ void main() {
       // Focus first, then today's list. "a" is on today's list, so it is not
       // repeated in Focus.
       expect(tiles(tester), ['Task f', 'Task a']);
-      expect(find.text('Focus'), findsOneWidget);
+      expect(find.text('FOCUS'), findsOneWidget);
       expect(inTile('f', find.text('Planned for Sat, Nov 14')), findsOneWidget);
-      expect(inTile('f', find.byIcon(Icons.center_focus_strong)), findsOne);
+      // Today has its Focus section: no focus chip on the cards (D22).
+      expect(
+        inTile('f', find.byIcon(Icons.center_focus_strong_outlined)),
+        findsNothing,
+      );
     });
 
     testWidgets('a completion from Focus leaves today\'s list as it is (D19)', (
@@ -261,9 +298,16 @@ void main() {
 
       await tick(tester, 'f');
 
-      expect(tiles(tester), ['Task a']);
-      expect(find.text('Planned 1/1'), findsOneWidget);
-      expect(find.textContaining('Done today'), findsNothing);
+      // Done from Focus: it stays there, today's list is as it was (D19).
+      expect(layout(tester), [
+        // The counter is the tasks still in Focus (owner, D22).
+        'Focus 0',
+        'Task f (done)',
+        'Planned 0/1',
+        'Task a',
+      ]);
+      expect(find.text('0 of 1'), findsOneWidget);
+      expect(inTile('f', find.text('Completed today')), findsOneWidget);
       expect((await app.task('f')).completedOnPlan, isFalse);
     });
 
@@ -280,19 +324,18 @@ void main() {
 
       expect(tiles(tester), ['Task o', 'Task a']);
       expect(inTile('o', find.text('Overdue by 3 days')), findsOneWidget);
-      // Not overdue: no menu.
-      expect(
-        inTile('a', find.byType(PopupMenuButton<VoidCallback>)),
-        findsNothing,
-      );
-
-      await tester.tap(inTile('o', find.byType(PopupMenuButton<VoidCallback>)));
+      // Not overdue: no due date actions in the menu.
+      await openMenuOf(tester, find.text('Task a'));
+      expect(find.byKey(const ValueKey('menuClearDue')), findsNothing);
+      await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
+
+      await openMenuOf(tester, find.text('Task o'));
       await tester.tap(find.text('Remove due date'));
       await tester.pumpAndSettle();
 
       expect(tiles(tester), ['Task a']);
-      expect(find.text('Focus'), findsNothing);
+      expect(find.text('FOCUS'), findsNothing);
       expect((await app.task('o')).dueDate, isNull);
     });
 
@@ -308,8 +351,7 @@ void main() {
       );
       expect(inTile('o', find.text('Overdue by 1 day')), findsOneWidget);
 
-      await tester.tap(inTile('o', find.byType(PopupMenuButton<VoidCallback>)));
-      await tester.pumpAndSettle();
+      await openMenuOf(tester, find.text('Task o'));
       await tester.tap(find.text('Move due date'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('14'));
@@ -332,8 +374,30 @@ void main() {
       );
 
       expect(tiles(tester), ['Task f1', 'Task f2', 'Task f3', 'Task a']);
+      // The counter is all five; the list shows three and the rest.
+      expect(layout(tester).first, 'Focus 5');
       expect(find.text('+2 more'), findsOneWidget);
     });
+  });
+
+  testWidgets('the lists of the tabs start below the status bar (D22)', (
+    tester,
+  ) async {
+    tester.view.padding = const FakeViewPadding(top: 72);
+    addTearDown(tester.view.resetPadding);
+    await AppHarness.start(tester, tasks: [testTask('a')]);
+    final top = 72 / tester.view.devicePixelRatio;
+
+    for (final tab in [
+      Icons.today_outlined,
+      Icons.calendar_month_outlined,
+      Icons.checklist_outlined,
+    ]) {
+      await tester.tap(find.byIcon(tab).last);
+      await tester.pumpAndSettle();
+      final list = find.byType(Scrollable).hitTestable().first;
+      expect(tester.getTopLeft(list).dy, greaterThanOrEqualTo(top));
+    }
   });
 
   testWidgets('in Ukrainian and dark', (tester) async {
@@ -353,9 +417,11 @@ void main() {
       Theme.of(tester.element(find.byType(TodayScreen))).brightness,
       Brightness.dark,
     );
-    expect(find.text('Фокус'), findsOneWidget);
+    expect(find.text('ФОКУС'), findsOneWidget);
     expect(find.text('Прострочено на 5 днів'), findsOneWidget);
-    expect(find.text('Заплановано 2/2'), findsOneWidget);
+    expect(find.text('ЗАПЛАНОВАНО'), findsOneWidget);
+    expect(find.text('0 з 2'), findsOneWidget);
+    expect(find.textContaining('13 листопада'), findsOneWidget);
     expect(find.text('Термін сьогодні'), findsNWidgets(2));
     expect(find.text('Дедлайн'), findsNWidgets(2));
     expect(find.text('1 завдання не встигне до терміну'), findsOneWidget);

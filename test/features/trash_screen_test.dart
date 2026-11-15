@@ -4,7 +4,7 @@ import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/features/trash/trash_screen.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -93,7 +93,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.today_outlined));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(TaskTile, 'Task a'), findsOneWidget);
+    expect(find.widgetWithText(TaskCard, 'Task a'), findsOneWidget);
   });
 
   testWidgets('delete forever asks first', (tester) async {

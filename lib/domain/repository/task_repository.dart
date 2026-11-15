@@ -24,7 +24,8 @@ abstract interface class TaskRepository {
   Future<void> upsert(Task task, DateTime now);
 
   /// Marks the task done. [onPlan]: it was on today's list of the plan at
-  /// that moment (D19).
+  /// that moment (D19). [plannedDate]: the day the plan had it on, null when
+  /// the plan had not placed it (T-907).
   ///
   /// A recurring task gets its successor in the same transaction
   /// (`Task.successor`, D20), unless its series already has another active
@@ -34,6 +35,7 @@ abstract interface class TaskRepository {
     String id,
     DateTime now, {
     required bool onPlan,
+    LocalDate? plannedDate,
     LocalDate? today,
   });
 

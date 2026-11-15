@@ -33,12 +33,12 @@ void main() {
           pinnedDate: LocalDate(2026, 11, 18),
           notBefore: LocalDate(2026, 11, 15),
         );
-    final done = Task.create(
-      id: 'done',
-      title: 'Done',
-      priority: 5,
-      now: now,
-    ).complete(now.add(const Duration(hours: 1)), onPlan: true);
+    final done = Task.create(id: 'done', title: 'Done', priority: 5, now: now)
+        .complete(
+          now.add(const Duration(hours: 1)),
+          onPlan: true,
+          plannedDate: LocalDate(2026, 11, 13),
+        );
     final deleted = Task.create(
       id: 'deleted',
       title: 'Deleted',
@@ -98,7 +98,7 @@ void main() {
     final json = jsonDecode(codec.encode(sample())) as Map<String, dynamic>;
 
     expect(json['app'], 'TasksOrder');
-    expect(json['version'], 3);
+    expect(json['version'], 4);
     expect(json['exportedAt'], '2026-11-13T08:30:15.250Z');
     expect(firstTask(json)['createdAt'], '2026-11-13T08:30:15.250Z');
   });
@@ -203,9 +203,47 @@ void main() {
 
   test('a backup of a newer format is told apart', () {
     expect(
-      () => codec.decode(changed((json) => json['version'] = 4)),
+      () => codec.decode(changed((json) => json['version'] = 5)),
       fails(BackupProblem.newerVersion),
     );
+  });
+
+  group('the plan day of a completion (format 4, T-907)', () {
+    Map<String, dynamic> task(Map<String, dynamic> json, String id) =>
+        (json['tasks'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .singleWhere((task) => task['id'] == id);
+
+    test('is written for a done task only', () {
+      final json = jsonDecode(codec.encode(sample())) as Map<String, dynamic>;
+
+      expect(task(json, 'done')['completedPlanDate'], '2026-11-13');
+      expect(task(json, 'plain').containsKey('completedPlanDate'), isFalse);
+    });
+
+    test('a file of version 3 has none', () {
+      final read = codec.decode(
+        changed((json) {
+          json['version'] = 3;
+          task(json, 'done').remove('completedPlanDate');
+        }),
+      );
+
+      final done = read.tasks.singleWhere((t) => t.id == 'done');
+      expect(done.completedPlanDate, isNull);
+      expect(done.completedOnPlan, isTrue);
+    });
+
+    test('on an active task it is refused', () {
+      expect(
+        () => codec.decode(
+          changed(
+            (json) => task(json, 'plain')['completedPlanDate'] = '2026-11-13',
+          ),
+        ),
+        fails(BackupProblem.notABackup),
+      );
+    });
   });
 
   test('a priority outside 1..10 moves to its nearest end', () {

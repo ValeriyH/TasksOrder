@@ -2,11 +2,12 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:tasks_order/app/app_colors.dart';
 import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/device_settings_providers.dart';
 import 'package:tasks_order/application/providers.dart';
-import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/plan.dart';
@@ -17,10 +18,12 @@ import 'package:tasks_order/features/plan/day_override_dialog.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/at_risk_sheet.dart';
 import 'package:tasks_order/shared/plan_badges.dart';
+import 'package:tasks_order/shared/screen_header.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
-/// The coming days of the plan: which task lands on which day, and why.
+/// The coming days of the plan (D22): which task lands on which day, how
+/// full each day is, and the room left on it.
 class PlanScreen extends ConsumerWidget {
   const PlanScreen({super.key});
 
@@ -30,14 +33,41 @@ class PlanScreen extends ConsumerWidget {
     final plan = ref.watch(planProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.tabPlan)),
-      body: switch (plan) {
-        AsyncValue(:final value?) => _PlanBody(plan: value),
-        AsyncValue(hasError: true) => Center(child: Text(l10n.errorLoading)),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
+      body: TabBody(
+        child: switch (plan) {
+          AsyncValue(:final value?) => _PlanBody(plan: value),
+          AsyncValue(hasError: true) => Center(child: Text(l10n.errorLoading)),
+          _ => const Center(child: CircularProgressIndicator()),
+        },
+      ),
     );
   }
+}
+
+/// A date as the head of a day: "Tue, 17 November", the weekday with a
+/// capital.
+String dayTitle(BuildContext context, LocalDate date) {
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  final text = DateFormat('EEE, d MMMM', locale).format(dateTimeOf(date));
+  return text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);
+}
+
+/// The days of the plan: "15 – 21 November", or "28 November – 4 December"
+/// over a month end, with the year only where the two differ.
+String dateRange(BuildContext context, LocalDate first, LocalDate last) {
+  final locale = Localizations.localeOf(context).toLanguageTag();
+  String format(String pattern, LocalDate date) =>
+      DateFormat(pattern, locale).format(dateTimeOf(date));
+  if (first == last) return format('d MMMM', first);
+  final end = last.year != first.year
+      ? format('d MMMM y', last)
+      : format('d MMMM', last);
+  final start = first.year != last.year
+      ? format('d MMMM y', first)
+      : first.month == last.month
+      ? format('d', first)
+      : format('d MMMM', first);
+  return '$start – $end';
 }
 
 class _PlanBody extends ConsumerWidget {
@@ -48,7 +78,7 @@ class _PlanBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
+    final c = AppColors.of(context);
     // The plan was computed from these, so they have arrived.
     final tasks = ref.watch(allTasksProvider).requireValue;
     final settings = ref.watch(settingsProvider).requireValue;
@@ -63,127 +93,189 @@ class _PlanBody extends ConsumerWidget {
     final scale = settings.priorityScale;
     final resolver = CapacityResolver(settings, overrides);
     // Today counts what was done from its list too, against the full
-    // capacity: the numbers of the Today screen.
-    final doneToday = Planner.countCompletedToday(
+    // capacity: the numbers of the Today screen (D19).
+    final doneFromList = Planner.countCompletedToday(
       tasks,
       today: today,
       dayStartHour: settings.dayStartHour,
     );
-
-    TaskTile tile(Task task, {required bool onPlan, List<Widget>? badges}) =>
-        TaskTile(
-          key: ValueKey(task.id),
-          task: task,
-          scale: scale,
+    // A done task stays at the end of the day the plan had it on, dimmed,
+    // until that day is past (T-907, D22); its slot is planned again.
+    final done = [
+      for (final task in tasks)
+        if (task.isDone && !task.isDeleted) task,
+    ]..sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+    List<Task> doneOn(LocalDate day) => [
+      for (final task in done)
+        if (Planner.keptOnDay(
+          task,
+          day,
           today: today,
-          paused: paused.contains(task.id),
-          badges: badges ?? const [],
-          onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
-          onLongPress: () => unawaited(showTaskMenu(context, ref, task, today)),
-          onCompleted: () =>
-              unawaited(completeWithUndo(context, ref, task, onPlan: onPlan)),
-          onMoveDueDate: () =>
-              unawaited(moveDueDate(context, ref, task, today)),
-          onClearDueDate: () =>
-              unawaited(ref.read(taskActionsProvider).setDueDate(task, null)),
-        );
+          dayStartHour: settings.dayStartHour,
+        ))
+          task,
+    ];
+
+    Widget card(
+      Task task, {
+      required LocalDate? plannedDate,
+      bool isDone = false,
+      List<Widget> chips = const [],
+    }) => TaskCard(
+      key: ValueKey(task.id),
+      task: task,
+      scale: scale,
+      today: today,
+      isDone: isDone,
+      doneOn: isDone
+          ? Planner.completionDay(task, settings.dayStartHour)
+          : null,
+      paused: !isDone && paused.contains(task.id),
+      chips: chips,
+      onTap: () => unawaited(showTaskMenu(context, ref, task, today)),
+      onToggleDone: () => unawaited(
+        toggleDone(
+          context,
+          ref,
+          task,
+          onPlan: plannedDate == today,
+          plannedDate: plannedDate,
+          isDone: isDone,
+        ),
+      ),
+    );
 
     final later = [for (final id in plan.laterTaskIds) ?byId[id]];
+    final days = plan.days;
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
+        ScreenHeader(
+          subtitle: days.isEmpty
+              ? ''
+              : dateRange(context, days.first.date, days.last.date),
+          title: l10n.tabPlan,
+        ),
         if (plan.hasAtRisk)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Material(
-              color: theme.colorScheme.errorContainer,
-              borderRadius: BorderRadius.circular(12),
+              color: c.capOverBg,
+              borderRadius: BorderRadius.circular(14),
               clipBehavior: Clip.antiAlias,
               child: ListTile(
-                leading: Icon(
-                  Icons.warning_amber_rounded,
-                  color: theme.colorScheme.onErrorContainer,
-                ),
+                leading: Icon(Icons.warning_amber_rounded, color: c.capOverFg),
                 title: Text(
                   l10n.planAtRisk(plan.atRiskTaskIds.length),
-                  style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                  style: TextStyle(
+                    color: c.capOverFg,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: theme.colorScheme.onErrorContainer,
-                ),
+                trailing: Icon(Icons.chevron_right, color: c.capOverFg),
                 onTap: () => unawaited(showAtRiskList(context)),
               ),
             ),
           ),
-        for (final day in plan.days) ...[
-          _DayHeader(
+        for (final day in days)
+          ..._day(
+            context,
+            ref,
             day: day,
             today: today,
-            count: day.entries.length + (day.date == today ? doneToday : 0),
             capacity: resolver.capacityFor(day.date),
+            count: day.entries.length + (day.date == today ? doneFromList : 0),
             dayOverride: overrides[day.date],
-            onTap: () => unawaited(
-              showDayOverrideDialog(
-                context,
-                ref,
-                date: day.date,
-                capacity: resolver.capacityFor(day.date),
-                override: overrides[day.date],
-              ),
-            ),
+            cards: [
+              for (final entry in day.entries)
+                if (byId[entry.taskId] case final task?)
+                  // A coming repeat of a recurring task (T-704): the date
+                  // keeps its key apart from the task's own card.
+                  if (entry.occurrenceDate case final occurrence?)
+                    GhostTaskCard(
+                      key: ValueKey('${task.id}@$occurrence'),
+                      task: task,
+                      scale: scale,
+                      onTap: () =>
+                          unawaited(context.push(AppRoutes.task(task.id))),
+                      chips: planEntryChips(
+                        context,
+                        entry,
+                        showReasons: showReasons,
+                        overPlan: true,
+                      ),
+                    )
+                  else
+                    card(
+                      task,
+                      plannedDate: day.date,
+                      chips: planEntryChips(
+                        context,
+                        entry,
+                        showReasons: showReasons,
+                        overPlan: true,
+                      ),
+                    ),
+              for (final task in doneOn(day.date))
+                card(task, plannedDate: day.date, isDone: true),
+            ],
           ),
-          for (final entry in day.entries)
-            if (byId[entry.taskId] case final task?)
-              // A coming repeat of a recurring task (T-704): the date keeps
-              // its key apart from the task's own row.
-              if (entry.occurrenceDate case final occurrence?)
-                GhostTaskTile(
-                  key: ValueKey('${task.id}@$occurrence'),
-                  task: task,
-                  scale: scale,
-                  onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
-                  badges: planEntryBadges(
-                    context,
-                    entry,
-                    showReasons: showReasons,
-                  ),
-                )
-              else
-                tile(
-                  task,
-                  onPlan: day.date == today,
-                  badges: planEntryBadges(
-                    context,
-                    entry,
-                    showReasons: showReasons,
-                  ),
-                ),
-        ],
         if (later.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-            child: Text(
-              l10n.planLater(later.length),
-              key: const ValueKey('later'),
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
-              ),
-            ),
+          SectionHeader(
+            key: const ValueKey('later'),
+            icon: Icons.schedule,
+            title: l10n.plannedLater,
+            counter: '${later.length}',
           ),
-          for (final task in later) tile(task, onPlan: false),
+          for (final task in later) card(task, plannedDate: null),
         ],
       ],
     );
   }
+
+  /// A day: its head, its cards and the room left on it.
+  List<Widget> _day(
+    BuildContext context,
+    WidgetRef ref, {
+    required PlannedDay day,
+    required LocalDate today,
+    required int capacity,
+    required int count,
+    required DayOverride? dayOverride,
+    required List<Widget> cards,
+  }) => [
+    _DayHeader(
+      date: day.date,
+      today: today,
+      count: count,
+      capacity: capacity,
+      dayOverride: dayOverride,
+      onTap: () => unawaited(
+        showDayOverrideDialog(
+          context,
+          ref,
+          date: day.date,
+          capacity: capacity,
+          override: dayOverride,
+        ),
+      ),
+    ),
+    ...cards,
+    if (capacity > count)
+      _FreeSlots(
+        key: ValueKey('free-${day.date.toIso()}'),
+        count: capacity - count,
+      ),
+  ];
 }
 
-/// The date of a day, how full it is, and a tap target that changes its
-/// capacity. Keyed `ValueKey('day-<iso date>')`.
+/// The head of a day (D22): its name, "· rest day", how full it is and the
+/// button that changes its capacity. A tap anywhere on it does the same.
+/// Keyed `ValueKey('day-<iso date>')`.
 class _DayHeader extends StatelessWidget {
   const _DayHeader({
-    required this.day,
+    required this.date,
     required this.today,
     required this.count,
     required this.capacity,
@@ -191,14 +283,13 @@ class _DayHeader extends StatelessWidget {
     required this.onTap,
   });
 
-  final PlannedDay day;
+  final LocalDate date;
   final LocalDate today;
 
   /// Tasks the day holds; for today the ones done from its list too.
   final int count;
 
-  /// The day's full capacity. At 0 (a rest day) the header reads "Rest day"
-  /// like the steppers of Settings, unless a pinned task is on it.
+  /// The day's full capacity; 0 is a rest day.
   final int capacity;
 
   /// The capacity set for this date, when there is one.
@@ -208,68 +299,190 @@ class _DayHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final overloaded = day.isOverloaded;
-    final countColor = overloaded
-        ? theme.colorScheme.error
-        : theme.colorScheme.onSurfaceVariant;
+    final c = AppColors.of(context);
+    final isToday = date == today;
     final note = dayOverride?.note;
+    final restDay = capacity == 0;
+    final small = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: c.muted,
+    );
 
     return InkWell(
-      key: ValueKey('day-${day.date.toIso()}'),
+      key: ValueKey('day-${date.toIso()}'),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  text: switch (today.daysUntil(day.date)) {
-                    0 => l10n.dateToday,
-                    1 => l10n.dateTomorrow,
-                    _ => shortDate(context, day.date),
-                  },
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: theme.colorScheme.primary,
+        padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppDims.minTapTarget),
+          child: Row(
+            children: [
+              if (isToday) ...[
+                Icon(Icons.today_outlined, size: 20, color: c.accent),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    text: switch (today.daysUntil(date)) {
+                      0 => l10n.dateToday,
+                      1 => l10n.dateTomorrow,
+                      _ => dayTitle(context, date),
+                    },
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: isToday ? c.todayName : c.title,
+                    ),
+                    children: [
+                      if (restDay)
+                        TextSpan(text: l10n.planRestDayNote, style: small),
+                      if (note != null && note.isNotEmpty)
+                        TextSpan(text: '  $note', style: small),
+                    ],
                   ),
-                  children: [
-                    if (note != null && note.isNotEmpty)
-                      TextSpan(
-                        text: '  $note',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (dayOverride != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Tooltip(
-                  message: l10n.planChangedCapacity,
-                  child: Icon(Icons.tune, size: 16, color: countColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            if (overloaded)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Tooltip(
-                  message: l10n.planOverloaded,
-                  child: Icon(Icons.error_outline, size: 16, color: countColor),
+              if (!(restDay && count == 0))
+                CapacityPill(count: count, capacity: capacity),
+              IconButton(
+                key: ValueKey('tune-${date.toIso()}'),
+                onPressed: onTap,
+                tooltip: dayOverride != null
+                    ? l10n.planChangedCapacity
+                    : l10n.overrideTitle(shortDate(context, date)),
+                icon: Icon(
+                  Icons.tune,
+                  color: dayOverride != null ? c.accent : c.muted,
                 ),
               ),
-            Text(
-              capacity == 0 && count == 0
-                  ? l10n.capacityRestDay
-                  : l10n.planDayCount(count, capacity),
-              style: theme.textTheme.bodyMedium?.copyWith(color: countColor),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// How full a day is (D22): a dot for each slot, filled for the taken ones,
+/// and "count/capacity"; over capacity a red pill with an alert icon.
+class CapacityPill extends StatelessWidget {
+  const CapacityPill({required this.count, required this.capacity, super.key});
+
+  final int count;
+  final int capacity;
+
+  /// More slots than this read better as the number alone.
+  static const maxDots = 8;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final c = AppColors.of(context);
+    final over = count > capacity;
+    final dots = !over && capacity > 0 && capacity <= maxDots;
+    final foreground = over ? c.capOverFg : c.capPillFg;
+    return Container(
+      height: AppDims.capPillHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: over ? c.capOverBg : c.capPillBg,
+        borderRadius: BorderRadius.circular(14),
+        border: over ? null : Border.all(color: c.track),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (over) Icon(Icons.error_outline, size: 14, color: foreground),
+          if (dots)
+            for (var i = 0; i < capacity; i++)
+              Padding(
+                padding: EdgeInsets.only(right: i == capacity - 1 ? 0 : 3),
+                child: Container(
+                  width: AppDims.capDot,
+                  height: AppDims.capDot,
+                  decoration: BoxDecoration(
+                    color: i < count ? c.accent : c.dotOff,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          if (over || dots) const SizedBox(width: 6),
+          Text(
+            l10n.planDayCount(count, capacity),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: foreground,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The room left on a day: a dashed box "N slots free" (D22).
+class _FreeSlots extends StatelessWidget {
+  const _FreeSlots({required this.count, super.key});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.of(context);
+    return Padding(
+      padding: AppDims.cardMargin,
+      child: CustomPaint(
+        painter: _DashedBorder(color: c.freeBorder),
+        child: SizedBox(
+          height: AppDims.freeSlotHeight,
+          child: Center(
+            child: Text(
+              context.l10n.planFreeSlots(count),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: c.muted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorder extends CustomPainter {
+  _DashedBorder({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final outline = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Offset.zero & size,
+          const Radius.circular(14),
+        ).deflate(0.75),
+      );
+    const dash = 6.0;
+    const gap = 4.0;
+    for (final metric in outline.computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += dash + gap) {
+        canvas.drawPath(metric.extractPath(d, d + dash), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorder oldDelegate) => oldDelegate.color != color;
 }

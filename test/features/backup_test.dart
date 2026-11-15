@@ -8,7 +8,7 @@ import 'package:tasks_order/domain/model/backup.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/repository/backup_repository.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -178,7 +178,7 @@ void main() {
     // The plan follows: the first task of the backup is on Today.
     await tester.tap(find.byIcon(Icons.today_outlined));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(TaskTile, 'Task x'), findsOneWidget);
+    expect(find.widgetWithText(TaskCard, 'Task x'), findsOneWidget);
   });
 
   testWidgets('Cancel keeps everything', (tester) async {

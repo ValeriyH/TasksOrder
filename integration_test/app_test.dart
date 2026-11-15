@@ -12,6 +12,7 @@ import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/data/db/database.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/repository/notification_scheduler.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 /// The happy path of T-504 on a device or emulator:
 ///
@@ -69,11 +70,13 @@ void main() {
     // The button turns on with the next frame.
     await tester.pump();
     await tester.tap(find.text('Add'));
-    await pumpUntil(tester, find.text('Planned 1/1'));
+    await pumpUntil(tester, find.text('0 of 1'));
     expect(find.text('Buy milk'), findsOneWidget);
 
-    // Open the editor, rename, save.
+    // Open the editor through the task menu (D22), rename, save.
     await tester.tap(find.text('Buy milk'));
+    await pumpUntil(tester, find.byKey(const ValueKey('menuEdit')));
+    await tester.tap(find.byKey(const ValueKey('menuEdit')));
     await pumpUntil(tester, find.text('Edit task'));
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Buy milk'),
@@ -84,7 +87,7 @@ void main() {
     expect(find.text('Edit task'), findsNothing);
 
     // Complete it: today is done.
-    await tester.tap(find.byType(Checkbox));
+    await tester.tap(find.byType(TaskDoneButton));
     await pumpUntil(tester, find.text('All done for today'));
 
     // The Tasks tab lists it among the done ones.
@@ -92,7 +95,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Buy oat milk'), findsNothing);
     // The filter chips scroll sideways; on a phone Done is off screen.
-    final done = find.widgetWithText(ChoiceChip, 'Done');
+    final done = find.byKey(const ValueKey('filter-done'));
     await tester.ensureVisible(done);
     await tester.pumpAndSettle();
     await tester.tap(done);

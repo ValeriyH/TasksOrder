@@ -118,6 +118,18 @@ void main() {
       expect((await stored('b')).completedOnPlan, isFalse);
     });
 
+    test(
+      'complete stores the plan day, uncomplete clears it (T-907)',
+      () async {
+        final thursday = LocalDate(2026, 11, 19);
+        await repo.complete('a', t1, onPlan: false, plannedDate: thursday);
+        expect((await stored('a')).completedPlanDate, thursday);
+
+        await repo.uncomplete('a', t2);
+        expect((await stored('a')).completedPlanDate, isNull);
+      },
+    );
+
     test('uncomplete returns the task to active', () async {
       await repo.complete('a', t1, onPlan: true);
       await repo.uncomplete('a', t2);

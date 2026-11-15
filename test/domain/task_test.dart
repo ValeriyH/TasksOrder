@@ -141,6 +141,13 @@ void main() {
     test('completedOnPlan needs a done task', () {
       expect(() => newTask().copyWith(completedOnPlan: true), isAssertionError);
     });
+
+    test('completedPlanDate needs a done task (T-907)', () {
+      expect(
+        () => newTask().copyWith(completedPlanDate: LocalDate(2026, 11, 13)),
+        isAssertionError,
+      );
+    });
   });
 
   group('complete / uncomplete', () {
@@ -156,6 +163,14 @@ void main() {
     test('complete records whether the task was on the list of today', () {
       expect(newTask().complete(t1, onPlan: true).completedOnPlan, isTrue);
       expect(newTask().complete(t1, onPlan: false).completedOnPlan, isFalse);
+    });
+
+    test('complete records the plan day, uncomplete clears it (T-907)', () {
+      final day = LocalDate(2026, 11, 19);
+      final done = newTask().complete(t1, onPlan: false, plannedDate: day);
+      expect(done.completedPlanDate, day);
+      expect(newTask().complete(t1, onPlan: false).completedPlanDate, isNull);
+      expect(done.uncomplete(t2).completedPlanDate, isNull);
     });
 
     test('complete keeps the Focus mark', () {

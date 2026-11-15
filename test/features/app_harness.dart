@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tasks_order/app/app.dart';
 import 'package:tasks_order/application/backup.dart';
@@ -19,6 +20,21 @@ import '../data/test_database.dart';
 
 /// The whole app on an in-memory database with a fixed clock, for widget
 /// tests of the screens.
+/// Opens the editor of the task card [card]: a tap opens the task menu
+/// (D22), then "Edit".
+Future<void> openEditorOf(WidgetTester tester, Finder card) async {
+  await tester.tap(card);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('menuEdit')));
+  await tester.pumpAndSettle();
+}
+
+/// Opens the task menu of the task card [card] (D22).
+Future<void> openMenuOf(WidgetTester tester, Finder card) async {
+  await tester.tap(card);
+  await tester.pumpAndSettle();
+}
+
 class AppHarness {
   AppHarness._(
     this.tester,
@@ -72,6 +88,9 @@ class AppHarness {
       container.dispose();
       await db.close();
     });
+    // Task cards (D22) are tall: a tall window keeps a whole test list built.
+    await tester.binding.setSurfaceSize(const Size(800, 3000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     final harness = AppHarness._(tester, container, scheduler, homeWidget);
 
     await harness.real(() async {

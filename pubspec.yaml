@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.4.0+6
+version: 0.5.0+7
 
 environment:
   sdk: ^3.14.0
@@ -136,16 +136,16 @@ flutter_launcher_icons:
     icon_size: 256
 
 # Launch screen (T-503): `dart run flutter_native_splash:create`. Background
-# colours are the surface colours of the light and dark themes.
+# colours are the backgrounds of the light and dark themes (AppColors, D22).
 flutter_native_splash:
-  color: "#FBF8FF"
-  color_dark: "#121318"
+  color: "#F3F4F6"
+  color_dark: "#0F1115"
   image: assets/icon/splash.png
   image_dark: assets/icon/splash_dark.png
   android_12:
     image: assets/icon/splash.png
     image_dark: assets/icon/splash_dark.png
-    color: "#FBF8FF"
-    color_dark: "#121318"
+    color: "#F3F4F6"
+    color_dark: "#0F1115"
   ios: false
   web: false

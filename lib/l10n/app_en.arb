@@ -168,11 +168,15 @@
   "@errorLoading": {
     "description": "Shown instead of a screen when the database failed"
   },
-  "todayPlannedHeader": "Planned {left}/{total}",
-  "@todayPlannedHeader": {
-    "description": "Today: header of today's list, tasks left of all the tasks the day holds today (left plus done from the list)",
+  "todayPlanned": "Planned",
+  "@todayPlanned": {
+    "description": "Today: title of the section with today's list of the plan"
+  },
+  "todayProgress": "{done} of {total}",
+  "@todayProgress": {
+    "description": "Today: progress of today's list, done of all it holds today (D22)",
     "placeholders": {
-      "left": {
+      "done": {
         "type": "int"
       },
       "total": {
@@ -180,11 +184,14 @@
       }
     }
   },
-  "todayDoneCount": "Done today: {count}",
-  "@todayDoneCount": {
-    "description": "Today: how many tasks of today's list are done",
+  "sectionCount": "{done}/{total}",
+  "@sectionCount": {
+    "description": "Counter at the right of a section header: done of all in the section",
     "placeholders": {
-      "count": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
         "type": "int"
       }
     }
@@ -282,10 +289,6 @@
   "@reasonAtRisk": {
     "description": "Badge and list title: the task will be late"
   },
-  "taskCompleted": "Task completed",
-  "@taskCompleted": {
-    "description": "Snackbar after ticking a task"
-  },
   "dueDateMove": "Move due date",
   "@dueDateMove": {
     "description": "Menu of an overdue task"
@@ -294,9 +297,14 @@
   "@dueDateClear": {
     "description": "Menu of an overdue task"
   },
-  "filterAll": "All",
-  "@filterAll": {
-    "description": "Tasks: filter chip, every active task"
+  "filterActive": "Active",
+  "@filterActive": {
+    "description": "Tasks: filter chip, every task that is not done (was All, D22)"
+  },
+  "tasksActiveCount": "{count, plural, =1{1 active} other{{count} active}}",
+  "@tasksActiveCount": {
+    "description": "Tasks: the line over the title, how many tasks are not done (D22)",
+    "placeholders": {"count": {"type": "int"}}
   },
   "filterDue": "With due date",
   "@filterDue": {
@@ -555,6 +563,15 @@
   "@dateTomorrow": {
     "description": "Header of the day after today"
   },
+  "planRestDayNote": " · rest day",
+  "@planRestDayNote": {
+    "description": "Plan: after the name of a day with capacity 0 (D22)"
+  },
+  "planFreeSlots": "{count, plural, =1{1 slot free} other{{count} slots free}}",
+  "@planFreeSlots": {
+    "description": "Plan: the dashed box under the tasks of a day with room left (D22)",
+    "placeholders": {"count": {"type": "int"}}
+  },
   "planDayCount": "{count}/{capacity}",
   "@planDayCount": {
     "description": "Plan: tasks on a day and the capacity of the day",
@@ -575,19 +592,6 @@
         "type": "int"
       }
     }
-  },
-  "planLater": "Later ({count})",
-  "@planLater": {
-    "description": "Plan: header of the tasks that do not fit the planning horizon",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "planOverloaded": "More than planned",
-  "@planOverloaded": {
-    "description": "Plan: tooltip of the marker of a day that holds more tasks than its capacity"
   },
   "planChangedCapacity": "Capacity changed for this day",
   "@planChangedCapacity": {
@@ -968,5 +972,40 @@
   "ghostTooltip": "A coming repeat",
   "@ghostTooltip": {
     "description": "Tooltip of the repeat icon on a ghost row in the Plan"
+  },
+  "taskDoneButton": "Done",
+  "@taskDoneButton": {
+    "description": "Task card: button that completes the task (D22)"
+  },
+  "taskCompletedButton": "Completed",
+  "@taskCompletedButton": {
+    "description": "Task card: the button of a done task; a tap undoes (D22)"
+  },
+  "completedToday": "Completed today",
+  "@completedToday": {
+    "description": "Task card of a done task: the line under the title"
+  },
+  "completedYesterday": "Completed yesterday",
+  "@completedYesterday": {
+    "description": "Task card of a done task: the line under the title"
+  },
+  "completedOn": "Completed {date}",
+  "@completedOn": {
+    "description": "Task card of a done task: the line under the title, with a short date",
+    "placeholders": {"date": {"type": "String"}}
+  },
+  "noDueDate": "No due date",
+  "@noDueDate": {
+    "description": "Task card: due line of a task without a due date"
+  },
+  "markDoneA11y": "Mark as done: {title}",
+  "@markDoneA11y": {
+    "description": "Screen reader label of the Done button",
+    "placeholders": {"title": {"type": "String"}}
+  },
+  "markUndoneA11y": "Mark as not done: {title}",
+  "@markUndoneA11y": {
+    "description": "Screen reader label of the Completed button",
+    "placeholders": {"title": {"type": "String"}}
   }
 }

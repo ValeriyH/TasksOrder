@@ -1,4 +1,5 @@
-import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:tasks_order/app/app_colors.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 
@@ -36,3 +37,14 @@ String priorityName(AppLocalizations l10n, int priority, int scale) =>
 /// scale, green for Normal, blue for the last.
 Color priorityColor(int priority, int scale) =>
     Color(PriorityLabels.color(priority, scale));
+
+/// The chip colours of a priority on [scale] in the theme of [context]: a
+/// tint of [priorityColor] and a text shade that reads on it (D22).
+PriorityShade priorityShade(BuildContext context, int priority, int scale) {
+  final colors = AppColors.of(context);
+  return PriorityShade.of(
+    priorityColor(priority, scale),
+    Theme.of(context).brightness,
+    colors.card,
+  );
+}

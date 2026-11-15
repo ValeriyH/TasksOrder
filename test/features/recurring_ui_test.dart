@@ -4,7 +4,7 @@ import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/task.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -47,9 +47,9 @@ void main() {
 
       final ghost = find.byKey(const ValueKey('w@2026-11-20'));
       expect(ghost, findsOneWidget);
-      expect(tester.widget(ghost), isA<GhostTaskTile>());
+      expect(tester.widget(ghost), isA<GhostTaskCard>());
       expect(
-        find.descendant(of: ghost, matching: find.byType(Checkbox)),
+        find.descendant(of: ghost, matching: find.byType(TaskDoneButton)),
         findsNothing,
       );
       expect(
@@ -60,7 +60,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('w')),
-          matching: find.byType(Checkbox),
+          matching: find.byType(TaskDoneButton),
         ),
         findsOneWidget,
       );
@@ -85,14 +85,14 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.widgetWithText(TaskTile, 'Task w'),
+          of: find.widgetWithText(TaskCard, 'Task w'),
           matching: find.byIcon(Icons.repeat),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
-          of: find.widgetWithText(TaskTile, 'Task p'),
+          of: find.widgetWithText(TaskCard, 'Task p'),
           matching: find.byIcon(Icons.repeat),
         ),
         findsNothing,
@@ -107,7 +107,7 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.widgetWithText(TaskTile, 'Task w'),
+          of: find.widgetWithText(TaskCard, 'Task w'),
           matching: find.text('Planned for today'),
         ),
         findsOneWidget,
@@ -119,12 +119,12 @@ void main() {
     ) async {
       await start(tester, [recurring('w'), testTask('p', minute: 1)]);
       await tap(tester, find.byIcon(Icons.checklist_outlined));
-      final chip = find.widgetWithText(ChoiceChip, 'Recurring');
+      final chip = find.byKey(const ValueKey('filter-recurring'));
       await tester.ensureVisible(chip);
       await tap(tester, chip);
 
-      expect(find.widgetWithText(TaskTile, 'Task w'), findsOneWidget);
-      expect(find.widgetWithText(TaskTile, 'Task p'), findsNothing);
+      expect(find.widgetWithText(TaskCard, 'Task w'), findsOneWidget);
+      expect(find.widgetWithText(TaskCard, 'Task p'), findsNothing);
     });
 
     testWidgets('a task that is not released yet says from when', (
@@ -138,14 +138,14 @@ void main() {
 
       expect(
         find.descendant(
-          of: find.widgetWithText(TaskTile, 'Task n'),
+          of: find.widgetWithText(TaskCard, 'Task n'),
           matching: find.textContaining('From '),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
-          of: find.widgetWithText(TaskTile, 'Task r'),
+          of: find.widgetWithText(TaskCard, 'Task r'),
           matching: find.textContaining('From '),
         ),
         findsNothing,
@@ -157,7 +157,7 @@ void main() {
     Future<AppHarness> openEditor(WidgetTester tester) async {
       final app = await start(tester, [recurring('w')]);
       await tap(tester, find.byIcon(Icons.checklist_outlined));
-      await tap(tester, find.text('Task w'));
+      await openEditorOf(tester, find.text('Task w'));
       await tap(tester, find.byIcon(Icons.delete_outline));
       expect(find.text('Delete the series?'), findsOneWidget);
       expect(find.text('Skip this time'), findsNothing);
@@ -188,7 +188,7 @@ void main() {
     testWidgets('Today: the next repeat comes', (tester) async {
       final app = await start(tester, [recurring('w')]);
 
-      await tester.longPress(find.text('Task w'));
+      await openMenuOf(tester, find.text('Task w'));
       await tester.pumpAndSettle();
       await tap(tester, find.byKey(const ValueKey('menuSkip')));
 
@@ -203,7 +203,7 @@ void main() {
       final app = await start(tester, [recurring('w')]);
       await tap(tester, find.byIcon(Icons.calendar_month_outlined));
 
-      await tester.longPress(find.byKey(const ValueKey('w')));
+      await openMenuOf(tester, find.byKey(const ValueKey('w')));
       await tester.pumpAndSettle();
       await tap(tester, find.byKey(const ValueKey('menuSkip')));
       await tap(tester, find.text('Undo'));
@@ -215,7 +215,7 @@ void main() {
     testWidgets('an ordinary task has no skip', (tester) async {
       await start(tester, [testTask('p')]);
 
-      await tester.longPress(find.text('Task p'));
+      await openMenuOf(tester, find.text('Task p'));
       await tester.pumpAndSettle();
 
       expect(find.text('Move to a day…'), findsOneWidget);
@@ -237,10 +237,10 @@ void main() {
     ) async {
       final app = await start(tester, [haircut()]);
       final nextId = haircut().successorId;
-      await tap(tester, find.byType(Checkbox).first);
+      await tap(tester, find.byType(TaskDoneButton).first);
       await tap(tester, find.byIcon(Icons.checklist_outlined));
 
-      final tile = find.widgetWithText(TaskTile, 'Task h');
+      final tile = find.widgetWithText(TaskCard, 'Task h');
       expect(
         find.descendant(of: tile, matching: find.text('Paused until tomorrow')),
         findsOneWidget,
@@ -248,7 +248,7 @@ void main() {
 
       await tap(
         tester,
-        find.descendant(of: tile, matching: find.byType(Checkbox)),
+        find.descendant(of: tile, matching: find.byType(TaskDoneButton)),
       );
 
       expect(
@@ -263,8 +263,8 @@ void main() {
 
     testWidgets('undo of the completion lifts the pause', (tester) async {
       await start(tester, [haircut()]);
-      await tap(tester, find.byType(Checkbox).first);
-      await tap(tester, find.text('Undo'));
+      await tap(tester, find.byType(TaskDoneButton).first);
+      await tap(tester, find.text('Completed'));
       await tap(tester, find.byIcon(Icons.checklist_outlined));
 
       expect(find.text('Paused until tomorrow'), findsNothing);
@@ -273,15 +273,15 @@ void main() {
     testWidgets('a series by the calendar is not paused', (tester) async {
       final app = await start(tester, [recurring('w')]);
       final nextId = recurring('w').successorId;
-      await tap(tester, find.byType(Checkbox).first);
+      await tap(tester, find.byType(TaskDoneButton).first);
       await tap(tester, find.byIcon(Icons.checklist_outlined));
 
       expect(find.text('Paused until tomorrow'), findsNothing);
       await tap(
         tester,
         find.descendant(
-          of: find.widgetWithText(TaskTile, 'Task w'),
-          matching: find.byType(Checkbox),
+          of: find.widgetWithText(TaskCard, 'Task w'),
+          matching: find.byType(TaskDoneButton),
         ),
       );
       expect((await app.task(nextId)).isDone, isTrue);
@@ -293,14 +293,14 @@ void main() {
     final app = await start(tester, [recurring('w')]);
     final successorId = recurring('w').successorId;
 
-    await tap(tester, find.byType(Checkbox).first);
+    await tap(tester, find.byType(TaskDoneButton).first);
 
     final next = await app.task(successorId);
     expect(next.isDone, isFalse);
     expect(next.notBefore, LocalDate(2026, 11, 20));
     expect(next.occurrenceDate, LocalDate(2026, 11, 20));
 
-    await tap(tester, find.text('Undo'));
+    await tap(tester, find.text('Completed'));
 
     expect((await all(app)).map((t) => t.id), ['w']);
     expect((await app.task('w')).isDone, isFalse);

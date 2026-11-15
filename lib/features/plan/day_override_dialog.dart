@@ -6,7 +6,7 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/features/settings/settings_screen.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/number_stepper.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 /// Asks for the capacity of one [date] and an optional note, and stores the
 /// answer as a day override; "As the weekday" removes the override (T-403).

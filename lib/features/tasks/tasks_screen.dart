@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:tasks_order/app/app_colors.dart';
 import 'package:tasks_order/app/router.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/application/task_actions.dart';
@@ -12,13 +13,14 @@ import 'package:tasks_order/domain/model/plan.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/planner/planner.dart';
 import 'package:tasks_order/l10n/l10n.dart';
-import 'package:tasks_order/shared/priority_text.dart';
+import 'package:tasks_order/shared/screen_header.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 /// Which tasks the list shows.
 enum TasksFilter {
-  all,
+  /// Every task that is not done (was "All", D22).
+  active,
 
   /// The Focus view of the plan: focused and overdue tasks (D17, D18).
   focus,
@@ -36,7 +38,8 @@ enum TasksFilter {
   done,
 }
 
-/// All active tasks in priority order, with the day the plan gives each.
+/// The active tasks in priority order, with the day the plan gives each, and
+/// the done ones (D22).
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
 
@@ -45,7 +48,26 @@ class TasksScreen extends ConsumerStatefulWidget {
 }
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
-  TasksFilter _filter = TasksFilter.all;
+  TasksFilter _filter = TasksFilter.active;
+
+  /// Tasks completed while the current filter is shown: they stay in the
+  /// list, done, so a tick can be taken back at leisure, until the filter or
+  /// the tab changes (D22).
+  final Set<String> _kept = {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Another tab is shown: the tab is kept, but its tickers stop.
+    if (!TickerMode.valuesOf(context).enabled && _kept.isNotEmpty) {
+      _kept.clear();
+    }
+  }
+
+  void _choose(TasksFilter filter) => setState(() {
+    _filter = filter;
+    _kept.clear();
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -53,16 +75,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final plan = ref.watch(planProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.tabTasks),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: l10n.trashTitle,
-            onPressed: () => unawaited(context.push(AppRoutes.trash)),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton(
         // Each tab has its own button; without a tag of its own two of them
         // would fly as one hero when the editor opens.
@@ -71,74 +83,213 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         onPressed: () => unawaited(context.push(AppRoutes.taskNew)),
         child: const Icon(Icons.add),
       ),
-      body: switch (plan) {
-        AsyncValue(:final value?) => Column(
-          children: [
-            _FilterBar(
-              selected: _filter,
-              onSelected: (filter) => setState(() => _filter = filter),
-            ),
-            Expanded(
-              child: _TaskList(plan: value, filter: _filter),
-            ),
-          ],
-        ),
-        AsyncValue(hasError: true) => Center(child: Text(l10n.errorLoading)),
-        _ => const Center(child: CircularProgressIndicator()),
-      },
+      body: TabBody(
+        child: switch (plan) {
+          AsyncValue(:final value?) => _TasksBody(
+            plan: value,
+            filter: _filter,
+            kept: _kept,
+            onFilter: _choose,
+            onCompleted: (id) => setState(() => _kept.add(id)),
+          ),
+          AsyncValue(hasError: true) => Center(child: Text(l10n.errorLoading)),
+          _ => const Center(child: CircularProgressIndicator()),
+        },
+      ),
     );
   }
 }
 
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({required this.selected, required this.onSelected});
+class _TasksBody extends ConsumerWidget {
+  const _TasksBody({
+    required this.plan,
+    required this.filter,
+    required this.kept,
+    required this.onFilter,
+    required this.onCompleted,
+  });
 
-  final TasksFilter selected;
-  final ValueChanged<TasksFilter> onSelected;
+  final Plan plan;
+  final TasksFilter filter;
+  final Set<String> kept;
+  final ValueChanged<TasksFilter> onFilter;
+  final ValueChanged<String> onCompleted;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    final c = AppColors.of(context);
+    // The plan was computed from these, so they have arrived.
+    final active = ref.watch(activeTasksProvider).requireValue;
+    final later = plan.laterTaskIds.toSet();
+    final focus = {for (final entry in plan.focus) entry.taskId};
+
+    bool matches(Task task, TasksFilter filter) => switch (filter) {
+      TasksFilter.active => true,
+      TasksFilter.focus => focus.contains(task.id),
+      TasksFilter.due => task.dueDate != null,
+      TasksFilter.recurring => task.recurrence != null,
+      TasksFilter.later => later.contains(task.id),
+      // Done tasks have their own list.
+      TasksFilter.done => false,
+    };
+
+    return Column(
+      children: [
+        ScreenHeader(
+          subtitle: l10n.tasksActiveCount(active.length),
+          title: l10n.tabTasks,
+          action: IconButton(
+            icon: Icon(Icons.delete_outline, color: c.title),
+            tooltip: l10n.trashTitle,
+            onPressed: () => unawaited(context.push(AppRoutes.trash)),
+          ),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Row(
+            key: const ValueKey('filters'),
+            spacing: 8,
+            children: [
+              for (final each in TasksFilter.values)
+                _FilterChip(
+                  key: ValueKey('filter-${each.name}'),
+                  label: switch (each) {
+                    TasksFilter.active => l10n.filterActive,
+                    TasksFilter.focus => l10n.taskFocusLabel,
+                    TasksFilter.due => l10n.filterDue,
+                    TasksFilter.recurring => l10n.filterRecurring,
+                    TasksFilter.later => l10n.plannedLater,
+                    TasksFilter.done => l10n.filterDone,
+                  },
+                  // The done ones only grow: no count (owner, D22).
+                  count: each == TasksFilter.done
+                      ? null
+                      : active.where((task) => matches(task, each)).length,
+                  selected: each == filter,
+                  onTap: () => onFilter(each),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: filter == TasksFilter.done
+              ? _DoneList(today: plan.today)
+              : _TaskList(
+                  plan: plan,
+                  tasks: [
+                    for (final task in active)
+                      if (matches(task, filter)) task,
+                  ],
+                  kept: kept,
+                  onCompleted: onCompleted,
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A filter of the Tasks screen (D22): selected with a check and a tint,
+/// otherwise outlined; the count of its active tasks after the label.
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final int? count;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        spacing: 8,
-        children: [
-          for (final filter in TasksFilter.values)
-            ChoiceChip(
-              label: Text(switch (filter) {
-                TasksFilter.all => l10n.filterAll,
-                TasksFilter.focus => l10n.taskFocusLabel,
-                TasksFilter.due => l10n.filterDue,
-                TasksFilter.recurring => l10n.filterRecurring,
-                TasksFilter.later => l10n.plannedLater,
-                TasksFilter.done => l10n.filterDone,
-              }),
-              selected: filter == selected,
-              onSelected: (_) => onSelected(filter),
+    final c = AppColors.of(context);
+    final count = this.count;
+    final radius = BorderRadius.circular(12);
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? c.filterOnBg : c.filterOffBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: selected
+              ? BorderSide.none
+              : BorderSide(color: c.filterOffBorder),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selected) ...[
+                  Icon(Icons.check, size: 16, color: c.filterOnFg),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? c.filterOnFg : c.filterOffFg,
+                  ),
+                ),
+                if (count != null) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? c.filterCountOn : c.filterCountOff,
+                    ),
+                  ),
+                ],
+              ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
 }
 
 class _TaskList extends ConsumerWidget {
-  const _TaskList({required this.plan, required this.filter});
+  const _TaskList({
+    required this.plan,
+    required this.tasks,
+    required this.kept,
+    required this.onCompleted,
+  });
 
   final Plan plan;
-  final TasksFilter filter;
+
+  /// The active tasks of the filter.
+  final List<Task> tasks;
+
+  /// Done while the filter is shown: they stay at the end.
+  final Set<String> kept;
+  final ValueChanged<String> onCompleted;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (filter == TasksFilter.done) return _DoneList(today: plan.today);
-
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    // The plan was computed from these, so they have arrived.
-    final active = ref.watch(activeTasksProvider).requireValue;
-    final scale = ref.watch(settingsProvider).requireValue.priorityScale;
+    final c = AppColors.of(context);
+    final all = ref.watch(allTasksProvider).requireValue;
+    final settings = ref.watch(settingsProvider).requireValue;
+    final scale = settings.priorityScale;
     final today = plan.today;
     final paused = ref.watch(pausedTaskIdsProvider);
 
@@ -149,38 +300,54 @@ class _TaskList extends ConsumerWidget {
         for (final entry in day.entries)
           if (!entry.isGhost) entry.taskId: day.date,
     };
-    final later = plan.laterTaskIds.toSet();
-    final focus = {for (final entry in plan.focus) entry.taskId};
 
-    final tasks = [
-      for (final task in active)
-        if (switch (filter) {
-          TasksFilter.all => true,
-          TasksFilter.focus => focus.contains(task.id),
-          TasksFilter.due => task.dueDate != null,
-          TasksFilter.recurring => task.recurrence != null,
-          TasksFilter.later => later.contains(task.id),
-          // Done tasks have their own list.
-          TasksFilter.done => false,
-        })
-          task,
-    ]..sort((a, b) => Planner.compareForList(a, b, today: today));
+    final sorted = [...tasks]
+      ..sort((a, b) => Planner.compareForList(a, b, today: today));
+    final done = [
+      for (final task in all)
+        if (kept.contains(task.id) && task.isDone && !task.isDeleted) task,
+    ]..sort((a, b) => a.completedAt!.compareTo(b.completedAt!));
+    final rows = [...sorted, ...done];
 
-    if (tasks.isEmpty) {
-      return Center(
-        child: Text(l10n.tasksEmpty, style: theme.textTheme.titleMedium),
-      );
-    }
+    if (rows.isEmpty) return _Empty(color: c.muted, text: l10n.tasksEmpty);
 
     return ListView.builder(
-      // Room for the button above the last task.
-      padding: const EdgeInsets.only(bottom: 88),
-      itemCount: tasks.length,
+      // Room for the add button and the navigation below the last card.
+      padding: const EdgeInsets.only(bottom: AppDims.listBottomPadding),
+      itemCount: rows.length,
       itemBuilder: (context, index) {
-        final task = tasks[index];
+        final task = rows[index];
+        if (task.isDone) {
+          return TaskCard(
+            key: ValueKey(task.id),
+            task: task,
+            scale: scale,
+            today: today,
+            isDone: true,
+            doneOn: Planner.completionDay(task, settings.dayStartHour),
+            onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
+            onToggleDone: () =>
+                unawaited(ref.read(taskActionsProvider).uncomplete(task.id)),
+          );
+        }
+
         final date = plannedDate[task.id];
         // On today's list: a completion uses up its slot (D19).
         final onPlan = date == today;
+
+        Future<void> complete() async {
+          // A paused task (T-710) is not completed; the hint says why.
+          final completes = !paused.contains(task.id);
+          await toggleDone(
+            context,
+            ref,
+            task,
+            onPlan: onPlan,
+            plannedDate: date,
+            isDone: false,
+          );
+          if (completes) onCompleted(task.id);
+        }
 
         Future<void> toggleFocus() async {
           final messenger = ScaffoldMessenger.of(context);
@@ -196,11 +363,10 @@ class _TaskList extends ConsumerWidget {
 
         return Dismissible(
           key: ValueKey(task.id),
-          // The swipe only triggers the action and the row slides back; a
-          // completed task leaves the list when the database reports it.
+          // The swipe only triggers the action and the card slides back.
           confirmDismiss: (direction) async {
             if (direction == DismissDirection.startToEnd) {
-              await completeWithUndo(context, ref, task, onPlan: onPlan);
+              await complete();
             } else {
               await toggleFocus();
             }
@@ -220,26 +386,21 @@ class _TaskList extends ConsumerWidget {
             color: theme.colorScheme.secondaryContainer,
             iconColor: theme.colorScheme.onSecondaryContainer,
           ),
-          child: TaskTile(
+          child: TaskCard(
             task: task,
             scale: scale,
             today: today,
             paused: paused.contains(task.id),
-            onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
-            onCompleted: () =>
-                unawaited(completeWithUndo(context, ref, task, onPlan: onPlan)),
-            onMoveDueDate: () =>
-                unawaited(moveDueDate(context, ref, task, today)),
-            onClearDueDate: () =>
-                unawaited(ref.read(taskActionsProvider).setDueDate(task, null)),
-            badges: [
-              TaskBadge(
+            onTap: () => unawaited(showTaskMenu(context, ref, task, today)),
+            onToggleDone: () => unawaited(complete()),
+            chips: [
+              TaskChip(
                 label: switch (date) {
                   null => l10n.plannedLater,
                   _ when onPlan => l10n.plannedToday,
                   final date => l10n.plannedFor(shortDate(context, date)),
                 },
-                icon: Icons.schedule,
+                icon: Icons.calendar_today_outlined,
               ),
             ],
           ),
@@ -249,8 +410,35 @@ class _TaskList extends ConsumerWidget {
   }
 }
 
+/// Nothing in a filter (D22): the list icon and a line.
+class _Empty extends StatelessWidget {
+  const _Empty({required this.color, required this.text});
+
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.checklist, size: 40, color: color),
+        const SizedBox(height: 12),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 /// Completed tasks, the latest first, under a header for each day. A tap on
-/// the checkbox returns the task to the active ones.
+/// "Completed" returns the task to the active ones.
 class _DoneList extends ConsumerWidget {
   const _DoneList({required this.today});
 
@@ -259,7 +447,7 @@ class _DoneList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
+    final c = AppColors.of(context);
     final settings = ref.watch(settingsProvider).requireValue;
     final scale = settings.priorityScale;
     final done =
@@ -270,11 +458,7 @@ class _DoneList extends ConsumerWidget {
             .toList()
           ..sort((a, b) => b.completedAt!.compareTo(a.completedAt!));
 
-    if (done.isEmpty) {
-      return Center(
-        child: Text(l10n.tasksEmpty, style: theme.textTheme.titleMedium),
-      );
-    }
+    if (done.isEmpty) return _Empty(color: c.muted, text: l10n.tasksEmpty);
 
     // The day of a completion follows the day start of the settings (D15).
     LocalDate dayOf(Task task) =>
@@ -288,54 +472,41 @@ class _DoneList extends ConsumerWidget {
         header = day;
         rows.add(
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
             child: Text(
               switch (day.daysUntil(today)) {
                 0 => l10n.dateToday,
                 1 => l10n.dateYesterday,
                 _ => shortDate(context, day),
               },
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.primary,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: c.muted,
               ),
             ),
           ),
         );
       }
-      final priority = task.priority;
       rows.add(
-        ListTile(
+        TaskCard(
           key: ValueKey(task.id),
+          task: task,
+          scale: scale,
+          today: today,
+          isDone: true,
+          doneOn: day,
           onTap: () => unawaited(context.push(AppRoutes.task(task.id))),
-          leading: Checkbox(
-            value: true,
-            onChanged: (_) =>
-                unawaited(ref.read(taskActionsProvider).uncomplete(task.id)),
-          ),
-          title: Text(
-            task.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              decoration: TextDecoration.lineThrough,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          subtitle: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: TaskBadge(
-                label: priorityName(l10n, priority, scale),
-                dotColor: priorityColor(priority, scale),
-              ),
-            ),
-          ),
+          onToggleDone: () =>
+              unawaited(ref.read(taskActionsProvider).uncomplete(task.id)),
         ),
       );
     }
 
-    return ListView(padding: const EdgeInsets.only(bottom: 88), children: rows);
+    return ListView(
+      padding: const EdgeInsets.only(bottom: AppDims.listBottomPadding),
+      children: rows,
+    );
   }
 }
 
@@ -354,13 +525,19 @@ class _SwipeBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: color,
-      child: Align(
-        alignment: alignment,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Icon(icon, color: iconColor),
+    return Padding(
+      padding: AppDims.cardMargin,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(AppDims.cardRadius),
+        ),
+        child: Align(
+          alignment: alignment,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Icon(icon, color: iconColor),
+          ),
         ),
       ),
     );

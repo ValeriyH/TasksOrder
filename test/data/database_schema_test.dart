@@ -12,6 +12,7 @@ import 'package:tasks_order/domain/model/task.dart' show TaskStatus;
 import 'generated_migrations/schema.dart';
 import 'generated_migrations/schema_v1.dart' as v1;
 import 'generated_migrations/schema_v2.dart' as v2;
+import 'generated_migrations/schema_v3.dart' as v3;
 import 'test_database.dart';
 
 void main() {
@@ -40,8 +41,8 @@ void main() {
     updatedAt: DateTime.utc(2026, 11, 13, 8),
   );
 
-  test('schema version is 3', () {
-    expect(db.schemaVersion, 3);
+  test('schema version is 4', () {
+    expect(db.schemaVersion, 4);
   });
 
   group('migration 1 -> 2: priorities become levels (ADR-17)', () {
@@ -116,7 +117,7 @@ void main() {
   group('migration 2 -> 3: repeat rules (D20, T-705)', () {
     final verifier = SchemaVerifier(GeneratedHelper());
 
-    test('a schema 2 database with data opens as 3, tasks unchanged', () async {
+    test('a schema 2 database with data opens as 4, tasks unchanged', () async {
       final schema = await verifier.schemaAt(2);
       final old = v2.DatabaseAtV2(schema.newConnection());
       final created = DateTime.utc(2026, 11, 13, 8).millisecondsSinceEpoch;
@@ -130,7 +131,7 @@ void main() {
 
       final db = AppDatabase(schema.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 3);
+      await verifier.migrateAndValidate(db, 4);
 
       final row = await db.select(db.tasks).getSingle();
       expect(row.title, 'Pay the bill');
@@ -143,13 +144,44 @@ void main() {
       expect(row.occurrenceDate, isNull);
     });
 
-    test('schema 1 migrates to 3 in one go', () async {
+    test('schema 1 migrates to 4 in one go', () async {
       final schema = await verifier.schemaAt(1);
       final db = AppDatabase(schema.newConnection());
       addTearDown(db.close);
 
-      await verifier.migrateAndValidate(db, 3);
+      await verifier.migrateAndValidate(db, 4);
     });
+  });
+
+  group('migration 3 -> 4: the plan day of a completion (T-907)', () {
+    final verifier = SchemaVerifier(GeneratedHelper());
+
+    test(
+      'a schema 3 database with a done task opens as 4, no plan day',
+      () async {
+        final schema = await verifier.schemaAt(3);
+        final old = v3.DatabaseAtV3(schema.newConnection());
+        final created = DateTime.utc(2026, 11, 13, 8).millisecondsSinceEpoch;
+        final done = DateTime.utc(2026, 11, 13, 9).millisecondsSinceEpoch;
+        await old.customStatement(
+          'INSERT INTO tasks (id, title, priority, status, created_at, '
+          'updated_at, completed_at, completed_on_plan) VALUES '
+          "('a', 'Pay the bill', 3, 1, $created, $done, $done, 1)",
+        );
+        await old.close();
+
+        final db = AppDatabase(schema.newConnection());
+        addTearDown(db.close);
+        await verifier.migrateAndValidate(db, 4);
+
+        final row = await db.select(db.tasks).getSingle();
+        expect(row.status, TaskStatus.done);
+        expect(row.completedOnPlan, isTrue);
+        expect(row.completedAt, DateTime.utc(2026, 11, 13, 9));
+        expect(row.updatedAt, DateTime.utc(2026, 11, 13, 9));
+        expect(row.completedPlanDate, isNull);
+      },
+    );
   });
 
   group('columns match docs/03 Data Model.md', () {
@@ -169,6 +201,7 @@ void main() {
         'updated_at': 'INTEGER NOT NULL',
         'completed_at': 'INTEGER',
         'completed_on_plan': 'INTEGER NOT NULL',
+        'completed_plan_date': 'TEXT',
         'deleted_at': 'INTEGER',
         'recurrence': 'TEXT',
         'series_id': 'TEXT',

@@ -7,7 +7,7 @@ import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/l10n/l10n.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 /// Deleted tasks, the latest first: restore one or remove it for good. What
 /// stays longer than [TaskActions.trashRetention] is removed when the app

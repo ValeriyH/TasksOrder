@@ -13,7 +13,7 @@ import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/number_stepper.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 /// Device settings (language, theme), planning settings and the backup.
 /// Every change is stored at once and the plan follows it.

@@ -214,6 +214,37 @@ class Planner {
     );
   }
 
+  /// Whether [task] was completed on the planning day [today]: by the local
+  /// time of its completion and [dayStartHour] (D15).
+  static bool completedOn(Task task, LocalDate today, int dayStartHour) =>
+      completionDay(task, dayStartHour) == today;
+
+  /// The planning day [task] was completed on (D15); null while active.
+  static LocalDate? completionDay(Task task, int dayStartHour) {
+    final completedAt = task.completedAt;
+    return completedAt == null
+        ? null
+        : LocalDate.todayFor(completedAt.toLocal(), dayStartHour);
+  }
+
+  /// Whether the done [task] stays on [day] of the Plan, dimmed at its end
+  /// (T-907, D22): it was on that day when it was completed and the day is
+  /// not past. A completion stored before schema 4 does not know its day; one
+  /// from today's list (D19) stays on today, the day it was done.
+  static bool keptOnDay(
+    Task task,
+    LocalDate day, {
+    required LocalDate today,
+    required int dayStartHour,
+  }) {
+    if (!task.isDone || task.isDeleted || day < today) return false;
+    final planned = task.completedPlanDate;
+    if (planned != null) return planned == day;
+    return task.completedOnPlan &&
+        day == today &&
+        completedOn(task, today, dayStartHour);
+  }
+
   /// The `completedTodayCount` for [plan]: tasks completed on the planning
   /// day [today] from that day's list (`Task.completedOnPlan`). A task done
   /// ahead of its day, from the Focus strip or the task list, held no slot

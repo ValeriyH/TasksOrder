@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/domain/model/settings.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -50,7 +51,7 @@ void main() {
     final app = await AppHarness.start(tester, tasks: tasks);
     final sent = app.homeWidget.payloads.length;
 
-    await tester.tap(find.byType(Checkbox).first);
+    await tester.tap(find.byType(TaskDoneButton).first);
     await tester.pumpAndSettle();
 
     expect(app.homeWidget.payloads.length, greaterThan(sent));

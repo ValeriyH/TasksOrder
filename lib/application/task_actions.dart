@@ -34,12 +34,24 @@ class TaskActions {
   }
 
   /// [onPlan]: the task is on today's list of the plan right now (D19).
+  /// [plannedDate]: the day the plan has it on, null when it is not placed
+  /// (T-907); the Plan keeps the done task at the end of that day.
   ///
   /// Returns false and changes nothing when the task is paused: its series
   /// counts from completion and was already completed today (T-710).
-  Future<bool> complete(String id, {required bool onPlan}) async {
+  Future<bool> complete(
+    String id, {
+    required bool onPlan,
+    LocalDate? plannedDate,
+  }) async {
     if (_paused().contains(id)) return false;
-    await _repository.complete(id, _clock(), onPlan: onPlan, today: _today());
+    await _repository.complete(
+      id,
+      _clock(),
+      onPlan: onPlan,
+      plannedDate: plannedDate,
+      today: _today(),
+    );
     return true;
   }
 

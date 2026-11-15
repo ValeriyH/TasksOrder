@@ -6,6 +6,16 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.5.0+7 — 2026-11-15 (M9)
+- **New look** (D22, ADR-23): the owner's design for Today, Plan and Tasks, in light and dark; the other screens take the same colours. Priorities keep their colours, made readable in both themes.
+- **Task cards** with a **Done** button in place of the check box. A done task stays in sight, dimmed, with "Completed today", and **Completed** takes the completion back, so there is no "Undo" message after a completion any more.
+- **A tap on a task opens its menu** (skip this time, move to a day, unpin, move or remove an overdue due date, edit) on Today, Plan and Tasks; no long press.
+- **Today**: the date, a progress bar of today's list ("2 of 3"), sections Focus (with the number of tasks in Focus) and Planned (done/total); tasks done today stay at the end of their section until the day ends.
+- **Plan**: the range of days at the top, a pill with a dot per place of each day ("planned/capacity", red when over), a button to change the capacity of a day, "· rest day", and a dashed box with the free places. A task done ahead stays at the end of the day it was planned for until that day is over, and its place goes to the next task (T-907).
+- **Tasks**: "N active" at the top; the filter **Active** (was All) and every filter with its number of tasks, Done last; a task completed here stays in the list until you choose another filter or leave the tab.
+- The database moves to schema 4 and the backup to format 4: a completion remembers the day it was planned for (an older app refuses such a file).
+- The launch screen takes the new background colours.
+
 ## 0.4.0+6 — 2026-11-15 (M7)
 - **Recurring tasks** (D20, ADR-18): "Repeat" in the editor: every N days, weeks, months or years, by the calendar or counted from the day it is done, or on chosen weekdays. Completing a repeating task brings the next one; "Undo" takes it away again. Deleting asks: skip this time or delete the series.
 - **The coming repeats in the Plan**, dimmed, so the load of the coming weeks is honest; a repeat that finds no day before the next one is dropped, so repeats never pile up on one day. A task that is not open yet says "From <date>".

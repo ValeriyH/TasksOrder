@@ -4,7 +4,7 @@ created: 2026-11-14
 ---
 # 08 User Guide
 
-How to use TasksOrder 0.4. Українською: [[08 User Guide uk]]. The app takes a pile of tasks, each with a priority and an optional due date, and plans how many of them to do each day. You say how many tasks a day can hold; the app decides which ones go where. Nothing is planned by hand unless you want it to be.
+How to use TasksOrder 0.5. Українською: [[08 User Guide uk]]. The app takes a pile of tasks, each with a priority and an optional due date, and plans how many of them to do each day. You say how many tasks a day can hold; the app decides which ones go where. Nothing is planned by hand unless you want it to be.
 
 ## The idea in one minute
 - **Tasks per day.** Settings → Planning → Tasks per day sets a number for each weekday. 0 means a rest day. This is the capacity of the day.
@@ -13,31 +13,36 @@ How to use TasksOrder 0.4. Українською: [[08 User Guide uk]]. The app
 - **The plan follows you.** Add, complete, delete or edit a task, change a setting, or let the day pass: the plan is computed again at once. Nothing has to be moved by hand.
 
 ## Today
-What to do today, in order.
+What to do today, in order. At the top: the date, and a bar with "done of total" for today's list.
 - **+** adds a task: type a title, pick a priority if it is not Normal, press Add.
-- The checkbox completes a task. A completed task leaves its slot empty; the next task does not slide in, so finishing the list means the day is done. "Undo" on the message brings it back.
-- A tap opens the task in the editor.
-- **Focus** at the top: tasks you marked to keep in sight, and overdue tasks. They are still in the plan on their own day; Focus is a second look at them.
-- The header shows "Planned left/total" and how many tasks are done today.
+- Each task is a card: its priority and marks (pinned, repeat, planned day, at risk), the title, the due date, and a **Done** button. A done task stays on the screen until the day ends, dimmed at the end of its section, with "Completed today"; its button reads **Completed**, and a tap on it takes the completion back. A completed task leaves its slot empty: the next task does not slide in, so finishing the list means the day is done.
+- A tap on a card opens its menu: skip this time (a repeating task), move to a day, unpin, move or remove an overdue due date, edit.
+- **Focus** at the top: tasks you marked to keep in sight, and overdue tasks. They are still in the plan on their own day; Focus is a second look at them. The number at the right of the section is how many tasks are in Focus; it shows the first few and "+N more".
+- **Planned**: the tasks the plan puts on today, with "done/total" at the right.
 - A banner appears when today holds more than its capacity (deadlines) or when a deadline cannot be met. A tap on the at-risk banner lists the tasks with ways out: move the due date, one more task today, delete, edit.
 
 ## Plan
-The coming days, each with its tasks and "planned/capacity". A tap on a day header changes the capacity of that one day (for example a holiday or a busy day), with a note; "As the weekday" removes the change. A long press on a task pins it to a day of your choice or unpins it. Tasks that do not fit the horizon are listed under "Later".
+The coming days, each with its tasks. The head of a day shows its name ("· rest day" for a day with no capacity), a pill with a dot for each place of the day and "planned/capacity" (red when the day holds more than its capacity), and a **tune** button: it, or a tap on the head, changes the capacity of that one day (for example a holiday or a busy day), with a note; "As the weekday" removes the change. Under the tasks, a dashed box says how many places are still free.
+- A tap on a task opens the same menu as on Today: move it to a day (a pin) or unpin it, skip a repeat, edit.
+- A task done ahead of its day stays at the end of the day it was planned for, dimmed, until that day is over; its place goes to the next task.
+- Tasks that do not fit the horizon are listed under "Later".
 
 ## Tasks
-All tasks with filters: All, Focus, With due date, Recurring, Later, Done. The bin button opens the **Trash**: deleted tasks stay there for 30 days, can be restored or deleted forever, and leave for good after that.
+All tasks, with "N active" at the top and filters: **Active** (every task not done), Focus, With due date, Recurring, Later, each with its number of tasks, and **Done** at the end. A task you complete here stays in the list, dimmed, so you can take it back with **Completed**, until you choose another filter or leave the tab; the numbers change at once. A swipe to the right completes a task too, a swipe to the left sets or clears Focus. A tap opens the menu. Done lists the completed tasks by day ("Completed yesterday"…); **Completed** returns one.
+
+The bin button opens the **Trash**: deleted tasks stay there for 30 days, can be restored or deleted forever, and leave for good after that.
 
 ## Task editor
 Title, notes, priority, due date, Focus, and "Do on this day" (a pin: the task goes on that day whatever the plan would do). The bin in the top bar moves the task to the Trash.
 
 ## Repeating tasks
 In the editor, "Repeat" opens a sheet: **Every N** days, weeks, months or years, or **Weekdays** (tap the days). "Count from the day it is done" makes the next date count from the completion (a haircut every 30 days); off, the dates follow the calendar whenever you do it (the rent on the 1st; a monthly task from the 31st falls on the last day of shorter months).
-- There is always one real task of a series. Completing it brings the next one with its date; "Undo" takes the next one away again. A missed repeat does not pile up: it is one overdue task, and the series goes on after today.
+- There is always one real task of a series. Completing it brings the next one with its date; taking the completion back (**Completed**) takes the next one away again. A missed repeat does not pile up: it is one overdue task, and the series goes on after today.
 - Where the next date goes depends on the task: pinned to a day, the next one is pinned to its date; with a due date, the next one is due on its date and can be done from the day after the previous one; with neither, it comes back on its date ("From <date>" until then).
-- The Plan shows the coming repeats dimmed, with the repeat icon and no checkbox: they take room like real tasks, so the coming weeks show their true load. A tap opens the task.
-- To skip one repeat, long-press the task in the Plan or Today and choose **Skip this time**: this one goes to the Trash and the next one comes ("Undo" puts it back).
+- The Plan shows the coming repeats dimmed, with their repeat rule and no Done button: they take room like real tasks, so the coming weeks show their true load. A tap opens the task.
+- To skip one repeat, tap the task in the Plan, Today or Tasks and choose **Skip this time**: this one goes to the Trash and the next one comes ("Undo" puts it back).
 - Deleting a repeating task in the editor warns first: **Delete the series?** It goes to the Trash and stops repeating. Restoring it from the Trash resumes the series.
-- A task that counts from the day it is done can be done early: the next date counts from that day. Done once, the next one says **Paused until tomorrow** and its tick only explains why: a second completion on the same day would bring the same date again. Tasks by the calendar are not paused, so you can pay the rent for two months at once.
+- A task that counts from the day it is done can be done early: the next date counts from that day. Done once, the next one says **Paused until tomorrow** and its Done button only explains why: a second completion on the same day would bring the same date again. Tasks by the calendar are not paused, so you can pay the rent for two months at once.
 - "Repeat: No" turns it back into an ordinary task.
 
 ## Home-screen widget (Android)

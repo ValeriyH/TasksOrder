@@ -37,7 +37,7 @@ void main() {
 
   Future<void> openExisting(WidgetTester tester, String title) async {
     await tap(tester, find.byIcon(Icons.checklist_outlined));
-    await tap(tester, find.text(title));
+    await openEditorOf(tester, find.text(title));
   }
 
   Future<void> save(WidgetTester tester) => tap(tester, find.text('Save'));

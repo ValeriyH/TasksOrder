@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<title>Сьогодні — TasksOrder</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#4F46E5}a:hover{color:#3730A3}
+button{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; font-family: Roboto, system-ui, sans-serif; display: flex; flex-direction: column; position: relative; overflow: hidden; {{t.root}}">
+  <header style="padding: 52px 20px 14px; display: flex; flex-direction: column; gap: 2px">
+    <p style="margin: 0; font-size: 14px; font-weight: 500; {{t.muted}}">Неділя, 15 листопада</p>
+    <h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em">Сьогодні</h1>
+    <div style="display: flex; align-items: center; gap: 12px; margin-top: 14px">
+      <div role="progressbar" aria-label="Виконано сьогодні" aria-valuemin="0" aria-valuemax="{{total}}" aria-valuenow="{{doneCount}}" style="flex: 1; height: 8px; border-radius: 4px; overflow: hidden; {{t.track}}">
+        <div style="height: 8px; border-radius: 4px; transition: width 300ms ease; background: {{accent}}; width: {{progress}}"></div>
+      </div>
+      <span style="font-size: 14px; font-weight: 700; {{t.strong}}">{{doneCount}} з {{total}}</span>
+    </div>
+  </header>
+
+  <main style="flex: 1; overflow-y: auto; padding: 4px 16px 168px; display: flex; flex-direction: column; gap: 10px">
+    <sc-for list="{{sections}}" as="s" hint-placeholder-count="2">
+      <section style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 12px 4px 0; {{t.muted}}">
+          <sc-if value="{{s.isFocus}}" hint-placeholder-val="{{true}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>
+          </sc-if>
+          <sc-if value="{{s.isPlanned}}" hint-placeholder-val="{{false}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><rect x="7" y="13" width="4" height="4" fill="currentColor"/></svg>
+          </sc-if>
+          <h2 style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em">{{s.name}}</h2>
+          <span style="margin-left: auto; font-size: 13px; font-weight: 600">{{s.doneCount}}/{{s.count}}</span>
+        </div>
+        <sc-for list="{{s.items}}" as="c" hint-placeholder-count="3">
+          <article style="border-radius: 18px; padding: 14px 14px 12px 16px; display: flex; flex-direction: column; gap: 10px; transition: opacity 200ms ease; {{c.cardStyle}}">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+              <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 700; {{c.pillStyle}}">
+                <span style="width: 8px; height: 8px; border-radius: 4px; background: currentColor"></span>{{c.prio}}
+              </span>
+              <sc-if value="{{c.pinned}}" hint-placeholder-val="{{false}}">
+                <span style="display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 700; {{t.pinChip}}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>Закріплено
+                </span>
+              </sc-if>
+              <sc-if value="{{c.hasRec}}" hint-placeholder-val="{{false}}">
+                <span style="display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 700; {{t.chip}}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>{{c.rec}}
+                </span>
+              </sc-if>
+              <sc-if value="{{c.hasPlan}}" hint-placeholder-val="{{false}}">
+                <span style="display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 700; {{t.chip}}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>{{c.plan}}
+                </span>
+              </sc-if>
+            </div>
+            <h3 style="margin: 0; font-size: 17px; font-weight: 700; line-height: 23px; {{c.titleStyle}}">{{c.title}}</h3>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+              <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; {{c.dueStyle}}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{c.due}}
+              </span>
+              <button aria-label="{{c.aria}}" aria-pressed="{{c.pressed}}" onClick="{{c.toggle}}" style="height: 40px; min-width: 116px; padding: 0 14px; border-radius: 20px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; {{c.btnStyle}}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>{{c.btnLabel}}
+              </button>
+            </div>
+          </article>
+        </sc-for>
+      </section>
+    </sc-for>
+  </main>
+
+  <button aria-label="Додати завдання" style="position: absolute; right: 16px; bottom: 100px; width: 56px; height: 56px; border: 0; border-radius: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; {{t.fab}}">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+  </button>
+
+  <nav aria-label="Головне меню" style="position: absolute; left: 0; right: 0; bottom: 0; height: 80px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; {{t.nav}}">
+    <a href="#" aria-current="page" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; font-size: 12px; font-weight: 700; {{t.navActive}}">
+      <span style="width: 64px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; {{t.navPill}}">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><rect x="7" y="13" width="4" height="4" fill="currentColor"/></svg>
+      </span>Сьогодні
+    </a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; font-size: 12px; font-weight: 500; {{t.navIdle}}">
+      <span style="width: 64px; height: 32px; display: flex; align-items: center; justify-content: center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
+      </span>План
+    </a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; font-size: 12px; font-weight: 500; {{t.navIdle}}">
+      <span style="width: 64px; height: 32px; display: flex; align-items: center; justify-content: center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 7 2 2 4-4"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></svg>
+      </span>Завдання
+    </a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; font-size: 12px; font-weight: 500; {{t.navIdle}}">
+      <span style="width: 64px; height: 32px; display: flex; align-items: center; justify-content: center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </span>Налаштування
+    </a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { done: { 3: true } };
+  }
+  renderVals() {
+    var self = this;
+    var dark = this.props.dark === true || this.props.dark === 'true';
+    var accent = dark ? '#A5B4FC' : '#4F46E5';
+    var T = dark ? {
+      root: 'background:#0F1115;color:#F3F4F6',
+      muted: 'color:#9CA3AF', strong: 'color:#D1D5DB', track: 'background:#262A33',
+      card: 'background:#1A1D24', chip: 'background:#262A33;color:#D1D5DB',
+      pinChip: 'background:rgba(165,180,252,0.16);color:#C7D2FE',
+      title: 'color:#F9FAFB', titleDone: 'color:#9CA3AF;text-decoration:line-through',
+      due: 'color:#9CA3AF', dueAlert: 'color:#FCA5A5',
+      btn: 'border:1.5px solid #A5B4FC;background:transparent;color:#A5B4FC',
+      btnDone: 'border:0;background:#2E333D;color:#D1D5DB',
+      fab: 'background:#3B4A8A;color:#E0E7FF;box-shadow:0 6px 18px rgba(0,0,0,0.45)',
+      nav: 'background:#1A1D24', navActive: 'color:#F3F4F6', navIdle: 'color:#9CA3AF', navPill: 'background:#3A4152'
+    } : {
+      root: 'background:#F3F4F6;color:#111827',
+      muted: 'color:#4B5563', strong: 'color:#374151', track: 'background:#E5E7EB',
+      card: 'background:#FFFFFF;box-shadow:0 1px 2px rgba(17,24,39,0.06),0 2px 8px rgba(17,24,39,0.04)',
+      chip: 'background:#F3F4F6;color:#374151',
+      pinChip: 'background:#E0E7FF;color:#3730A3',
+      title: 'color:#111827', titleDone: 'color:#6B7280;text-decoration:line-through',
+      due: 'color:#4B5563', dueAlert: 'color:#B91C1C',
+      btn: 'border:1.5px solid #4F46E5;background:transparent;color:#4F46E5',
+      btnDone: 'border:0;background:#E5E7EB;color:#374151',
+      fab: 'background:#E0E7FF;color:#312E81;box-shadow:0 6px 18px rgba(17,24,39,0.16)',
+      nav: 'background:#FFFFFF;box-shadow:0 -1px 0 #E5E7EB', navActive: 'color:#111827', navIdle: 'color:#4B5563', navPill: 'background:#E0E7FF'
+    };
+    var P = dark ? {
+      critical: { label: 'Критичний', s: 'background:rgba(248,113,113,0.18);color:#FCA5A5' },
+      high: { label: 'Високий', s: 'background:rgba(251,146,60,0.16);color:#FDBA74' },
+      normal: { label: 'Звичайний', s: 'background:rgba(74,222,128,0.14);color:#86EFAC' },
+      low: { label: 'Низький', s: 'background:rgba(96,165,250,0.16);color:#93C5FD' },
+      someday: { label: 'Колись', s: 'background:#262A33;color:#D1D5DB' }
+    } : {
+      critical: { label: 'Критичний', s: 'background:#FEE2E2;color:#B91C1C' },
+      high: { label: 'Високий', s: 'background:#FFEDD5;color:#C2410C' },
+      normal: { label: 'Звичайний', s: 'background:#DCFCE7;color:#15803D' },
+      low: { label: 'Низький', s: 'background:#DBEAFE;color:#1D4ED8' },
+      someday: { label: 'Колись', s: 'background:#F3F4F6;color:#4B5563' }
+    };
+    var base = [
+      { id: 1, g: 'focus', title: 'Підготувати звіт для клієнта', p: 'critical', due: 'Сьогодні до 18:00' },
+      { id: 2, g: 'focus', title: 'Вивчити анімації у Flutter', p: 'normal', plan: 'Заплановано на вт, 17 лист.', due: 'Без терміну' },
+      { id: 3, g: 'focus', title: 'Прочитати 20 сторінок', p: 'low', rec: 'Щодня', due: 'Сьогодні' },
+      { id: 4, g: 'planned', title: 'Оплатити комунальні послуги', p: 'high', pinned: true, rec: 'Щомісяця', due: 'Прострочено на 2 дні', alert: true },
+      { id: 5, g: 'planned', title: 'Тренування в залі', p: 'normal', rec: 'Пн, Ср, Пт', due: 'Сьогодні, 19:30' },
+      { id: 6, g: 'planned', title: 'Зателефонувати мамі', p: 'normal', pinned: true, due: 'Сьогодні' },
+      { id: 7, g: 'planned', title: 'Записатися до стоматолога', p: 'low', due: 'До пт, 20 лист.' },
+      { id: 8, g: 'planned', title: 'Розібрати гараж', p: 'someday', due: 'Без терміну' }
+    ];
+    var done = this.state.done;
+    function card(x) {
+      var d = !!done[x.id];
+      var pr = P[x.p];
+      return {
+        title: x.title, prio: pr.label, done: d,
+        pinned: !!x.pinned,
+        rec: x.rec || '', hasRec: !!x.rec,
+        plan: x.plan || '', hasPlan: !!x.plan,
+        due: x.due,
+        pillStyle: pr.s,
+        cardStyle: T.card + (d ? ';opacity:0.62' : ''),
+        titleStyle: d ? T.titleDone : T.title,
+        dueStyle: (x.alert && !d) ? T.dueAlert : T.due,
+        btnLabel: d ? 'Виконано' : 'Готово',
+        btnStyle: d ? T.btnDone : T.btn,
+        pressed: d ? 'true' : 'false',
+        aria: (d ? 'Повернути завдання: ' : 'Виконати завдання: ') + x.title,
+        toggle: function () {
+          var n = Object.assign({}, self.state.done);
+          n[x.id] = !n[x.id];
+          self.setState({ done: n });
+        }
+      };
+    }
+    function section(key, name) {
+      var xs = base.filter(function (x) { return x.g === key; });
+      xs.sort(function (a, b) { return (done[a.id] ? 1 : 0) - (done[b.id] ? 1 : 0); });
+      return {
+        name: name, isFocus: key === 'focus', isPlanned: key === 'planned',
+        count: xs.length,
+        doneCount: xs.filter(function (x) { return done[x.id]; }).length,
+        items: xs.map(card)
+      };
+    }
+    var doneCount = base.filter(function (x) { return done[x.id]; }).length;
+    return {
+      t: T, accent: accent,
+      sections: [section('focus', 'Фокус'), section('planned', 'Заплановано')],
+      doneCount: doneCount, total: base.length,
+      progress: Math.round(doneCount / base.length * 100) + '%'
+    };
+  }
+}
+</script>
+</body>
+</html>

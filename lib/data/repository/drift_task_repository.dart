@@ -43,13 +43,18 @@ class DriftTaskRepository implements TaskRepository {
     String id,
     DateTime now, {
     required bool onPlan,
+    LocalDate? plannedDate,
     LocalDate? today,
   }) => _db.transaction(() async {
     final before = (await _row(id))?.toDomain();
     if (before == null || before.isDone) return;
     await _db
         .update(_db.tasks)
-        .replace(before.complete(now, onPlan: onPlan).toRow());
+        .replace(
+          before
+              .complete(now, onPlan: onPlan, plannedDate: plannedDate)
+              .toRow(),
+        );
     await _insertSuccessor(before, now, today);
   });
 

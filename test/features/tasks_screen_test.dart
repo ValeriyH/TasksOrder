@@ -5,7 +5,7 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/features/task_edit/task_edit_screen.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -28,19 +28,43 @@ void main() {
     return app;
   }
 
-  /// The titles of the task tiles, top to bottom.
+  /// The titles of the active task cards, top to bottom.
   List<String> tiles(WidgetTester tester) => [
-    for (final tile in tester.widgetList<TaskTile>(find.byType(TaskTile)))
-      tile.task.title,
+    for (final card in tester.widgetList<TaskCard>(find.byType(TaskCard)))
+      if (!card.isDone) card.task.title,
+  ];
+
+  /// The titles of the done cards kept in the list (D22), top to bottom.
+  List<String> doneTiles(WidgetTester tester) => [
+    for (final card in tester.widgetList<TaskCard>(find.byType(TaskCard)))
+      if (card.isDone) card.task.title,
+  ];
+
+  /// The label and the count of a filter chip, for example ['Focus', '2'].
+  List<String> chip(WidgetTester tester, String name) => [
+    for (final text in tester.widgetList<Text>(
+      find.descendant(
+        of: find.byKey(ValueKey('filter-$name')),
+        matching: find.byType(Text),
+      ),
+    ))
+      text.data!,
   ];
 
   Finder inTile(String id, Finder matching) => find.descendant(
-    of: find.widgetWithText(TaskTile, 'Task $id'),
+    of: find.widgetWithText(TaskCard, 'Task $id'),
     matching: matching,
   );
 
   Future<void> choose(WidgetTester tester, String filter) async {
-    await tester.tap(find.widgetWithText(ChoiceChip, filter));
+    final chip = find.descendant(
+      of: find.byKey(const ValueKey('filters')),
+      matching: find.text(filter),
+    );
+    // The bar scrolls: Done may be past the right edge.
+    await tester.ensureVisible(chip);
+    await tester.pumpAndSettle();
+    await tester.tap(chip);
     await tester.pumpAndSettle();
   }
 
@@ -132,14 +156,34 @@ void main() {
       expect(inTile('overdue', find.text('Overdue by 3 days')), findsOneWidget);
     });
 
-    testWidgets('With due date, and back to All', (tester) async {
+    testWidgets('With due date, and back to Active', (tester) async {
       await start(tester, tasks: tasks, settings: settings);
 
       await choose(tester, 'With due date');
       expect(tiles(tester), ['Task due', 'Task overdue']);
 
-      await choose(tester, 'All');
+      await choose(tester, 'Active');
       expect(tiles(tester), hasLength(5));
+    });
+
+    testWidgets('each filter counts its active tasks; Done has no count '
+        '(D22)', (tester) async {
+      await start(tester, tasks: tasks, settings: settings);
+
+      expect(find.text('5 active'), findsOneWidget);
+      expect(chip(tester, 'active'), ['Active', '5']);
+      expect(chip(tester, 'focus'), ['Focus', '2']);
+      expect(chip(tester, 'due'), ['With due date', '2']);
+      expect(chip(tester, 'recurring'), ['Recurring', '0']);
+      expect(chip(tester, 'later'), ['Later', '1']);
+      expect(chip(tester, 'done'), ['Done']);
+      // Done is the last chip.
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('filter-done'))).dx,
+        greaterThan(
+          tester.getTopLeft(find.byKey(const ValueKey('filter-later'))).dx,
+        ),
+      );
     });
 
     testWidgets('a filter without matches says so', (tester) async {
@@ -148,6 +192,65 @@ void main() {
       await choose(tester, 'Later');
 
       expect(find.text('No tasks here'), findsOneWidget);
+    });
+  });
+
+  group('done tasks stay until the filter or the tab changes (D22)', () {
+    testWidgets('Done keeps the card, the counts change at once', (
+      tester,
+    ) async {
+      final app = await start(
+        tester,
+        tasks: [testTask('a', priority: 1), testTask('b', priority: 2)],
+      );
+      expect(find.text('2 active'), findsOneWidget);
+
+      await tester.tap(inTile('b', find.byType(TaskDoneButton)));
+      await tester.pumpAndSettle();
+
+      expect(tiles(tester), ['Task a']);
+      expect(doneTiles(tester), ['Task b']);
+      expect(find.text('1 active'), findsOneWidget);
+      expect(chip(tester, 'active'), ['Active', '1']);
+      expect(find.text('Undo'), findsNothing);
+      expect((await app.task('b')).isDone, isTrue);
+
+      // Back and forth while the filter is shown.
+      await tester.tap(inTile('b', find.text('Completed')));
+      await tester.pumpAndSettle();
+      expect(tiles(tester), ['Task a', 'Task b']);
+      expect(find.text('2 active'), findsOneWidget);
+      await tester.tap(inTile('b', find.byType(TaskDoneButton)));
+      await tester.pumpAndSettle();
+      expect(doneTiles(tester), ['Task b']);
+    });
+
+    testWidgets('another filter drops it', (tester) async {
+      await start(tester, tasks: [testTask('a'), testTask('b', minute: 1)]);
+      await tester.tap(inTile('a', find.byType(TaskDoneButton)));
+      await tester.pumpAndSettle();
+      expect(doneTiles(tester), ['Task a']);
+
+      await choose(tester, 'Focus');
+      await choose(tester, 'Active');
+
+      expect(doneTiles(tester), isEmpty);
+      expect(tiles(tester), ['Task b']);
+    });
+
+    testWidgets('another tab drops it', (tester) async {
+      await start(tester, tasks: [testTask('a'), testTask('b', minute: 1)]);
+      await tester.tap(inTile('a', find.byType(TaskDoneButton)));
+      await tester.pumpAndSettle();
+      expect(doneTiles(tester), ['Task a']);
+
+      await tester.tap(find.byIcon(Icons.today_outlined).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.checklist_outlined));
+      await tester.pumpAndSettle();
+
+      expect(doneTiles(tester), isEmpty);
+      expect(tiles(tester), ['Task b']);
     });
   });
 
@@ -163,11 +266,13 @@ void main() {
       await swipe(tester, 'a', right: true);
 
       expect(tiles(tester), ['Task b']);
+      expect(doneTiles(tester), ['Task a']);
       expect((await app.task('a')).completedOnPlan, isTrue);
       // The slot of today stays empty.
       expect(inTile('b', find.text('Planned for Sat, Nov 14')), findsOneWidget);
+      expect(find.text('Undo'), findsNothing);
 
-      await tester.tap(find.text('Undo'));
+      await tester.tap(inTile('a', find.text('Completed')));
       await tester.pumpAndSettle();
       expect(tiles(tester), ['Task a', 'Task b']);
     });
@@ -195,7 +300,10 @@ void main() {
       expect((await app.task('a')).isFocused, isTrue);
       expect(find.text('Added to Focus'), findsOneWidget);
       expect(tiles(tester), ['Task a']);
-      expect(inTile('a', find.byIcon(Icons.center_focus_strong)), findsOne);
+      expect(
+        inTile('a', find.byIcon(Icons.center_focus_strong_outlined)),
+        findsOne,
+      );
 
       await swipe(tester, 'a', right: false);
       expect((await app.task('a')).isFocused, isFalse);
@@ -203,15 +311,19 @@ void main() {
     });
   });
 
-  testWidgets('the checkbox completes, a tap opens the editor', (tester) async {
+  testWidgets('Done completes, a tap opens the menu with Edit (D22)', (
+    tester,
+  ) async {
     final app = await start(tester, tasks: [testTask('a'), testTask('b')]);
 
-    await tester.tap(inTile('a', find.byType(Checkbox)));
+    await tester.tap(inTile('a', find.byType(TaskDoneButton)));
     await tester.pumpAndSettle();
     expect((await app.task('a')).isDone, isTrue);
-
-    await tester.tap(find.text('Task b'));
+    // The "Undo" snack bar lies over the menu until it goes.
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
+
+    await openEditorOf(tester, find.text('Task b'));
     final editor = tester.widget<TaskEditScreen>(find.byType(TaskEditScreen));
     expect(editor.taskId, 'b');
   });
@@ -229,8 +341,9 @@ void main() {
       for (final text in tester.widgetList<Text>(
         find.descendant(of: find.byType(ListView), matching: find.byType(Text)),
       ))
-        // Leave out the priority badge of each task.
-        if (text.data != 'Normal') text.data!,
+        // Leave out the priority chip, the completion line and the button.
+        if (text.data != 'Normal' && !text.data!.startsWith('Completed'))
+          text.data!,
     ];
 
     testWidgets('completed tasks by day, the latest first', (tester) async {
@@ -257,7 +370,10 @@ void main() {
         'Tue, Nov 10',
         'Task d',
       ]);
-      expect(find.byType(TaskTile), findsNothing);
+      expect(
+        tester.widgetList<TaskCard>(find.byType(TaskCard)).map((c) => c.isDone),
+        everyElement(isTrue),
+      );
     });
 
     testWidgets('the day follows the day start hour (D15)', (tester) async {
@@ -273,6 +389,7 @@ void main() {
       await choose(tester, 'Done');
 
       expect(rows(tester), ['Yesterday', 'Task a']);
+      expect(find.text('Completed yesterday'), findsOneWidget);
     });
 
     testWidgets('unticking returns the task to the active ones', (
@@ -283,12 +400,12 @@ void main() {
       await tester.pumpAndSettle();
       await choose(tester, 'Done');
 
-      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.byType(TaskDoneButton));
       await tester.pumpAndSettle();
 
       expect(find.text('No tasks here'), findsOneWidget);
       expect((await app.task('a')).isDone, isFalse);
-      await choose(tester, 'All');
+      await choose(tester, 'Active');
       expect(tiles(tester), ['Task a']);
     });
 
@@ -312,9 +429,11 @@ void main() {
       stored: {'device.locale': 'uk'},
     );
 
-    expect(find.widgetWithText(ChoiceChip, 'Усі'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'З терміном'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'Регулярні'), findsOneWidget);
+    expect(find.text('1 активне'), findsOneWidget);
+    expect(chip(tester, 'active'), ['Активні', '1']);
+    expect(chip(tester, 'due'), ['З терміном', '0']);
+    expect(chip(tester, 'recurring'), ['Регулярні', '0']);
+    expect(chip(tester, 'done'), ['Виконані']);
     expect(find.text('Заплановано на сьогодні'), findsOneWidget);
   });
 }

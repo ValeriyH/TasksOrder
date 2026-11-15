@@ -9,7 +9,7 @@ import 'package:tasks_order/application/task_actions.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/l10n/l10n.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 /// How long a message with "Undo" stays on screen.
 const undoSnackBarDuration = Duration(seconds: 4);
@@ -28,38 +28,39 @@ SnackBar undoSnackBar({
   action: SnackBarAction(label: undoLabel, onPressed: onUndo),
 );
 
-/// Completes the task and offers "Undo" in a snackbar. A task paused until
-/// tomorrow (T-710) is not completed; the snackbar says why.
+/// The Done button of a card on a list that keeps done tasks in sight
+/// (D22): completes the task, or, when it is done ([isDone]), returns it.
+/// No "Undo" snackbar: the card itself undoes. A task paused until tomorrow
+/// (T-710) is not completed; a snackbar says why.
 ///
 /// [onPlan]: the task is on today's list of the plan right now, so its slot
-/// stays empty (D19).
-Future<void> completeWithUndo(
+/// stays empty (D19). [plannedDate]: the day the plan has it on (T-907).
+Future<void> toggleDone(
   BuildContext context,
   WidgetRef ref,
   Task task, {
   required bool onPlan,
+  required LocalDate? plannedDate,
+  required bool isDone,
 }) async {
-  // Taken now: the snackbar may outlive the widget.
   final actions = ref.read(taskActionsProvider);
+  if (isDone) {
+    await actions.uncomplete(task.id);
+    return;
+  }
   final messenger = ScaffoldMessenger.of(context);
   final l10n = context.l10n;
-
-  if (!await actions.complete(task.id, onPlan: onPlan)) {
+  if (!await actions.complete(
+    task.id,
+    onPlan: onPlan,
+    plannedDate: plannedDate,
+  )) {
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(l10n.taskPausedHint)));
     return;
   }
   unawaited(HapticFeedback.lightImpact());
-  messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      undoSnackBar(
-        message: l10n.taskCompleted,
-        undoLabel: l10n.actionUndo,
-        onUndo: () => unawaited(actions.uncomplete(task.id)),
-      ),
-    );
 }
 
 /// Asks for a new due date, today or later, and stores it.
@@ -155,9 +156,9 @@ Future<void> skipWithUndo(
     );
 }
 
-/// What a long press on a task of the Plan or Today offers (T-402, T-711):
-/// skip this repeat of a recurring task, fix it to a day, release it, or
-/// open the editor.
+/// What a tap on a task card offers (T-402, T-711, D22): skip this repeat of
+/// a recurring task, fix it to a day, release it, move or remove the due
+/// date of an overdue task (D18), or open the editor.
 Future<void> showTaskMenu(
   BuildContext context,
   WidgetRef ref,
@@ -191,7 +192,22 @@ Future<void> showTaskMenu(
               title: Text(l10n.pinRemove),
               onTap: () => Navigator.of(context).pop('unpin'),
             ),
+          if (task.dueDate case final due? when due < today) ...[
+            ListTile(
+              key: const ValueKey('menuMoveDue'),
+              leading: const Icon(Icons.event_outlined),
+              title: Text(l10n.dueDateMove),
+              onTap: () => Navigator.of(context).pop('moveDue'),
+            ),
+            ListTile(
+              key: const ValueKey('menuClearDue'),
+              leading: const Icon(Icons.event_busy_outlined),
+              title: Text(l10n.dueDateClear),
+              onTap: () => Navigator.of(context).pop('clearDue'),
+            ),
+          ],
           ListTile(
+            key: const ValueKey('menuEdit'),
             leading: const Icon(Icons.edit_outlined),
             title: Text(l10n.actionEdit),
             onTap: () => Navigator.of(context).pop('edit'),
@@ -219,6 +235,10 @@ Future<void> showTaskMenu(
       }
     case 'unpin':
       await actions.setPinnedDate(task, null);
+    case 'moveDue':
+      await moveDueDate(context, ref, task, today);
+    case 'clearDue':
+      await actions.setDueDate(task, null);
     case 'edit':
       unawaited(context.push(AppRoutes.task(task.id)));
   }

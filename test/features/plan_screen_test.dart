@@ -6,7 +6,7 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/features/task_edit/task_edit_screen.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -59,7 +59,7 @@ void main() {
         ));
       }
     }
-    for (final tile in tester.widgetList<TaskTile>(find.byType(TaskTile))) {
+    for (final tile in tester.widgetList<TaskCard>(find.byType(TaskCard))) {
       found.add((tester.getTopLeft(find.byWidget(tile)).dy, tile.task.title));
     }
     found.sort((a, b) => a.$1.compareTo(b.$1));
@@ -67,7 +67,7 @@ void main() {
   }
 
   Finder inTile(String id, Finder matching) => find.descendant(
-    of: find.widgetWithText(TaskTile, 'Task $id'),
+    of: find.widgetWithText(TaskCard, 'Task $id'),
     matching: matching,
   );
 
@@ -102,18 +102,26 @@ void main() {
         'Task t5',
         'Task t6',
       ]);
+      expect(find.text('13 – 16 November'), findsOneWidget);
       expect(headerTexts(tester, today), ['Today', '1/1']);
       expect(headerTexts(tester, saturday), ['Tomorrow', '3/3']);
+      // A rest day without tasks: the note, no pill.
       expect(headerTexts(tester, LocalDate(2026, 11, 15)), [
-        'Sun, Nov 15',
-        'Rest day',
+        'Sun, 15 November · rest day',
       ]);
-      expect(headerTexts(tester, monday), ['Mon, Nov 16', '1/1']);
-      expect(find.text('Later (1)'), findsOneWidget);
-      // "Later" is below the last day.
+      expect(headerTexts(tester, monday), ['Mon, 16 November', '1/1']);
+      expect(find.text('LATER'), findsOneWidget);
+      // "Later" is below the last day, with its count.
       expect(
-        tester.getTopLeft(find.text('Later (1)')).dy,
+        tester.getTopLeft(find.text('LATER')).dy,
         lessThan(tester.getTopLeft(find.text('Task t6')).dy),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('later')),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
       );
     });
 
@@ -153,13 +161,13 @@ void main() {
         tasks: [testTask('a', priority: 1), testTask('b', priority: 2)],
       );
 
-      await tester.tap(inTile('b', find.byType(Checkbox)));
+      await tester.tap(inTile('b', find.byType(TaskDoneButton)));
       await tester.pumpAndSettle();
 
       expect((await app.task('b')).completedOnPlan, isFalse);
       expect(headerTexts(tester, today), ['Today', '1/1']);
 
-      await tester.tap(inTile('a', find.byType(Checkbox)));
+      await tester.tap(inTile('a', find.byType(TaskDoneButton)));
       await tester.pumpAndSettle();
       expect((await app.task('a')).completedOnPlan, isTrue);
       // Today still holds one task of its one: the done one counts, as on
@@ -167,11 +175,12 @@ void main() {
       expect(headerTexts(tester, today), ['Today', '1/1']);
     });
 
-    testWidgets('a tap opens the editor', (tester) async {
+    testWidgets('a tap opens the menu, and Edit the editor (D22)', (
+      tester,
+    ) async {
       await start(tester, tasks: [testTask('a')]);
 
-      await tester.tap(find.text('Task a'));
-      await tester.pumpAndSettle();
+      await openEditorOf(tester, find.text('Task a'));
 
       expect(find.byType(TaskEditScreen), findsOneWidget);
     });
@@ -185,7 +194,148 @@ void main() {
       );
 
       expect(headerTexts(tester, today), ['Сьогодні', '1/1']);
-      expect(find.text('Пізніше (1)'), findsOneWidget);
+      expect(find.text('ПІЗНІШЕ'), findsOneWidget);
+    });
+  });
+
+  group('the new look (T-904, D22)', () {
+    testWidgets('free slots under a day with room, with plural forms', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        tasks: [testTask('a')],
+        settings: Settings(
+          weeklyCapacity: const [3, 3, 3, 3, 3, 1, 0],
+          planningHorizonDays: 2,
+        ),
+      );
+
+      // Friday holds 3, one task on it.
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('free-${today.toIso()}')),
+          matching: find.text('2 slots free'),
+        ),
+        findsOneWidget,
+      );
+      // Saturday holds 1 and is empty.
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('free-${saturday.toIso()}')),
+          matching: find.text('1 slot free'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('free slots in Ukrainian', (tester) async {
+      await start(
+        tester,
+        settings: Settings(
+          weeklyCapacity: const [5, 5, 5, 5, 5, 2, 0],
+          planningHorizonDays: 2,
+        ),
+        stored: {'device.locale': 'uk'},
+      );
+
+      expect(find.text('Вільно: 5 місць'), findsOneWidget);
+      expect(find.text('Вільно: 2 місця'), findsOneWidget);
+    });
+
+    testWidgets('a task done today stays at the end of today, dimmed', (
+      tester,
+    ) async {
+      final app = await start(
+        tester,
+        tasks: [testTask('a', priority: 1), testTask('b', priority: 2)],
+        settings: Settings(
+          weeklyCapacity: const [2, 2, 2, 2, 2, 2, 2],
+          planningHorizonDays: 1,
+        ),
+      );
+
+      await tester.tap(inTile('a', find.byType(TaskDoneButton)));
+      await tester.pumpAndSettle();
+
+      expect(rows(tester), ['2026-11-13', 'Task b', 'Task a']);
+      expect(
+        tester.widget<TaskCard>(find.widgetWithText(TaskCard, 'Task a')).isDone,
+        isTrue,
+      );
+      expect(headerTexts(tester, today), ['Today', '2/2']);
+      expect(find.text('Task completed'), findsNothing);
+
+      await tester.tap(inTile('a', find.text('Completed')));
+      await tester.pumpAndSettle();
+      expect((await app.task('a')).isDone, isFalse);
+      expect(rows(tester), ['2026-11-13', 'Task a', 'Task b']);
+    });
+
+    testWidgets('a task done ahead stays at the end of its day and its slot '
+        'is planned again (T-907)', (tester) async {
+      final app = await start(
+        tester,
+        tasks: [
+          testTask('a', priority: 1),
+          testTask('b', priority: 2),
+          testTask('c', priority: 3),
+        ],
+        // One a day: a today, b tomorrow, c on Monday (Sunday rests).
+        settings: Settings(
+          weeklyCapacity: const [1, 1, 1, 1, 1, 1, 0],
+          planningHorizonDays: 4,
+        ),
+      );
+      expect(rows(tester), [
+        '2026-11-13',
+        'Task a',
+        '2026-11-14',
+        'Task b',
+        '2026-11-15',
+        '2026-11-16',
+        'Task c',
+      ]);
+
+      await tester.tap(inTile('b', find.byType(TaskDoneButton)));
+      await tester.pumpAndSettle();
+
+      // c moves up into Saturday's slot; b stays at its end, done.
+      expect(rows(tester), [
+        '2026-11-13',
+        'Task a',
+        '2026-11-14',
+        'Task c',
+        'Task b',
+        '2026-11-15',
+        '2026-11-16',
+      ]);
+      expect(headerTexts(tester, saturday), ['Tomorrow', '1/1']);
+      expect(inTile('b', find.text('Completed today')), findsOneWidget);
+      final b = await app.task('b');
+      expect(b.completedPlanDate, saturday);
+      expect(b.completedOnPlan, isFalse);
+
+      await tester.tap(inTile('b', find.text('Completed')));
+      await tester.pumpAndSettle();
+      expect((await app.task('b')).isDone, isFalse);
+      expect(rows(tester).take(4), [
+        '2026-11-13',
+        'Task a',
+        '2026-11-14',
+        'Task b',
+      ]);
+    });
+
+    testWidgets('the tune button opens the capacity of the day', (
+      tester,
+    ) async {
+      await start(tester, tasks: [testTask('a')]);
+
+      await tester.tap(find.byKey(ValueKey('tune-${saturday.toIso()}')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tasks on Sat, Nov 14'), findsOneWidget);
     });
   });
 
@@ -204,7 +354,7 @@ void main() {
         'Task b',
       ]);
 
-      await tester.longPress(find.text('Task b'));
+      await openMenuOf(tester, find.text('Task b'));
       await tester.pumpAndSettle();
       expect(find.text('Unpin'), findsNothing);
       await tester.tap(find.text('Move to a day…'));
@@ -222,7 +372,7 @@ void main() {
       ]);
       expect(inTile('b', find.text('Pinned')), findsOneWidget);
 
-      await tester.longPress(find.text('Task b'));
+      await openMenuOf(tester, find.text('Task b'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Unpin'));
       await tester.pumpAndSettle();
@@ -234,7 +384,7 @@ void main() {
     testWidgets('the menu opens the editor too', (tester) async {
       await start(tester, tasks: [testTask('a')]);
 
-      await tester.longPress(find.text('Task a'));
+      await openMenuOf(tester, find.text('Task a'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
@@ -284,9 +434,15 @@ void main() {
       );
 
       expect(headerTexts(tester, LocalDate(2026, 11, 15)), [
-        'Sun, Nov 15',
+        'Sun, 15 November · rest day',
         '1/0',
       ]);
+      // Over capacity: the red pill with its icon, no dots.
+      final pill = find.descendant(
+        of: header(LocalDate(2026, 11, 15)),
+        matching: find.byIcon(Icons.error_outline),
+      );
+      expect(pill, findsOneWidget);
     });
 
     testWidgets('down to a rest day, and back to the weekday', (tester) async {

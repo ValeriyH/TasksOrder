@@ -5,7 +5,7 @@ import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/features/settings/settings_screen.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 import 'app_harness.dart';
 
@@ -215,8 +215,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.today_outlined));
     await tester.pumpAndSettle();
 
-    expect(find.byType(TaskTile), findsNWidgets(2));
-    expect(find.text('Planned 2/2'), findsOneWidget);
+    expect(find.byType(TaskCard), findsNWidgets(2));
+    expect(find.text('0 of 2'), findsOneWidget);
   });
 
   group('device settings', () {

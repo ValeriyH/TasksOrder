@@ -11,7 +11,7 @@ import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/planner/capacity_resolver.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
-import 'package:tasks_order/shared/task_tile.dart';
+import 'package:tasks_order/shared/task_card.dart';
 
 /// Opens the list of the tasks that will miss their deadline (D16). The list
 /// follows the plan while it is open; a tap on a task offers the ways out
