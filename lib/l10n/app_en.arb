@@ -289,6 +289,15 @@
   "@reasonPinned": {
     "description": "Badge: the user fixed the task to this day"
   },
+  "pinnedTo": "Pinned to {date}",
+  "@pinnedTo": {
+    "description": "Badge: the day the user fixed the task to",
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "reasonDeadline": "Deadline",
   "@reasonDeadline": {
     "description": "Badge: the task is on this day because of its due date"
@@ -617,9 +626,17 @@
   "@actionCancel": {
     "description": "Dialog button: close without changes"
   },
-  "pinMove": "Move to a day…",
+  "pinMove": "Pin to a day…",
   "@pinMove": {
     "description": "Menu of a planned task: fix it to a date the user picks"
+  },
+  "deferUntil": "Postpone until…",
+  "@deferUntil": {
+    "description": "Task menu: keep the task off the plan until a date the user picks (notBefore)"
+  },
+  "deferClear": "Cancel postponement",
+  "@deferClear": {
+    "description": "Task menu of a postponed task: make it available now"
   },
   "pinRemove": "Unpin",
   "@pinRemove": {

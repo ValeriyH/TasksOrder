@@ -401,6 +401,8 @@ class _TaskList extends ConsumerWidget {
             scale: scale,
             today: today,
             paused: paused.contains(task.id),
+            // The planned chip says the day (T-911).
+            showPinDate: false,
             onTap: () => unawaited(showTaskMenu(context, ref, task, today)),
             onToggleDone: () => unawaited(complete()),
             chips: [

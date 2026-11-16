@@ -73,6 +73,27 @@ class TaskActions {
   Future<void> setPinnedDate(Task task, LocalDate? date) =>
       _repository.upsert(task.copyWith(pinnedDate: date), _clock());
 
+  /// Keeps the task off the plan until [date] (T-909); null makes it
+  /// available now. A pin before [date] goes, else the postponement would
+  /// change nothing (a pin leads, T-714). A repeating task moves its start,
+  /// as a save of the editor does ("Start" in docs/03 Data Model.md).
+  Future<void> setNotBefore(Task task, LocalDate? date) {
+    final now = _clock();
+    final pin = task.pinnedDate;
+    var changed = task.copyWith(
+      notBefore: date,
+      pinnedDate: date != null && pin != null && pin < date ? null : pin,
+    );
+    if (changed.recurrence case final rule?) {
+      changed = changed.setRecurrence(
+        rule,
+        today: _today() ?? LocalDate.fromDateTime(now),
+        now: now,
+      );
+    }
+    return _repository.upsert(changed, now);
+  }
+
   /// Moves the task to the Trash.
   Future<void> delete(String id) => _repository.delete(id, _clock());
 

@@ -123,6 +123,7 @@ class _TodayBody extends ConsumerWidget {
       required LocalDate? plannedDate,
       bool isDone = false,
       List<Widget> chips = const [],
+      bool showPinDate = true,
     }) => TaskCard(
       key: ValueKey(task.id),
       task: task,
@@ -134,6 +135,7 @@ class _TodayBody extends ConsumerWidget {
       locked: isDone && older.contains(task.id),
       // Today has its own Focus section (D22).
       showFocus: false,
+      showPinDate: showPinDate,
       chips: chips,
       onTap: () => unawaited(showTaskMenu(context, ref, task, today)),
       onToggleDone: () => unawaited(
@@ -154,6 +156,8 @@ class _TodayBody extends ConsumerWidget {
           card(
             task,
             plannedDate: entry.plannedDate,
+            // The planned chip says the day (T-911).
+            showPinDate: false,
             chips: [
               TaskChip(
                 label: switch (entry.plannedDate) {
@@ -233,23 +237,26 @@ class _TodayBody extends ConsumerWidget {
               ),
             ),
         ],
-        if (plannedTotal > 0) ...[
-          SectionHeader(
-            icon: Icons.today_outlined,
-            title: l10n.todayPlanned,
-            counter: l10n.sectionCount(doneCount, plannedTotal),
-          ),
-          ...planned,
-          for (final task in donePlanned)
-            card(task, plannedDate: today, isDone: true),
-        ],
+        SectionHeader(
+          icon: Icons.today_outlined,
+          title: l10n.todayPlanned,
+          counter: plannedTotal > 0
+              ? l10n.sectionCount(doneCount, plannedTotal)
+              : null,
+        ),
+        // Under the header, above the tasks done today (T-910).
         if (planned.isEmpty) _EmptyDay(allDone: doneCount > 0, tasks: tasks),
+        ...planned,
+        for (final task in donePlanned)
+          card(task, plannedDate: today, isDone: true),
       ],
     );
   }
 }
 
-/// Nothing left on today's list: done, or nothing was planned.
+/// Nothing left on today's list: done, or nothing was planned. A card in
+/// the style of the task cards (T-910): the icon at the left, the line and,
+/// when there are no tasks at all, the hint. Keyed `ValueKey('emptyDay')`.
 class _EmptyDay extends StatelessWidget {
   const _EmptyDay({required this.allDone, required this.tasks});
 
@@ -260,34 +267,52 @@ class _EmptyDay extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final c = AppColors.of(context);
+    final radius = BorderRadius.circular(AppDims.cardRadius);
+    final noTasks = !tasks.any((task) => !task.isDone);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
-      child: Column(
-        children: [
-          Icon(
-            allDone ? Icons.celebration_outlined : Icons.wb_sunny_outlined,
-            size: 48,
-            color: c.muted,
+      key: const ValueKey('emptyDay'),
+      padding: AppDims.cardMargin,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: c.card,
+          borderRadius: radius,
+          boxShadow: c.cardShadow,
+        ),
+        child: Padding(
+          padding: AppDims.cardPadding,
+          child: Row(
+            children: [
+              Icon(
+                allDone ? Icons.celebration_outlined : Icons.wb_sunny_outlined,
+                size: 28,
+                color: allDone ? c.accent : c.muted,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      allDone ? l10n.todayAllDone : l10n.todayEmpty,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: c.title,
+                      ),
+                    ),
+                    if (noTasks) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.todayEmptyHint,
+                        style: TextStyle(fontSize: 13, color: c.muted),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            allDone ? l10n.todayAllDone : l10n.todayEmpty,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: c.title,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (!tasks.any((task) => !task.isDone)) ...[
-            const SizedBox(height: 8),
-            Text(
-              l10n.todayEmptyHint,
-              style: TextStyle(fontSize: 14, color: c.muted),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

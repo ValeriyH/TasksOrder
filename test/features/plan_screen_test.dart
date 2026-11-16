@@ -149,7 +149,7 @@ void main() {
       expect(inTile('d1', find.text('Deadline')), findsOneWidget);
       expect(inTile('d2', find.text('Extra')), findsOneWidget);
       expect(inTile('d3', find.text('At risk')), findsOneWidget);
-      expect(inTile('p', find.text('Pinned')), findsOneWidget);
+      expect(inTile('p', find.text('Pinned to Sat, Nov 14')), findsOneWidget);
       expect(find.text('1 task at risk'), findsOneWidget);
     });
 
@@ -183,6 +183,18 @@ void main() {
       await openEditorOf(tester, find.text('Task a'));
 
       expect(find.byType(TaskEditScreen), findsOneWidget);
+    });
+
+    testWidgets('the add button opens the editor of a new task (T-912)', (
+      tester,
+    ) async {
+      await start(tester);
+
+      await tester.tap(find.byTooltip('New task'));
+      await tester.pumpAndSettle();
+
+      final editor = tester.widget<TaskEditScreen>(find.byType(TaskEditScreen));
+      expect(editor.taskId, isNull);
     });
 
     testWidgets('in Ukrainian', (tester) async {
@@ -357,7 +369,7 @@ void main() {
       await openMenuOf(tester, find.text('Task b'));
       await tester.pumpAndSettle();
       expect(find.text('Unpin'), findsNothing);
-      await tester.tap(find.text('Move to a day…'));
+      await tester.tap(find.text('Pin to a day…'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('16'));
       await tester.tap(find.text('OK'));
@@ -370,7 +382,7 @@ void main() {
         '2026-11-16',
         'Task b',
       ]);
-      expect(inTile('b', find.text('Pinned')), findsOneWidget);
+      expect(inTile('b', find.text('Pinned to Mon, Nov 16')), findsOneWidget);
 
       await openMenuOf(tester, find.text('Task b'));
       await tester.pumpAndSettle();

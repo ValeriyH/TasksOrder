@@ -191,9 +191,10 @@ Future<void> skipWithUndo(
     );
 }
 
-/// What a tap on a task card offers (T-402, T-711, D22): skip this repeat of
-/// a recurring task, fix it to a day, release it, move or remove the due
-/// date of an overdue task (D18), or open the editor.
+/// What a tap on a task card offers (T-402, T-711, D22, T-909): skip this
+/// repeat of a recurring task, postpone it or cancel the postponement, fix it
+/// to a day or release it, move or remove the due date of an overdue task
+/// (D18), or open the editor. The sheet closes when its tab is left (T-908).
 Future<void> showTaskMenu(
   BuildContext context,
   WidgetRef ref,
@@ -205,49 +206,66 @@ Future<void> showTaskMenu(
   final choice = await showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
-    builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (task.recurrence != null)
+    builder: (context) => _CloseWhenHidden(
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (task.recurrence != null)
+              ListTile(
+                key: const ValueKey('menuSkip'),
+                leading: const Icon(Icons.skip_next_outlined),
+                title: Text(l10n.skipThisTime),
+                onTap: () => Navigator.of(context).pop('skip'),
+              ),
+            if (task.dueDate == null || task.dueDate! > today)
+              ListTile(
+                key: const ValueKey('menuDefer'),
+                leading: const Icon(Icons.hourglass_empty),
+                title: Text(l10n.deferUntil),
+                onTap: () => Navigator.of(context).pop('defer'),
+              ),
+            if (task.notBefore case final release? when release > today)
+              ListTile(
+                key: const ValueKey('menuDeferClear'),
+                leading: const Icon(Icons.hourglass_disabled_outlined),
+                title: Text(l10n.deferClear),
+                onTap: () => Navigator.of(context).pop('undefer'),
+              ),
             ListTile(
-              key: const ValueKey('menuSkip'),
-              leading: const Icon(Icons.skip_next_outlined),
-              title: Text(l10n.skipThisTime),
-              onTap: () => Navigator.of(context).pop('skip'),
+              key: const ValueKey('menuPin'),
+              leading: const Icon(Icons.push_pin_outlined),
+              title: Text(l10n.pinMove),
+              onTap: () => Navigator.of(context).pop('move'),
             ),
-          ListTile(
-            leading: const Icon(Icons.push_pin_outlined),
-            title: Text(l10n.pinMove),
-            onTap: () => Navigator.of(context).pop('move'),
-          ),
-          if (task.pinnedDate != null)
+            if (task.pinnedDate != null)
+              ListTile(
+                leading: const Icon(Icons.push_pin),
+                title: Text(l10n.pinRemove),
+                onTap: () => Navigator.of(context).pop('unpin'),
+              ),
+            if (task.dueDate case final due? when due < today) ...[
+              ListTile(
+                key: const ValueKey('menuMoveDue'),
+                leading: const Icon(Icons.event_outlined),
+                title: Text(l10n.dueDateMove),
+                onTap: () => Navigator.of(context).pop('moveDue'),
+              ),
+              ListTile(
+                key: const ValueKey('menuClearDue'),
+                leading: const Icon(Icons.event_busy_outlined),
+                title: Text(l10n.dueDateClear),
+                onTap: () => Navigator.of(context).pop('clearDue'),
+              ),
+            ],
             ListTile(
-              leading: const Icon(Icons.push_pin),
-              title: Text(l10n.pinRemove),
-              onTap: () => Navigator.of(context).pop('unpin'),
-            ),
-          if (task.dueDate case final due? when due < today) ...[
-            ListTile(
-              key: const ValueKey('menuMoveDue'),
-              leading: const Icon(Icons.event_outlined),
-              title: Text(l10n.dueDateMove),
-              onTap: () => Navigator.of(context).pop('moveDue'),
-            ),
-            ListTile(
-              key: const ValueKey('menuClearDue'),
-              leading: const Icon(Icons.event_busy_outlined),
-              title: Text(l10n.dueDateClear),
-              onTap: () => Navigator.of(context).pop('clearDue'),
+              key: const ValueKey('menuEdit'),
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(l10n.actionEdit),
+              onTap: () => Navigator.of(context).pop('edit'),
             ),
           ],
-          ListTile(
-            key: const ValueKey('menuEdit'),
-            leading: const Icon(Icons.edit_outlined),
-            title: Text(l10n.actionEdit),
-            onTap: () => Navigator.of(context).pop('edit'),
-          ),
-        ],
+        ),
       ),
     ),
   );
@@ -268,6 +286,10 @@ Future<void> showTaskMenu(
       if (picked != null) {
         await actions.setPinnedDate(task, LocalDate.fromDateTime(picked));
       }
+    case 'defer':
+      await _pickNotBefore(context, ref, task, today);
+    case 'undefer':
+      await actions.setNotBefore(task, null);
     case 'unpin':
       await actions.setPinnedDate(task, null);
     case 'moveDue':
@@ -277,4 +299,70 @@ Future<void> showTaskMenu(
     case 'edit':
       unawaited(context.push(AppRoutes.task(task.id)));
   }
+}
+
+/// "Postpone until…" (T-909): from tomorrow to the due date, when there is
+/// one (a due date before "not before" is refused, T-714). The menu does not
+/// offer it for a task due today or before.
+Future<void> _pickNotBefore(
+  BuildContext context,
+  WidgetRef ref,
+  Task task,
+  LocalDate today,
+) async {
+  final actions = ref.read(taskActionsProvider);
+  final first = today.addDays(1);
+  final due = task.dueDate;
+  final last = due != null
+      ? dateTimeOf(due)
+      : DateTime(today.year + 10, 12, 31);
+  final current = task.notBefore;
+  final picked = await showDatePicker(
+    context: context,
+    initialDate: dateTimeOf(
+      current != null && current >= first && (due == null || current <= due)
+          ? current
+          : first,
+    ),
+    firstDate: dateTimeOf(first),
+    lastDate: last,
+  );
+  if (picked != null) {
+    await actions.setNotBefore(task, LocalDate.fromDateTime(picked));
+  }
+}
+
+/// Closes the sheet it is in when its tab is left (T-908): the sheet opens
+/// in the navigator of the tab, so the navigation bar stays live under it.
+class _CloseWhenHidden extends StatefulWidget {
+  const _CloseWhenHidden({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_CloseWhenHidden> createState() => _CloseWhenHiddenState();
+}
+
+class _CloseWhenHiddenState extends State<_CloseWhenHidden> {
+  var _closing = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_closing || TickerMode.valuesOf(context).enabled) return;
+    _closing = true;
+    final route = ModalRoute.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navigator = route?.navigator;
+      if (route == null || navigator == null || !route.isActive) return;
+      if (route.isCurrent) {
+        navigator.pop();
+      } else {
+        navigator.removeRoute(route);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

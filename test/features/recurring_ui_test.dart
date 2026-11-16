@@ -218,7 +218,7 @@ void main() {
       await openMenuOf(tester, find.text('Task p'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Move to a day…'), findsOneWidget);
+      expect(find.text('Pin to a day…'), findsOneWidget);
       expect(find.byKey(const ValueKey('menuSkip')), findsNothing);
     });
   });

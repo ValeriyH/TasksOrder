@@ -33,6 +33,15 @@ class PlanScreen extends ConsumerWidget {
     final plan = ref.watch(planProvider);
 
     return Scaffold(
+      // A new task in the full editor, as on Tasks (T-912).
+      floatingActionButton: FloatingActionButton(
+        // Each tab has its own button; without a tag of its own two of them
+        // would fly as one hero when the editor opens.
+        heroTag: 'plan-add',
+        tooltip: l10n.taskNewTitle,
+        onPressed: () => unawaited(context.push(AppRoutes.taskNew)),
+        child: const Icon(Icons.add),
+      ),
       body: TabBody(
         child: switch (plan) {
           AsyncValue(:final value?) => _PlanBody(plan: value),
@@ -151,7 +160,8 @@ class _PlanBody extends ConsumerWidget {
     final days = plan.days;
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+      // Room for the add button and the navigation below the last day.
+      padding: const EdgeInsets.only(bottom: AppDims.listBottomPadding),
       children: [
         ScreenHeader(
           subtitle: days.isEmpty

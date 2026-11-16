@@ -19,13 +19,17 @@ void main() {
       if (!card.isDone) card.task.title,
   ];
 
-  /// The section titles and the cards, top to bottom: where a card sits.
+  /// The section titles, the cards and the empty state, top to bottom:
+  /// where a card sits.
   List<String> layout(WidgetTester tester) => [
     for (final widget in tester.widgetList(
       find.descendant(
         of: find.byType(ListView),
         matching: find.byWidgetPredicate(
-          (w) => w is TaskCard || w is SectionHeader,
+          (w) =>
+              w is TaskCard ||
+              w is SectionHeader ||
+              w.key == const ValueKey('emptyDay'),
         ),
       ),
     ))
@@ -33,7 +37,8 @@ void main() {
         TaskCard(:final task, :final isDone) =>
           isDone ? '${task.title} (done)' : task.title,
         SectionHeader(:final title, :final counter) => '$title $counter',
-        _ => '',
+        // The empty state of the day (T-910).
+        _ => 'empty',
       },
   ];
 
@@ -54,6 +59,8 @@ void main() {
       expect(find.text('Nothing planned for today'), findsOneWidget);
       expect(find.text('Add tasks on the Tasks tab'), findsOneWidget);
       expect(find.byType(TaskCard), findsNothing);
+      // A card under the Planned header, which has no counter (T-910).
+      expect(layout(tester), ['Planned null', 'empty']);
     });
 
     testWidgets('tasks exist, but none for today', (tester) async {
@@ -95,7 +102,8 @@ void main() {
 
       await tick(tester, 'a');
 
-      expect(layout(tester), ['Planned 1/1', 'Task a (done)']);
+      // "All done" above the tasks done today (T-910).
+      expect(layout(tester), ['Planned 1/1', 'empty', 'Task a (done)']);
       expect(find.text('1 of 1'), findsOneWidget);
       expect(find.text('All done for today'), findsOneWidget);
       expect(inTile('a', find.text('Completed')), findsOneWidget);
@@ -230,7 +238,21 @@ void main() {
     testWidgets('a pinned task has its badge', (tester) async {
       await AppHarness.start(tester, tasks: [testTask('p', pinnedDate: today)]);
 
+      expect(inTile('p', find.text('Pinned to Fri, Nov 13')), findsOneWidget);
+    });
+
+    testWidgets('in Focus the pin chip has no date: the planned chip has it '
+        '(T-911)', (tester) async {
+      await AppHarness.start(
+        tester,
+        tasks: [
+          testTask('a', priority: 1),
+          testTask('p', pinnedDate: today.addDays(1), isFocused: true),
+        ],
+      );
+
       expect(inTile('p', find.text('Pinned')), findsOneWidget);
+      expect(inTile('p', find.text('Planned for Sat, Nov 14')), findsOneWidget);
     });
 
     testWidgets('the reason badges can be switched off', (tester) async {

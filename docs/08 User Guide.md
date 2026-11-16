@@ -16,14 +16,17 @@ How to use TasksOrder 0.5. Українською: [[08 User Guide uk]]. The app
 What to do today, in order. At the top: the date, and a bar with "done of total" for today's list.
 - **+** adds a task: type a title, pick a priority if it is not Normal, press Add.
 - Each task is a card: its priority and marks (pinned, repeat, planned day, at risk), the title, the due date, and a **Done** button. A done task stays on the screen until the day ends, dimmed at the end of its section, with "Completed today"; its button reads **Completed**, and a tap on it takes the completion back. A completed task leaves its slot empty: the next task does not slide in, so finishing the list means the day is done.
-- A tap on a card opens its menu: skip this time (a repeating task), move to a day, unpin, move or remove an overdue due date, edit.
+- A tap on a card opens its menu: skip this time (a repeating task), **Postpone until…** (sets Not before: the task stays off the plan until that day; a pin before that day is removed) or Cancel postponement, **Pin to a day…** or Unpin, move or remove an overdue due date, edit. A task due today or overdue cannot be postponed, and it cannot be postponed past its due date. The menu closes when you switch to another tab.
+- A pinned card says "Pinned to <date>"; where the card already says "Planned for <date>" (Focus, Tasks) it says just "Pinned".
+- When nothing is left on today's list, a card under Planned says "All done for today" or "Nothing planned for today".
 - **Focus** at the top: tasks you marked to keep in sight, and overdue tasks. They are still in the plan on their own day; Focus is a second look at them. The number at the right of the section is how many tasks are in Focus; it shows the first few and "+N more".
 - **Planned**: the tasks the plan puts on today, with "done/total" at the right.
 - A banner appears when today holds more than its capacity (deadlines) or when a deadline cannot be met. A tap on the at-risk banner lists the tasks with ways out: move the due date, one more task today, delete, edit.
 
 ## Plan
 The coming days, each with its tasks. The head of a day shows its name ("· rest day" for a day with no capacity), a pill with a dot for each place of the day and "planned/capacity" (red when the day holds more than its capacity), and a **tune** button: it, or a tap on the head, changes the capacity of that one day (for example a holiday or a busy day), with a note; "As the weekday" removes the change. Under the tasks, a dashed box says how many places are still free.
-- A tap on a task opens the same menu as on Today: move it to a day (a pin) or unpin it, skip a repeat, edit.
+- **+** opens the editor of a new task, as on Tasks (all fields: due date, pin, repeat…).
+- A tap on a task opens the same menu as on Today: postpone it, pin it to a day or unpin it, skip a repeat, edit.
 - A task done ahead of its day stays at the end of the day it was planned for, dimmed, until that day is over; its place goes to the next task.
 - Tasks that do not fit the horizon are listed under "Later".
 

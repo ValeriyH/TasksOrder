@@ -37,6 +37,7 @@ void main() {
     bool isDone = false,
     bool paused = false,
     bool showFocus = true,
+    bool showPinDate = true,
     List<Widget> chips = const [],
   }) => TaskCard(
     task: task,
@@ -45,6 +46,7 @@ void main() {
     isDone: isDone,
     paused: paused,
     showFocus: showFocus,
+    showPinDate: showPinDate,
     chips: chips,
     onToggleDone: onToggleDone ?? () {},
     onTap: onTap ?? () {},
@@ -93,12 +95,32 @@ void main() {
       expect(chipTexts(tester), [
         'priority',
         'Focus',
-        'Pinned',
+        'Pinned to Fri, Nov 13',
         'Every month',
         'list',
         'Paused until tomorrow',
         // No "From": the pin leads (T-714).
       ]);
+    });
+
+    testWidgets('the pin chip without its date where the list says the day '
+        '(T-911)', (tester) async {
+      await pump(
+        tester,
+        card(testTask('a', pinnedDate: today.addDays(1)), showPinDate: false),
+      );
+
+      expect(chipTexts(tester), ['priority', 'Pinned']);
+    });
+
+    testWidgets('"Pinned to" its date in Ukrainian (T-911)', (tester) async {
+      await pump(
+        tester,
+        card(testTask('a', pinnedDate: today.addDays(1))),
+        locale: const Locale('uk'),
+      );
+
+      expect(find.textContaining('Закріплено на '), findsOneWidget);
     });
 
     testWidgets('"From" a later day when not pinned (T-714)', (tester) async {

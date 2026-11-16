@@ -6,6 +6,13 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.5.4+12 — 2026-11-16 (T-908 … T-912)
+- **Postpone until…** in the task menu sets Not before (a pin before that day is removed); **Cancel postponement** while it is set. "Move to a day…" is now **Pin to a day…**.
+- The task menu closes when you switch to another tab.
+- Today's "All done for today" / "Nothing planned for today" is a card under Planned, in the style of the task cards.
+- The pin chip says **Pinned to <date>**, except where the card already says "Planned for <date>".
+- **+** on the Plan opens the editor of a new task, as on Tasks.
+
 ## 0.5.3+11 — 2026-11-16 (T-714)
 - **Not before** in the task editor: the task stays off the plan until that day, then is planned by priority ("From <date>" on the card). A due date before it is refused; a pin still wins, and a pinned card no longer shows "From". On a repeating task it moves the current repeat.
 

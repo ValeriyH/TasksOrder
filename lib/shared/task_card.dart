@@ -46,6 +46,7 @@ class TaskCard extends StatelessWidget {
     this.paused = false,
     this.locked = false,
     this.showFocus = true,
+    this.showPinDate = true,
     this.chips = const [],
     this.doneOn,
     super.key,
@@ -83,6 +84,10 @@ class TaskCard extends StatelessWidget {
 
   /// Show the focus chip of a focused task.
   final bool showFocus;
+
+  /// The pin chip says "Pinned to {date}" (T-911); off where the list adds
+  /// its own "Planned for {date}" chip, so the date is not said twice.
+  final bool showPinDate;
 
   /// Chips of the list the card is in.
   final List<Widget> chips;
@@ -135,7 +140,9 @@ class TaskCard extends StatelessWidget {
                 ),
               if (pinned != null)
                 TaskChip(
-                  label: l10n.reasonPinned,
+                  label: showPinDate
+                      ? l10n.pinnedTo(shortDate(context, pinned))
+                      : l10n.reasonPinned,
                   icon: Icons.push_pin_outlined,
                   tone: ChipTone.accent,
                 ),
