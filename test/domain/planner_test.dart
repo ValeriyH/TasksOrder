@@ -53,7 +53,8 @@ void main() {
     settings: settings ?? Settings(),
     overrides: {for (final o in overrides) o.date: o},
     today: today,
-    completedTodayCount: completedTodayCount,
+    // Normal tasks: two half-slots each (D21).
+    completedTodayWeight: 2 * completedTodayCount,
   );
 
   /// Non-empty days as `{'2026-11-16': ['a', 'b']}`.

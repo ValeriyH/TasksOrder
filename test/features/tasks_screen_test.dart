@@ -109,6 +109,21 @@ void main() {
     expect(inTile('low', find.text('Low')), findsOneWidget);
   });
 
+  testWidgets('a large task that waits for room says so (D21)', (tester) async {
+    await start(
+      tester,
+      tasks: [
+        testTask('L').copyWith(weight: 4),
+        testTask('n', priority: 7, minute: 1),
+      ],
+    );
+
+    expect(inTile('L', find.text('Planned for Sat, Nov 14')), findsOneWidget);
+    expect(inTile('L', find.text('Waits for a day with room')), findsOneWidget);
+    expect(inTile('L', find.text('Large')), findsOneWidget);
+    expect(inTile('n', find.text('Waits for a day with room')), findsNothing);
+  });
+
   testWidgets('done tasks are not listed', (tester) async {
     final app = await start(tester, tasks: [testTask('a'), testTask('b')]);
     await app.real(

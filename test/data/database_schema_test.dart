@@ -13,6 +13,7 @@ import 'generated_migrations/schema.dart';
 import 'generated_migrations/schema_v1.dart' as v1;
 import 'generated_migrations/schema_v2.dart' as v2;
 import 'generated_migrations/schema_v3.dart' as v3;
+import 'generated_migrations/schema_v4.dart' as v4;
 import 'test_database.dart';
 
 void main() {
@@ -41,8 +42,8 @@ void main() {
     updatedAt: DateTime.utc(2026, 11, 13, 8),
   );
 
-  test('schema version is 4', () {
-    expect(db.schemaVersion, 4);
+  test('schema version is 5', () {
+    expect(db.schemaVersion, 5);
   });
 
   group('migration 1 -> 2: priorities become levels (ADR-17)', () {
@@ -117,7 +118,7 @@ void main() {
   group('migration 2 -> 3: repeat rules (D20, T-705)', () {
     final verifier = SchemaVerifier(GeneratedHelper());
 
-    test('a schema 2 database with data opens as 4, tasks unchanged', () async {
+    test('a schema 2 database with data opens as 5, tasks unchanged', () async {
       final schema = await verifier.schemaAt(2);
       final old = v2.DatabaseAtV2(schema.newConnection());
       final created = DateTime.utc(2026, 11, 13, 8).millisecondsSinceEpoch;
@@ -131,7 +132,7 @@ void main() {
 
       final db = AppDatabase(schema.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 4);
+      await verifier.migrateAndValidate(db, 5);
 
       final row = await db.select(db.tasks).getSingle();
       expect(row.title, 'Pay the bill');
@@ -144,12 +145,12 @@ void main() {
       expect(row.occurrenceDate, isNull);
     });
 
-    test('schema 1 migrates to 4 in one go', () async {
+    test('schema 1 migrates to 5 in one go', () async {
       final schema = await verifier.schemaAt(1);
       final db = AppDatabase(schema.newConnection());
       addTearDown(db.close);
 
-      await verifier.migrateAndValidate(db, 4);
+      await verifier.migrateAndValidate(db, 5);
     });
   });
 
@@ -157,7 +158,7 @@ void main() {
     final verifier = SchemaVerifier(GeneratedHelper());
 
     test(
-      'a schema 3 database with a done task opens as 4, no plan day',
+      'a schema 3 database with a done task opens as 5, no plan day',
       () async {
         final schema = await verifier.schemaAt(3);
         final old = v3.DatabaseAtV3(schema.newConnection());
@@ -172,7 +173,7 @@ void main() {
 
         final db = AppDatabase(schema.newConnection());
         addTearDown(db.close);
-        await verifier.migrateAndValidate(db, 4);
+        await verifier.migrateAndValidate(db, 5);
 
         final row = await db.select(db.tasks).getSingle();
         expect(row.status, TaskStatus.done);
@@ -184,6 +185,39 @@ void main() {
     );
   });
 
+  group('migration 4 -> 5: task size (D21, T-804)', () {
+    final verifier = SchemaVerifier(GeneratedHelper());
+
+    test('a schema 4 database opens as 5, every task normal', () async {
+      final schema = await verifier.schemaAt(4);
+      final old = v4.DatabaseAtV4(schema.newConnection());
+      final created = DateTime.utc(2026, 11, 13, 8).millisecondsSinceEpoch;
+      await old.customStatement(
+        'INSERT INTO tasks (id, title, priority, status, created_at, '
+        'updated_at) VALUES '
+        "('a', 'Pay the bill', 3, 0, $created, $created), "
+        "('b', 'Roof', 2, 0, $created, $created)",
+      );
+      await old.close();
+
+      final db = AppDatabase(schema.newConnection());
+      addTearDown(db.close);
+      await verifier.migrateAndValidate(db, 5);
+
+      final rows = await db.select(db.tasks).get();
+      expect([for (final row in rows) row.weight], [2, 2]);
+      expect(rows.first.updatedAt, DateTime.utc(2026, 11, 13, 8));
+    });
+
+    test('schema 3 migrates to 5 in one go', () async {
+      final schema = await verifier.schemaAt(3);
+      final db = AppDatabase(schema.newConnection());
+      addTearDown(db.close);
+
+      await verifier.migrateAndValidate(db, 5);
+    });
+  });
+
   group('columns match docs/03 Data Model.md', () {
     test('tasks', () async {
       expect(await columnsOf('tasks'), {
@@ -191,6 +225,7 @@ void main() {
         'title': 'TEXT NOT NULL',
         'notes': 'TEXT',
         'priority': 'INTEGER NOT NULL',
+        'weight': 'INTEGER NOT NULL',
         'due_date': 'TEXT',
         'is_focused': 'INTEGER NOT NULL',
         'focused_at': 'INTEGER',
@@ -285,6 +320,7 @@ void main() {
       final row = await db.select(db.tasks).getSingle();
 
       expect(row.isFocused, isFalse);
+      expect(row.weight, 2);
       expect(row.completedOnPlan, isFalse);
       expect(row.status, TaskStatus.active);
       expect(row.notes, isNull);
@@ -303,6 +339,7 @@ void main() {
         title: 'File the report',
         notes: 'with the appendix',
         priority: 1,
+        weight: 4,
         dueDate: LocalDate(2026, 11, 20),
         isFocused: true,
         focusedAt: at,

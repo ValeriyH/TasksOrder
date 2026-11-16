@@ -44,6 +44,7 @@ void main() {
         title: 'File the report',
         notes: 'with the appendix',
         priority: 1,
+        weight: 4,
         dueDate: LocalDate(2026, 11, 20),
         isFocused: true,
         focusedAt: t0,
@@ -395,6 +396,17 @@ void main() {
       expect(next.dueDate, LocalDate(2026, 12, 13));
       expect(next.createdAt, t1);
       expect((await stored('a')).isDone, isTrue);
+    });
+
+    test('the stored successor carries the weight (D21)', () async {
+      final a = task('a')
+          .copyWith(dueDate: today, weight: 4)
+          .setRecurrence(monthly, today: today, now: t0);
+      await repo.upsert(a, t0);
+
+      await repo.complete('a', t1, onPlan: true, today: today);
+
+      expect((await stored(a.successorId)).weight, 4);
     });
 
     test('a second complete changes nothing', () async {

@@ -21,6 +21,7 @@ import 'package:tasks_order/shared/plan_badges.dart';
 import 'package:tasks_order/shared/screen_header.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
 import 'package:tasks_order/shared/task_card.dart';
+import 'package:tasks_order/shared/task_size_text.dart';
 
 /// The coming days of the plan (D22): which task lands on which day, how
 /// full each day is, and the room left on it.
@@ -103,11 +104,11 @@ class _PlanBody extends ConsumerWidget {
     final scale = settings.priorityScale;
     final resolver = CapacityResolver(settings, overrides);
     // Today counts what was done from its list too, against the full
-    // capacity: the numbers of the Today screen (D19).
-    final doneFromList = Planner.countCompletedToday(
+    // capacity: the numbers of the Today screen (D19), by weight (D21).
+    final doneFromList = Planner.completedTodayWeightOf(
       tasks,
       today: today,
-      dayStartHour: settings.dayStartHour,
+      settings: settings,
     );
     // A done task stays at the end of the day the plan had it on, dimmed,
     // until that day is past (T-907, D22); its slot is planned again.
@@ -197,7 +198,7 @@ class _PlanBody extends ConsumerWidget {
             day: day,
             today: today,
             capacity: resolver.capacityFor(day.date),
-            count: day.entries.length + (day.date == today ? doneFromList : 0),
+            load: day.load + (day.date == today ? doneFromList : 0),
             dayOverride: overrides[day.date],
             cards: [
               for (final entry in day.entries)
@@ -253,14 +254,14 @@ class _PlanBody extends ConsumerWidget {
     required PlannedDay day,
     required LocalDate today,
     required int capacity,
-    required int count,
+    required int load,
     required DayOverride? dayOverride,
     required List<Widget> cards,
   }) => [
     _DayHeader(
       date: day.date,
       today: today,
-      count: count,
+      load: load,
       capacity: capacity,
       dayOverride: dayOverride,
       onTap: () => unawaited(
@@ -274,10 +275,10 @@ class _PlanBody extends ConsumerWidget {
       ),
     ),
     ...cards,
-    if (capacity > count)
+    if (2 * capacity > load)
       _FreeSlots(
         key: ValueKey('free-${day.date.toIso()}'),
-        count: capacity - count,
+        halfSlots: 2 * capacity - load,
       ),
   ];
 }
@@ -289,7 +290,7 @@ class _DayHeader extends StatelessWidget {
   const _DayHeader({
     required this.date,
     required this.today,
-    required this.count,
+    required this.load,
     required this.capacity,
     required this.dayOverride,
     required this.onTap,
@@ -298,8 +299,9 @@ class _DayHeader extends StatelessWidget {
   final LocalDate date;
   final LocalDate today;
 
-  /// Tasks the day holds; for today the ones done from its list too.
-  final int count;
+  /// What the day holds, in half-slots (D21); for today the tasks done
+  /// from its list too.
+  final int load;
 
   /// The day's full capacity; 0 is a rest day.
   final int capacity;
@@ -358,8 +360,8 @@ class _DayHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (!(restDay && count == 0))
-                CapacityPill(count: count, capacity: capacity),
+              if (!(restDay && load == 0))
+                CapacityPill(load: load, capacity: capacity),
               IconButton(
                 key: ValueKey('tune-${date.toIso()}'),
                 onPressed: onTap,
@@ -380,11 +382,14 @@ class _DayHeader extends StatelessWidget {
 }
 
 /// How full a day is (D22): a dot for each slot, filled for the taken ones,
-/// and "count/capacity"; over capacity a red pill with an alert icon.
+/// and "load/capacity" in slots ("1½/2", D21); over capacity a red pill with an alert icon.
 class CapacityPill extends StatelessWidget {
-  const CapacityPill({required this.count, required this.capacity, super.key});
+  const CapacityPill({required this.load, required this.capacity, super.key});
 
-  final int count;
+  /// What the day holds, in half-slots (D21).
+  final int load;
+
+  /// Slots.
   final int capacity;
 
   /// More slots than this read better as the number alone.
@@ -394,7 +399,7 @@ class CapacityPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final c = AppColors.of(context);
-    final over = count > capacity;
+    final over = load > 2 * capacity;
     final dots = !over && capacity > 0 && capacity <= maxDots;
     final foreground = over ? c.capOverFg : c.capPillFg;
     return Container(
@@ -417,14 +422,23 @@ class CapacityPill extends StatelessWidget {
                   width: AppDims.capDot,
                   height: AppDims.capDot,
                   decoration: BoxDecoration(
-                    color: i < count ? c.accent : c.dotOff,
+                    // A slot half taken (a small task) is half filled.
+                    gradient: LinearGradient(
+                      colors: [
+                        if (2 * i < load) c.accent else c.dotOff,
+                        if (2 * i < load) c.accent else c.dotOff,
+                        if (2 * i + 1 < load) c.accent else c.dotOff,
+                        if (2 * i + 1 < load) c.accent else c.dotOff,
+                      ],
+                      stops: const [0, 0.5, 0.5, 1],
+                    ),
                     shape: BoxShape.circle,
                   ),
                 ),
               ),
           if (over || dots) const SizedBox(width: 6),
           Text(
-            l10n.planDayCount(count, capacity),
+            l10n.planDayCount(slotsText(load), capacity),
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -439,9 +453,10 @@ class CapacityPill extends StatelessWidget {
 
 /// The room left on a day: a dashed box "N slots free" (D22).
 class _FreeSlots extends StatelessWidget {
-  const _FreeSlots({required this.count, super.key});
+  const _FreeSlots({required this.halfSlots, super.key});
 
-  final int count;
+  /// The room left in half-slots (D21).
+  final int halfSlots;
 
   @override
   Widget build(BuildContext context) {
@@ -454,7 +469,9 @@ class _FreeSlots extends StatelessWidget {
           height: AppDims.freeSlotHeight,
           child: Center(
             child: Text(
-              context.l10n.planFreeSlots(count),
+              halfSlots.isEven
+                  ? context.l10n.planFreeSlots(halfSlots ~/ 2)
+                  : context.l10n.planFreeRoom(slotsText(halfSlots)),
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

@@ -98,7 +98,7 @@ void main() {
     final json = jsonDecode(codec.encode(sample())) as Map<String, dynamic>;
 
     expect(json['app'], 'TasksOrder');
-    expect(json['version'], 4);
+    expect(json['version'], 5);
     expect(json['exportedAt'], '2026-11-13T08:30:15.250Z');
     expect(firstTask(json)['createdAt'], '2026-11-13T08:30:15.250Z');
   });
@@ -203,9 +203,68 @@ void main() {
 
   test('a backup of a newer format is told apart', () {
     expect(
-      () => codec.decode(changed((json) => json['version'] = 5)),
+      () => codec.decode(changed((json) => json['version'] = 6)),
       fails(BackupProblem.newerVersion),
     );
+  });
+
+  group('task size (format 5, T-804)', () {
+    Backup sized() {
+      final base = sample();
+      return Backup(
+        exportedAt: base.exportedAt,
+        settings: base.settings,
+        tasks: [
+          for (final (i, task) in base.tasks.indexed)
+            task.copyWith(weight: [1, 2, 4, 3][i]),
+        ],
+        dayOverrides: base.dayOverrides,
+      );
+    }
+
+    Map<String, dynamic> task(Map<String, dynamic> json, String id) =>
+        (json['tasks'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .singleWhere((task) => task['id'] == id);
+
+    test('the three sizes and an unknown weight are read back', () {
+      final backup = sized();
+      final read = codec.decode(codec.encode(backup));
+
+      expect([for (final t in read.tasks) t.weight], [1, 2, 4, 3]);
+      expect(read.tasks, backup.tasks);
+    });
+
+    test('a normal task is written without the field', () {
+      final json = jsonDecode(codec.encode(sized())) as Map<String, dynamic>;
+
+      expect(task(json, 'plain')['weight'], 1);
+      expect(task(json, 'full').containsKey('weight'), isFalse);
+      expect(task(json, 'done')['weight'], 4);
+    });
+
+    test('files of version 1 to 4 read with every task normal', () {
+      for (final version in [1, 2, 3, 4]) {
+        final read = codec.decode(
+          changed((json) {
+            json['version'] = version;
+            if (version < 4) task(json, 'done').remove('completedPlanDate');
+          }),
+        );
+        expect(read.tasks.every((t) => t.weight == 2), isTrue);
+      }
+    });
+
+    test('a weight below 1 is refused', () {
+      for (final weight in [0, -1]) {
+        expect(
+          () => codec.decode(
+            changed((json) => task(json, 'plain')['weight'] = weight),
+          ),
+          fails(BackupProblem.notABackup),
+        );
+      }
+    });
   });
 
   group('the plan day of a completion (format 4, T-907)', () {

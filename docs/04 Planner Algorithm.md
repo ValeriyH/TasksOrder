@@ -27,7 +27,7 @@ Every active task is planned; there is no queue outside the pool (D17).
 
 An overdue task is planned exactly like a task without a date: its deadline is gone, so there is nothing left to protect. It is kept in sight by the Focus view instead.
 
-Priority 1 ("Critical") is an ordinary level: it wins the priority fill but waits for a slot like everything else. "Do it on this day whatever the capacity" is a pin. (One planned exception, D21: a large task of level 1 or 2 that does not fit a day, see "Task size".)
+Priority 1 ("Critical") is an ordinary level: it wins the priority fill but waits for a slot like everything else. "Do it on this day whatever the capacity" is a pin. (One exception, D21: a large task of level 1 or 2 that does not fit a day, see "Task size".)
 
 ## Release dates: `notBefore` (T-703)
 `release(t)` = `t.notBefore`, or today when it is empty or in the past. A task is **released** on the day `d` when `release(t) <= d`.
@@ -66,8 +66,8 @@ A ghost has the priority of `t`, `createdAt` of `t` (ties between repeats of one
 - Repeats do not pile up: when `t` was missed, `t` itself is the overdue task (D18) and ghosts start after today.
 - Cost: at most one ghost per day of the horizon for each series (a daily task and 90 days: 89).
 
-## Task size: weights (D21; planned, T-802, T-803)
-Until these tasks are done every task weighs one slot, as the rest of this page says. With D21 the planner counts **half-slots** instead of tasks.
+## Task size: weights (D21; T-802, T-803)
+The planner counts **half-slots** instead of tasks. The sections below this one still speak of tasks and slots: with every task normal (weight 2) the two read the same.
 
 ```
 effWeight(t) = min(t.weight, 2 × max(settings.weeklyCapacity))   // small 1, normal 2, large 4
@@ -75,8 +75,8 @@ cap2(d)      = 2 × capacity(d)             // for today: minus completedTodayWe
 hard2(d)     = 2 × hardLimit(d)            // 0 on a rest day
 load(day)    = sum of effWeight over its entries
 ```
-- **The cap** uses the weekly template, not the day overrides: one holiday must not change the weight of every large task. With 1 on every weekday a large task weighs 2 half-slots, the same as a normal one, so every task fits some working day.
-- **`completedTodayWeight`** replaces `completedTodayCount`: the sum of `effWeight` of the tasks completed today with `completedOnPlan == true` (D3, D19). A small task done from today's list leaves half a slot used, not a whole one.
+- **The cap** uses the weekly template, not the day overrides: one holiday must not change the weight of every large task. With 1 on every weekday a large task weighs 2 half-slots, the same as a normal one, so every task fits some working day. A week of rest days only (capacity from day overrides alone) caps at 2, so no task weighs 0 (T-802). `Planner.effWeight(task, settings)`.
+- **`completedTodayWeight`** replaces `completedTodayCount`: the sum of `effWeight` of the tasks completed today with `completedOnPlan == true` (D3, D19), `Planner.completedTodayWeightOf`. A small task done from today's list leaves half a slot used, not a whole one. `countCompletedToday` stays for the "done of total" of the UI.
 - **Pins** are placed whatever the weight, as now; their weight is in the load and in `pinnedOn(x)`.
 - **Priority fill is first fit in pool order**:
   ```
@@ -85,7 +85,7 @@ load(day)    = sum of effWeight over its entries
       if load(day) + effWeight(t) <= cap2(d): place(t, reason: priority)
       else: t.waitsForRoom = true            // skipped only because of its weight
   ```
-  A large task therefore lands on the first day that still has two free slots when its turn comes, and lighter tasks behind it take the days it could not use. Queue `1, ½, 1, 1, ½` with capacity 1 → day 1: `1`; day 2: `½ + ½`; day 3: `1`; day 4: `1`.
+  A large task therefore lands on the first day that still has two free slots when its turn comes, and lighter tasks behind it take the days it could not use. Queue `1, ½, 1, 1, ½` with capacity 1 → day 1: `1`; day 2: `½ + ½`; day 3: `1`; day 4: `1`. Every task the fill reaches and skips for its weight gets `waitsForRoom`, so there both normal tasks of day 2 have it (scenario 35).
 - **Top-level overflow** (the only case where priority alone passes the capacity). Before the fill of `d`:
   ```
   t = first released task of the pool for d
@@ -94,7 +94,7 @@ load(day)    = sum of effWeight over its entries
      and completedTodayWeight + load(day) + effWeight(t) <= hard2(d):
       place(t, reason: priority)              // gets the overflow flag as any entry above capacity
   ```
-  At most one such task a day, and never on a rest day (`hard2 = 0`). With the three sizes this is a large task on a day of capacity 1 with overflow ≥ 1. A top-level task that fits the day needs no rule: it is first in the fill.
+  At most one such task a day, and never on a rest day (`hard2 = 0`). With the three sizes this is a large task on a day of capacity 1 with overflow ≥ 1. A top-level task that fits the day needs no rule: it is first in the fill. "First" skips the tasks that are not released or not ready in their series (they cannot be placed on `d` anyway). The check runs only on a day smaller than the heaviest task of the pool, so a plan of normal tasks does not pay for it.
 - **Forcing** sums weights:
   ```
   need(D)      = sum of effWeight over dueTasks with effDue <= D
@@ -113,7 +113,7 @@ load(day)    = sum of effWeight over its entries
   take the dueTasks with effWeight >= w in EDF order until the weight taken >= forcedWeight_w,
   under the same hard2(d) limit
   ```
-  The forced set of `d` is the union of the two checks, placed in EDF order. Like the rest of forcing this is pessimistic about overflow later: a large task due on Wednesday with no big day before it is forced on the first working day that can take it with overflow, not left for Wednesday; with a free Saturday before its date it is not forced until that Saturday.
+  The forced set of `d` is the union of the two checks, placed in EDF order. In the code (`Planner._force`) it is one pass over the due tasks in EDF order: a task is taken while a check it belongs to still needs weight and it fits (released, ready, inside `hard2`); what it weighs is taken off every check it belongs to, since a task done today needs no room later. Like the check without weights, each check is cut to the released weight due by `D` (T-703). Like the rest of forcing this is pessimistic about overflow later: a large task due on Wednesday with no big day before it is forced on the first working day that can take it with overflow, not left for Wednesday; with a free Saturday before its date it is not forced until that Saturday.
 - Forcing with mixed weights stays a **heuristic**: packing whole tasks into days is bin packing, and `avail_w` does not know what the lighter tasks will take from the big days. The planner may force a task a day early, or find out late that a task has no day before its date; what is left is at risk, shown as now.
 - **Ghosts** (D20) carry the weight of their task.
 - The trim at the end of a day works on the load: entries are returned to the pool from the tail while `load(day) > hard2(d)`; pinned entries are never trimmed.
@@ -226,7 +226,7 @@ Forcing alone meets deadlines but is *lazy*: with comfortable capacity it leaves
 | `reason = deadline` | placed because of a due date, possibly pushing a higher priority later | badge "due" |
 | `reason = pinned` | user fixed the date | badge "pinned" |
 | `overflow` | above the day's capacity | day banner "1 extra because of deadlines" |
-| `waitsForRoom` (D21, planned) | a lighter task went ahead because this one did not fit what was left of an earlier day | hint "waits for a day with room" next to its planned day; the user can pin it or raise the capacity of a day |
+| `waitsForRoom` (D21) | a lighter task went ahead because this one did not fit what was left of an earlier day | chip "Waits for a day with room" next to its planned day (Plan, Today, Tasks); the user can pin it or raise the capacity of a day |
 | `atRisk` | placed after its due date (impossible with current capacity) | red badge + Plan header "N tasks at risk"; Today screen banner "N tasks will not make their deadline" opening the list (`Plan.hasAtRisk`, D16) |
 
 ## Worked example 1 — priority vs deadline (tight capacity)
@@ -326,7 +326,7 @@ With T-704 (ghosts), in `test/domain/planner_ghosts_test.dart`:
 33b. Repeats of a series do not pile up: "Mon, Tue, Thu, Sat" without dates made on a Monday, four older tasks on Mon..Thu → the task on Friday, one ghost on Saturday (Tue and Thu expired), never two of the series on a day; a daily due-only series keeps its members on increasing days.
 33. Determinism and performance with ghosts: 500 tasks, 20 of them daily series, horizon 90 → same plan twice, under 50 ms.
 
-Planned with T-802 and T-803 (task size, D21). Sizes: S = small (½), N = normal (1), L = large (2). Where a scenario says "capacity 1", the week is `[1,1,1,1,1,3,0]` starting on Monday unless it says "on every working day", so an L weighs two slots:
+With T-802 and T-803 (task size, D21), in `test/domain/planner_weight_test.dart`. Sizes: S = small (½), N = normal (1), L = large (2). Where a scenario says "capacity 1", the week is `[1,1,1,1,1,3,0]` starting on Monday unless it says "on every working day", so an L weighs two slots:
 
 34. Every task normal → all earlier scenarios give the same plan.
 35. Queue N, S, N, N, S by priority, capacity 1 → day 1: N; day 2: S + S; day 3: N; day 4: N. The second N has `waitsForRoom`.
@@ -345,10 +345,10 @@ Planned with T-802 and T-803 (task size, D21). Sizes: S = small (½), N = normal
 47. Determinism and performance with mixed weights: 500 tasks, a third of each size, horizon 90 → same plan twice, under 50 ms.
 
 ## Complexity
-Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomputed once per plan. Effective priority depends on `d`, so the pool is re-sorted per day (T log T). Total O(H × T log T) with H = horizon days. For H = 90, T = 500 this is trivially fast on a phone.
+Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomputed once per plan. Effective priority depends on `d`, so the pool is re-sorted per day (T log T). Total O(H × T log T) with H = horizon days. With heavy due tasks (D21) forcing runs once more per heavy weight, with its own running totals of the free room. For H = 90, T = 500 this is trivially fast on a phone.
 
 ## Known limitations / future
-- Capacity is a task count until D21 is built (T-802); then it is a weight, see "Task size". Forcing with mixed weights is a heuristic, not an exact packing.
+- Capacity is a weight since T-802 and forcing sums weights since T-803, see "Task size". Forcing with mixed weights is a heuristic, not an exact packing.
 - A task is done within one day (D21): a job longer than the biggest day is split by hand; there is no grouping of the parts yet.
 - Pure EDF forcing can place a forced task on a day where a slightly higher-priority due task would have been the nicer choice; both deadlines are still met, so this is accepted.
 - `notBefore` is a release date (T-703). Set by hand in the editor since T-714 ("Not before").

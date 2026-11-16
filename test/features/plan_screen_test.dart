@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/day_override.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/features/task_edit/task_edit_screen.dart';
@@ -207,6 +208,68 @@ void main() {
 
       expect(headerTexts(tester, today), ['Сьогодні', '1/1']);
       expect(find.text('ПІЗНІШЕ'), findsOneWidget);
+    });
+  });
+
+  group('task size (D21, T-805)', () {
+    testWidgets('a small task takes half a slot: "½/1" and ½ slot free', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        tasks: [testTask('s').copyWith(weight: 1)],
+        settings: Settings(planningHorizonDays: 2),
+      );
+
+      expect(headerTexts(tester, today), ['Today', '½/1']);
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('free-${today.toIso()}')),
+          matching: find.text('½ slots free'),
+        ),
+        findsOneWidget,
+      );
+      expect(inTile('s', find.text('Small')), findsOneWidget);
+    });
+
+    testWidgets('three small tasks on a day of 2: "1½/2", in Ukrainian', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        tasks: [
+          for (var i = 0; i < 3; i++)
+            testTask('s$i', minute: i).copyWith(weight: 1),
+        ],
+        settings: Settings(
+          weeklyCapacity: const [2, 2, 2, 2, 2, 2, 2],
+          planningHorizonDays: 1,
+        ),
+        stored: {'device.locale': 'uk'},
+      );
+
+      expect(headerTexts(tester, today), ['Сьогодні', '1½/2']);
+      expect(find.text('Вільно: ½ місця'), findsOneWidget);
+    });
+
+    testWidgets('a large task waits for Saturday and says so', (tester) async {
+      await start(
+        tester,
+        tasks: [
+          testTask('L').copyWith(weight: 4),
+          testTask('n', priority: PriorityLabels.levels(5)[3], minute: 1),
+        ],
+        settings: Settings(planningHorizonDays: 2),
+      );
+
+      expect(rows(tester), ['2026-11-13', 'Task n', '2026-11-14', 'Task L']);
+      expect(headerTexts(tester, saturday), ['Tomorrow', '2/3']);
+      expect(inTile('L', find.text('Large')), findsOneWidget);
+      expect(
+        inTile('L', find.text('Waits for a day with room')),
+        findsOneWidget,
+      );
+      expect(inTile('n', find.text('Waits for a day with room')), findsNothing);
     });
   });
 

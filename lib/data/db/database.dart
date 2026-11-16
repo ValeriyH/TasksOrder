@@ -20,6 +20,9 @@ class Tasks extends Table {
   TextColumn get title => text()();
   TextColumn get notes => text().nullable()();
   IntColumn get priority => integer()();
+
+  /// Schema 5 (D21, ADR-19): the size in half-slots; 2 = normal.
+  IntColumn get weight => integer().withDefault(const Constant(2))();
   TextColumn get dueDate => text().map(const LocalDateConverter()).nullable()();
   BoolColumn get isFocused => boolean().withDefault(const Constant(false))();
   IntColumn get focusedAt =>
@@ -128,13 +131,14 @@ class AppDatabase extends _$AppDatabase {
     isUtc: true,
   );
 
+  /// 5 (D21, ADR-19): `tasks.weight`, 2 for every existing task.
   /// 4 (T-907, ADR-23): `tasks.completed_plan_date`. 3 (D20, ADR-18):
   /// `tasks.recurrence`, `series_id`, `occurrence_date` and
   /// the index `idx_tasks_series`. 2 (ADR-17): `tasks.priority` holds a level
   /// of the ten-level table; the tables did not change. 1: it was the
   /// position in the scale of the settings.
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -156,6 +160,11 @@ class AppDatabase extends _$AppDatabase {
       if (from < 4) {
         // Completions stored before do not know their plan day: null.
         await m.addColumn(tasks, tasks.completedPlanDate);
+      }
+      if (from < 5) {
+        // Every existing task is a normal one (the column default), so the
+        // plan does not change.
+        await m.addColumn(tasks, tasks.weight);
       }
     },
   );

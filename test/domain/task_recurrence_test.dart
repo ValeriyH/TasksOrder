@@ -143,6 +143,13 @@ void main() {
       expect(next.isDeleted, isFalse);
     });
 
+    test('carries the weight of the series (D21)', () {
+      for (final weight in [1, 3, 4]) {
+        final t = recurring(monthly).copyWith(weight: weight);
+        expect(t.successor(now: doneAt, today: today).weight, weight);
+      }
+    });
+
     test('the successor id is the same on every call and every device', () {
       final t = recurring(monthly);
 

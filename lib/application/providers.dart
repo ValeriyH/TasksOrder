@@ -174,10 +174,10 @@ AsyncValue<Plan> plan(Ref ref) {
       overrides: currentOverrides,
       today: currentDay,
       // Completions from today's list leave their slot empty (D3, D19).
-      completedTodayCount: Planner.countCompletedToday(
+      completedTodayWeight: Planner.completedTodayWeightOf(
         allTasks,
         today: currentDay,
-        dayStartHour: currentSettings.dayStartHour,
+        settings: currentSettings,
       ),
     ),
   );

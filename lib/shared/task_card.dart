@@ -2,9 +2,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:tasks_order/app/app_colors.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/domain/model/task_size.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/priority_text.dart';
 import 'package:tasks_order/shared/repeat_text.dart';
+import 'package:tasks_order/shared/task_size_text.dart';
 
 /// The calendar day as a `DateTime`, for date pickers and formatting.
 DateTime dateTimeOf(LocalDate date) =>
@@ -132,6 +134,16 @@ class TaskCard extends StatelessWidget {
             runSpacing: AppDims.chipSpacing,
             children: [
               PriorityChip(priority: task.priority, scale: scale),
+              // Small and large only: a normal task needs no mark (D21).
+              if (TaskSize.nearest(task.weight) case final size
+                  when size != TaskSize.normal)
+                TaskChip(
+                  key: const ValueKey('sizeChip'),
+                  label: sizeLabel(l10n, size),
+                  icon: size == TaskSize.small
+                      ? Icons.unfold_less
+                      : Icons.unfold_more,
+                ),
               if (showFocus && task.isFocused)
                 TaskChip(
                   label: l10n.taskFocusLabel,

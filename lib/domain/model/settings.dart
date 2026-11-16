@@ -69,4 +69,8 @@ abstract class Settings with _$Settings {
 
   /// Upper bound of [maxOverflowPerDay].
   static const maxOverflowLimit = 3;
+
+  /// The biggest capacity of a weekday (day overrides do not count): a task
+  /// never weighs more than this many slots (D21, `effWeight`).
+  int get maxWeeklyCapacity => weeklyCapacity.reduce((a, b) => a > b ? a : b);
 }

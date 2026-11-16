@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/recurrence.dart';
+import 'package:tasks_order/domain/model/task_size.dart';
 import 'package:uuid/uuid.dart';
 
 part 'task.freezed.dart';
@@ -18,7 +19,8 @@ enum TaskStatus { active, done }
 /// - [focusedAt] is set exactly when [isFocused] is true;
 /// - [completedOnPlan] is true and [completedPlanDate] is set only for a
 ///   done task;
-/// - a [recurrence] comes with a [seriesId] and an [occurrenceDate] (D20).
+/// - a [recurrence] comes with a [seriesId] and an [occurrenceDate] (D20);
+/// - [weight] is at least 1 (D21).
 ///
 /// Use [Task.create] and the transition methods ([complete], [setFocus],
 /// [trash], ...) instead of `copyWith` for those fields: they keep the
@@ -47,6 +49,7 @@ abstract class Task with _$Task {
     'recurrence == null || (seriesId != null && occurrenceDate != null)',
     'a repeat rule needs seriesId and occurrenceDate',
   )
+  @Assert('weight >= 1', 'weight is at least one half-slot')
   // Not const: the title assertion calls a method.
   factory Task({
     /// UUID v4.
@@ -57,6 +60,11 @@ abstract class Task with _$Task {
     /// A level of the table: 1 = highest .. 10 = lowest, whatever the scale
     /// (D1, ADR-17); Normal is 5. See `PriorityLabels`.
     required int priority,
+
+    /// Size in half-slots of the daily capacity (D21, ADR-19): 1 small,
+    /// 2 normal, 4 large; any value >= 1 is valid and reads as the nearest
+    /// [TaskSize]. The planner caps it by the biggest weekday (`effWeight`).
+    @Default(TaskSize.defaultWeight) int weight,
     LocalDate? dueDate,
 
     /// Focus mark (D17): the task is kept in sight in the Focus view. It is
@@ -114,12 +122,14 @@ abstract class Task with _$Task {
 
   /// A new active task with a fresh UUID, created at [now].
   ///
-  /// The [title] is trimmed; a blank title or a [priority] outside 1..10
-  /// throws [ArgumentError]. Pass [id] only to get a predictable value in tests.
+  /// The [title] is trimmed; a blank title, a [priority] outside 1..10 or a
+  /// [weight] below 1 throws [ArgumentError]. Pass [id] only to get a
+  /// predictable value in tests.
   factory Task.create({
     required String title,
     required int priority,
     required DateTime now,
+    int weight = TaskSize.defaultWeight,
     LocalDate? dueDate,
     String? notes,
     bool isFocused = false,
@@ -132,12 +142,16 @@ abstract class Task with _$Task {
     if (!PriorityLabels.isValid(priority)) {
       throw ArgumentError.value(priority, 'priority', 'Must be in 1..10');
     }
+    if (weight < 1) {
+      throw ArgumentError.value(weight, 'weight', 'Must be at least 1');
+    }
     final utc = now.toUtc();
     return Task(
       id: id ?? const Uuid().v4(),
       title: trimmed,
       notes: notes,
       priority: priority,
+      weight: weight,
       dueDate: dueDate,
       isFocused: isFocused,
       focusedAt: isFocused ? utc : null,
@@ -319,6 +333,8 @@ abstract class Task with _$Task {
       title: title,
       notes: notes,
       priority: priority,
+      // The repeats of a series carry its weight (D21).
+      weight: weight,
       dueDate: nextDue,
       pinnedDate: nextPin,
       notBefore: release,

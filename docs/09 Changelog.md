@@ -6,6 +6,12 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.6.0+13 — 2026-11-16 (M8)
+- **Task size** (D21, ADR-19): Small, Normal or Large in the editor: half a slot, one or two slots of a day. Two small tasks share a slot; a large task waits for a day with room ("Waits for a day with room" on its card) while lighter tasks go ahead; a Critical large task first in line takes the next working day as an extra task. A large task never counts more than the biggest day of the week.
+- The Plan counts slots ("1½/2", a half-filled dot, "½ slots free"); Today's overload banner too.
+- Deadlines count sizes: a large task with a due date gets a day before its date that can hold it, or, when there is none, a working day as an extra task (within Extra tasks for deadlines).
+- Database schema 5 and backup format 5 (`weight`); every existing task becomes Normal, so the plan does not change. A backup of 0.6 cannot be read by 0.5.
+
 ## 0.5.4+12 — 2026-11-16 (T-908 … T-912)
 - **Postpone until…** in the task menu sets Not before (a pin before that day is removed); **Cancel postponement** while it is set. "Move to a day…" is now **Pin to a day…**.
 - The task menu closes when you switch to another tab.

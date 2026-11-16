@@ -65,6 +65,30 @@
     "description": "Editor field: free text"
   },
   "taskPriorityLabel": "Priority",
+  "taskSizeLabel": "Size",
+  "@taskSizeLabel": {
+    "description": "Editor: the size of the task (D21): how much of a day it takes"
+  },
+  "sizeSmall": "Small",
+  "@sizeSmall": {
+    "description": "Task size: half a slot of the daily capacity"
+  },
+  "sizeNormal": "Normal",
+  "@sizeNormal": {
+    "description": "Task size: one slot of the daily capacity"
+  },
+  "sizeLarge": "Large",
+  "@sizeLarge": {
+    "description": "Task size: two slots of the daily capacity"
+  },
+  "taskSizeHint": "Small: two share one slot of a day. Large: takes two slots.",
+  "@taskSizeHint": {
+    "description": "Editor: the line under the size"
+  },
+  "reasonWaitsForRoom": "Waits for a day with room",
+  "@reasonWaitsForRoom": {
+    "description": "Badge: lighter tasks went ahead because this one did not fit what was left of an earlier day (D21)"
+  },
   "@taskPriorityLabel": {
     "description": "Editor field: importance of the task"
   },
@@ -208,12 +232,12 @@
       }
     }
   },
-  "todayOverloaded": "More than planned: {count} tasks, capacity {capacity}",
+  "todayOverloaded": "More than planned: {load} of {capacity} slots taken",
   "@todayOverloaded": {
-    "description": "Today: banner when the day holds more tasks than its capacity; count includes the ones done today from the list, capacity is the day's full capacity",
+    "description": "Today: banner when the day holds more than its capacity; load (in slots, may end in ½) includes the tasks done today from the list, capacity is the day's full capacity",
     "placeholders": {
-      "count": {
-        "type": "int"
+      "load": {
+        "type": "String"
       },
       "capacity": {
         "type": "int"
@@ -589,16 +613,21 @@
     "description": "Plan: after the name of a day with capacity 0 (D22)"
   },
   "planFreeSlots": "{count, plural, =1{1 slot free} other{{count} slots free}}",
+  "planFreeRoom": "{amount} slots free",
+  "@planFreeRoom": {
+    "description": "Plan: the dashed box when the room left ends in a half: ½, 1½ (D21)",
+    "placeholders": {"amount": {"type": "String"}}
+  },
   "@planFreeSlots": {
     "description": "Plan: the dashed box under the tasks of a day with room left (D22)",
     "placeholders": {"count": {"type": "int"}}
   },
-  "planDayCount": "{count}/{capacity}",
+  "planDayCount": "{load}/{capacity}",
   "@planDayCount": {
-    "description": "Plan: tasks on a day and the capacity of the day",
+    "description": "Plan: the slots the tasks of a day take (may end in ½) and the capacity of the day",
     "placeholders": {
-      "count": {
-        "type": "int"
+      "load": {
+        "type": "String"
       },
       "capacity": {
         "type": "int"

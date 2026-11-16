@@ -88,16 +88,28 @@ abstract class PlannedDay with _$PlannedDay {
   const factory PlannedDay({
     required LocalDate date,
 
-    /// Effective capacity: override, else weekday; for today minus the
-    /// planned tasks already completed.
+    /// Effective capacity in slots (normal tasks): override, else weekday;
+    /// for today minus the weight already completed from its list, rounded
+    /// down to whole slots.
     required int capacity,
+
+    /// The same in half-slots (D21), exact where [capacity] rounds down
+    /// (today after a small task was done from its list); null means
+    /// `2 × capacity`.
+    int? capacityWeight,
     @Default(<PlanEntry>[]) List<PlanEntry> entries,
   }) = _PlannedDay;
 
   const PlannedDay._();
 
-  /// More tasks than the user asked for (deadline overflow, D5).
-  bool get isOverloaded => entries.length > capacity;
+  /// The weight of the entries in half-slots (D21).
+  int get load => entries.fold(0, (sum, entry) => sum + entry.weight);
+
+  /// The room of the day in half-slots: [capacityWeight], else two per slot.
+  int get room => capacityWeight ?? 2 * capacity;
+
+  /// More than the user asked for (deadline overflow, D5; a pin).
+  bool get isOverloaded => load > room;
 }
 
 /// A task placed on a day.
@@ -112,6 +124,14 @@ abstract class PlanEntry with _$PlanEntry {
 
     /// Placed after its due date.
     @Default(false) bool atRisk,
+
+    /// The weight the planner counted, in half-slots (D21): the task's
+    /// weight capped by the biggest weekday (`effWeight`).
+    @Default(2) int weight,
+
+    /// A lighter task went ahead on an earlier day because this one did not
+    /// fit what was left of it (D21, first fit).
+    @Default(false) bool waitsForRoom,
 
     /// Set for a ghost: the repeat of the recurring task [taskId] for this
     /// date of its schedule (D20, T-704). Null for a stored task. A ghost is

@@ -8,6 +8,7 @@ How to use TasksOrder 0.5. Українською: [[08 User Guide uk]]. The app
 
 ## The idea in one minute
 - **Tasks per day.** Settings → Planning → Tasks per day sets a number for each weekday. 0 means a rest day. This is the capacity of the day.
+- **Size.** A task is small, normal or large: half a slot, one slot or two slots of a day. Two small tasks fit where one normal task does. A task is done within one day: split a bigger job into several tasks. A large task waits for a day with room for it (on a week of 1 a day it counts as normal), and lighter tasks go ahead meanwhile; its card says "Waits for a day with room". A Critical (or higher) large task that is first in line takes the next working day anyway, as an extra task.
 - **Priority.** Each task has a level: Critical, High, Normal, Low, Someday (five levels by default; three or ten in Settings). The plan fills each day with the most important tasks first; equal ones keep the order they were added in.
 - **Due date.** A task with a due date gets a place on or before that day, even if that pushes a more important task later. When the deadlines need more than a day holds, the day may take a few extra tasks (Settings → Extra tasks for deadlines, +1 to +3). When even that is not enough, the task is **at risk** and a banner says so.
 - **The plan follows you.** Add, complete, delete or edit a task, change a setting, or let the day pass: the plan is computed again at once. Nothing has to be moved by hand.
@@ -26,6 +27,7 @@ What to do today, in order. At the top: the date, and a bar with "done of total"
 ## Plan
 The coming days, each with its tasks. The head of a day shows its name ("· rest day" for a day with no capacity), a pill with a dot for each place of the day and "planned/capacity" (red when the day holds more than its capacity), and a **tune** button: it, or a tap on the head, changes the capacity of that one day (for example a holiday or a busy day), with a note; "As the weekday" removes the change. Under the tasks, a dashed box says how many places are still free.
 - **+** opens the editor of a new task, as on Tasks (all fields: due date, pin, repeat…).
+- The pill of a day counts slots: "1½/2" is three small tasks on a day of two; a slot half taken shows a half-filled dot, and the dashed box may say "½ slots free".
 - A tap on a task opens the same menu as on Today: postpone it, pin it to a day or unpin it, skip a repeat, edit.
 - A task done ahead of its day stays at the end of the day it was planned for, dimmed, until that day is over; its place goes to the next task.
 - Tasks that do not fit the horizon are listed under "Later".
@@ -36,7 +38,7 @@ All tasks, with "N active" at the top and filters: **Active** (every task not do
 The bin button opens the **Trash**: deleted tasks stay there for 30 days, can be restored or deleted forever, and leave for good after that.
 
 ## Task editor
-Title, notes, priority, due date, **Not before**, Focus, and "Do on this day" (a pin: the task goes on that day whatever the plan would do). The bin in the top bar moves the task to the Trash.
+Title, notes, priority, **Size** (Small, Normal, Large; new tasks and quick add are Normal), due date, **Not before**, Focus, and "Do on this day" (a pin: the task goes on that day whatever the plan would do). The bin in the top bar moves the task to the Trash. A small or large task has its size on the card.
 - **Not before**: the task stays off the plan until that day, then takes its turn by priority and due date like any task; the card says "From <date>" until then. Unlike a pin it does not jump the queue. A due date before it cannot be saved. With a pin as well, the pin wins. For a repeating task it is the date of the current repeat: change it to move the series (a haircut a few days later).
 
 ## Repeating tasks

@@ -13,6 +13,7 @@ import 'package:tasks_order/domain/model/plan.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/planner/planner.dart';
 import 'package:tasks_order/l10n/l10n.dart';
+import 'package:tasks_order/shared/plan_badges.dart';
 import 'package:tasks_order/shared/screen_header.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
 import 'package:tasks_order/shared/task_card.dart';
@@ -301,6 +302,12 @@ class _TaskList extends ConsumerWidget {
         for (final entry in day.entries)
           if (!entry.isGhost) entry.taskId: day.date,
     };
+    // Lighter tasks went ahead of these (D21).
+    final waiting = {
+      for (final day in plan.days)
+        for (final entry in day.entries)
+          if (!entry.isGhost && entry.waitsForRoom) entry.taskId,
+    };
 
     final sorted = [...tasks]
       ..sort((a, b) => Planner.compareForList(a, b, today: today));
@@ -414,6 +421,7 @@ class _TaskList extends ConsumerWidget {
                 },
                 icon: Icons.calendar_today_outlined,
               ),
+              if (waiting.contains(task.id)) waitsForRoomChip(context),
             ],
           ),
         );

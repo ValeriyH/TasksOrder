@@ -7,6 +7,7 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/domain/model/task_size.dart';
 
 /// The backup file: one JSON document, see "Backup format" in
 /// docs/03 Data Model.md. Hand-written mappers (ADR-8).
@@ -20,6 +21,9 @@ class BackupCodec {
 
   /// Format version this app writes, and the highest one it reads.
   ///
+  /// 5: a task may carry `weight` (D21, T-804), left out for a normal
+  /// task; the version went up so that an older app refuses the file instead
+  /// of making every task normal.
   /// 4: a done task may carry `completedPlanDate` (T-907); the version went
   /// up so that an older app refuses the file instead of dropping it.
   /// 3: a task may carry `recurrence`, `seriesId` and `occurrenceDate` (D20);
@@ -27,7 +31,7 @@ class BackupCodec {
   /// dropping the rules. 2: a priority is a level of the ten-level table
   /// (ADR-17). 1: it was the position in the scale of the file,
   /// `1..priorityScale`; read as the level that stands at that position.
-  static const version = 4;
+  static const version = 5;
 
   String encode(Backup backup) => const JsonEncoder.withIndent('  ').convert({
     'app': appName,
@@ -148,6 +152,7 @@ class BackupCodec {
     'title': task.title,
     'notes': ?task.notes,
     'priority': task.priority,
+    'weight': ?(task.weight == TaskSize.defaultWeight ? null : task.weight),
     'dueDate': ?task.dueDate?.toIso(),
     'isFocused': task.isFocused,
     'focusedAt': ?_instantOrNull(task.focusedAt),
@@ -183,6 +188,9 @@ class BackupCodec {
     _require((status == TaskStatus.done) == (completedAt != null));
     _require(isFocused == (focusedAt != null));
     _require(!completedOnPlan || status == TaskStatus.done);
+    // A file before version 5 has no weight: every task is normal.
+    final weight = json['weight'] as int? ?? TaskSize.defaultWeight;
+    _require(weight >= 1);
     final completedPlanDate = _readDate(json['completedPlanDate']);
     _require(completedPlanDate == null || status == TaskStatus.done);
     final ruleJson = json['recurrence'] as Map<String, dynamic>?;
@@ -199,6 +207,7 @@ class BackupCodec {
       title: title,
       notes: json['notes'] as String?,
       priority: readPriority(json['priority'] as int),
+      weight: weight,
       dueDate: _readDate(json['dueDate']),
       isFocused: isFocused,
       focusedAt: focusedAt,

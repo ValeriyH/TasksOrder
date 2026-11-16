@@ -9,11 +9,13 @@ import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/domain/model/task_size.dart';
 import 'package:tasks_order/features/task_edit/repeat_sheet.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/priority_dropdown.dart';
 import 'package:tasks_order/shared/repeat_text.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
+import 'package:tasks_order/shared/task_size_text.dart';
 
 /// Creates a task or changes the one with [taskId].
 class TaskEditScreen extends ConsumerStatefulWidget {
@@ -40,6 +42,11 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   /// Null until the user or the loaded task says otherwise: a new task then
   /// gets Normal.
   int? _priority;
+
+  /// The weight in half-slots (D21); null for a new task until a size is
+  /// picked (normal). A weight that is no named size is kept unless the
+  /// user picks one.
+  int? _weight;
   LocalDate? _dueDate;
   LocalDate? _pinnedDate;
 
@@ -79,6 +86,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
       _title.text = task.title;
       _notes.text = task.notes ?? '';
       _priority = task.priority;
+      _weight = task.weight;
       _dueDate = task.dueDate;
       _pinnedDate = task.pinnedDate;
       _notBefore = task.notBefore;
@@ -109,6 +117,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
           title: _title.text.trim(),
           notes: notes.isEmpty ? null : notes,
           priority: priority,
+          weight: _weight ?? base.weight,
           dueDate: _dueDate,
           pinnedDate: _pinnedDate,
           notBefore: _notBefore,
@@ -266,6 +275,11 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
                     scale: scale,
                     value: priority,
                     onChanged: (value) => setState(() => _priority = value),
+                  ),
+                  const SizedBox(height: 16),
+                  _SizePicker(
+                    weight: _weight ?? TaskSize.defaultWeight,
+                    onChanged: (size) => setState(() => _weight = size.weight),
                   ),
                 ],
               ),
@@ -447,6 +461,48 @@ class _RepeatTile extends StatelessWidget {
       ),
       isThreeLine: rule != null,
       onTap: onTap,
+    );
+  }
+}
+
+/// "Size" (D21): three segments, the nearest one selected for a weight that
+/// is no named size. Keyed `ValueKey('size')`.
+class _SizePicker extends StatelessWidget {
+  const _SizePicker({required this.weight, required this.onChanged});
+
+  final int weight;
+  final ValueChanged<TaskSize> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.taskSizeLabel, style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<TaskSize>(
+            key: const ValueKey('size'),
+            showSelectedIcon: false,
+            segments: [
+              for (final size in TaskSize.values)
+                ButtonSegment(value: size, label: Text(sizeLabel(l10n, size))),
+            ],
+            selected: {TaskSize.nearest(weight)},
+            onSelectionChanged: (selected) => onChanged(selected.single),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          l10n.taskSizeHint,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

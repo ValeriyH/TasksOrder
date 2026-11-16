@@ -103,6 +103,31 @@ void main() {
       ]);
     });
 
+    testWidgets('a size mark for small and large tasks only (D21)', (
+      tester,
+    ) async {
+      await pump(tester, card(testTask('a').copyWith(weight: 1)));
+      expect(chipTexts(tester), ['priority', 'Small']);
+
+      await pump(tester, card(testTask('a').copyWith(weight: 4)));
+      expect(chipTexts(tester), ['priority', 'Large']);
+
+      await pump(tester, card(testTask('a')));
+      expect(chipTexts(tester), ['priority']);
+      expect(find.byKey(const ValueKey('sizeChip')), findsNothing);
+
+      // An unknown weight shows its nearest size.
+      await pump(tester, card(testTask('a').copyWith(weight: 3)));
+      expect(chipTexts(tester), ['priority', 'Large']);
+
+      await pump(
+        tester,
+        card(testTask('a').copyWith(weight: 1)),
+        locale: const Locale('uk'),
+      );
+      expect(find.text('Маленька'), findsOneWidget);
+    });
+
     testWidgets('the pin chip without its date where the list says the day '
         '(T-911)', (tester) async {
       await pump(

@@ -32,6 +32,22 @@ void main() {
       expect(a, isNot(Settings()));
     });
 
+    test('maxWeeklyCapacity is the biggest weekday (D21)', () {
+      expect(s.maxWeeklyCapacity, 3);
+      expect(
+        Settings(weeklyCapacity: const [1, 1, 1, 1, 1, 1, 1]).maxWeeklyCapacity,
+        1,
+      );
+      expect(
+        Settings(weeklyCapacity: const [0, 0, 0, 0, 0, 0, 0]).maxWeeklyCapacity,
+        0,
+      );
+      expect(
+        Settings(weeklyCapacity: const [2, 5, 0, 0, 0, 0, 1]).maxWeeklyCapacity,
+        5,
+      );
+    });
+
     test('the capacity list cannot be modified in place', () {
       expect(() => s.weeklyCapacity[0] = 9, throwsUnsupportedError);
     });

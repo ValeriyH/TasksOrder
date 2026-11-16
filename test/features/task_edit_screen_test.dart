@@ -13,9 +13,11 @@ import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/recurrence.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/domain/model/task_size.dart';
 import 'package:tasks_order/domain/repository/task_repository.dart';
 import 'package:tasks_order/features/task_edit/task_edit_screen.dart';
 import 'package:tasks_order/features/tasks/tasks_screen.dart';
+import 'package:tasks_order/shared/priority_dropdown.dart';
 
 import '../data/test_database.dart';
 
@@ -39,6 +41,10 @@ void main() {
     Settings? settings,
   }) async {
     SharedPreferences.setMockInitialValues(stored);
+    // The editor is taller than the default test window since the size
+    // row (D21): keep every field built and on screen.
+    await tester.binding.setSurfaceSize(const Size(800, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     final preferences = await SharedPreferences.getInstance();
     final db = newTestDatabase();
     container = ProviderContainer(
@@ -94,13 +100,19 @@ void main() {
 
   Finder field(String label) => find.widgetWithText(TextFormField, label);
 
+  /// A priority name in the priority field; "Normal" is a size too (D21).
+  Finder inPriority(String name) => find.descendant(
+    of: find.byType(PriorityDropdown),
+    matching: find.text(name),
+  );
+
   group('new task', () {
     testWidgets('title and the default priority are enough', (tester) async {
       await pumpApp(tester);
       await openNew(tester);
 
       expect(find.text('New task'), findsOneWidget);
-      expect(find.text('Normal'), findsOneWidget);
+      expect(inPriority('Normal'), findsOneWidget);
       expect(find.byIcon(Icons.delete_outline), findsNothing);
       // The keyboard is ready for the title.
       expect(tester.testTextInput.isVisible, isTrue);
@@ -139,7 +151,7 @@ void main() {
       await tester.enterText(field('Title'), 'Tax return');
       await tester.enterText(field('Notes'), 'Form 3');
 
-      await tester.tap(find.text('Normal'));
+      await tester.tap(inPriority('Normal'));
       await tester.pumpAndSettle();
       expect(find.text('Critical'), findsOneWidget);
       expect(find.text('Someday'), findsOneWidget);
@@ -174,8 +186,8 @@ void main() {
       await pumpApp(tester, settings: Settings(priorityScale: 10));
       await openNew(tester);
 
-      expect(find.text('Normal'), findsOneWidget);
-      await tester.tap(find.text('Normal'));
+      expect(inPriority('Normal'), findsOneWidget);
+      await tester.tap(inPriority('Normal'));
       await tester.pumpAndSettle();
       expect(find.text('Catastrophic'), findsOneWidget);
       expect(find.text('Never'), findsOneWidget);
@@ -303,6 +315,103 @@ void main() {
 
       expect(find.text('Task not found'), findsOneWidget);
       expect(find.text('Save'), findsNothing);
+    });
+  });
+
+  group('size (D21, T-805)', () {
+    Finder segment(String label) => find.descendant(
+      of: find.byKey(const ValueKey('size')),
+      matching: find.text(label),
+    );
+
+    bool selected(WidgetTester tester, TaskSize size) => tester
+        .widget<SegmentedButton<TaskSize>>(find.byKey(const ValueKey('size')))
+        .selected
+        .contains(size);
+
+    testWidgets('a new task is normal; a size picked is stored', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      expect(selected(tester, TaskSize.normal), isTrue);
+      expect(
+        find.text(
+          'Small: two share one slot of a day. Large: takes two slots.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.enterText(field('Title'), 'Roof');
+      await tester.tap(segment('Large'));
+      await tester.pumpAndSettle();
+      expect(selected(tester, TaskSize.large), isTrue);
+      await save(tester);
+
+      expect((await stored(tester)).single.weight, 4);
+    });
+
+    testWidgets('a new task saved as it is weighs 2', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      await tester.enterText(field('Title'), 'Call');
+      await save(tester);
+
+      expect((await stored(tester)).single.weight, 2);
+    });
+
+    testWidgets('changing the size of a task', (tester) async {
+      await pumpApp(tester);
+      await openExisting(
+        tester,
+        Task.create(
+          id: 'a',
+          title: 'Bills',
+          priority: 5,
+          now: now,
+        ).copyWith(weight: 4),
+      );
+      expect(selected(tester, TaskSize.large), isTrue);
+
+      await tester.tap(segment('Small'));
+      await tester.pumpAndSettle();
+      await save(tester);
+
+      expect((await stored(tester)).single.weight, 1);
+    });
+
+    testWidgets('an unknown weight is kept unless a size is picked', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openExisting(
+        tester,
+        Task.create(
+          id: 'a',
+          title: 'Odd',
+          priority: 5,
+          now: now,
+        ).copyWith(weight: 3),
+      );
+      // 3 reads as the nearest size, the larger on a tie.
+      expect(selected(tester, TaskSize.large), isTrue);
+
+      await tester.enterText(field('Title'), 'Odd one');
+      await save(tester);
+
+      final task = (await stored(tester)).single;
+      expect(task.title, 'Odd one');
+      expect(task.weight, 3);
+    });
+
+    testWidgets('in Ukrainian', (tester) async {
+      await pumpApp(tester, stored: {'device.locale': 'uk'});
+      await openNew(tester);
+
+      expect(find.text('Розмір'), findsOneWidget);
+      expect(segment('Маленька'), findsOneWidget);
+      expect(segment('Звичайна'), findsOneWidget);
+      expect(segment('Велика'), findsOneWidget);
     });
   });
 

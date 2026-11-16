@@ -160,7 +160,7 @@ void main() {
       );
       expect(find.text('0 of 4'), findsOneWidget);
       expect(
-        find.text('More than planned: 4 tasks, capacity 2'),
+        find.text('More than planned: 4 of 2 slots taken'),
         findsOneWidget,
       );
 
@@ -170,7 +170,7 @@ void main() {
       expect(find.text('1 of 4'), findsOneWidget);
       expect(find.text('1/4'), findsOneWidget);
       expect(
-        find.text('More than planned: 4 tasks, capacity 2'),
+        find.text('More than planned: 4 of 2 slots taken'),
         findsOneWidget,
       );
     });
@@ -191,7 +191,7 @@ void main() {
       expect(inTile('d1', find.text('Due today')), findsOneWidget);
       expect(inTile('d2', find.text('Extra')), findsOneWidget);
       expect(
-        find.text('More than planned: 2 tasks, capacity 1'),
+        find.text('More than planned: 2 of 1 slots taken'),
         findsOneWidget,
       );
       expect(find.text('1 task will not make its deadline'), findsOneWidget);

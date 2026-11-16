@@ -18,6 +18,7 @@ import 'package:tasks_order/shared/plan_badges.dart';
 import 'package:tasks_order/shared/screen_header.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
 import 'package:tasks_order/shared/task_card.dart';
+import 'package:tasks_order/shared/task_size_text.dart';
 
 /// What to do today (D22): the date, the progress of today's list, the
 /// Focus section and today's list of the plan. Tasks done today stay at the
@@ -117,6 +118,12 @@ class _TodayBody extends ConsumerWidget {
       today: today,
       dayStartHour: settings.dayStartHour,
     );
+    // The same by weight, for the load of the day (D21).
+    final doneWeight = Planner.completedTodayWeightOf(
+      tasks,
+      today: today,
+      settings: settings,
+    );
 
     Widget card(
       Task task, {
@@ -211,7 +218,10 @@ class _TodayBody extends ConsumerWidget {
             icon: Icons.error_outline,
             // All the day holds, the ones done from the list too, against
             // its full capacity: the numbers of the progress.
-            text: l10n.todayOverloaded(plannedTotal, capacity),
+            text: l10n.todayOverloaded(
+              slotsText(day.load + doneWeight),
+              capacity,
+            ),
             background: c.extraChipBg,
             foreground: c.extraChipFg,
           ),

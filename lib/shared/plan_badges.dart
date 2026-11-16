@@ -29,5 +29,15 @@ List<Widget> planEntryChips(
       ),
     if (showReasons && entry.reason == PlanReason.deadline)
       TaskChip(label: l10n.reasonDeadline, icon: Icons.flag_outlined),
+    // Lighter tasks went ahead of it (D21): the user may pin it or give a
+    // day more room.
+    if (entry.waitsForRoom) waitsForRoomChip(context),
   ];
 }
+
+/// "Waits for a day with room" (D21), next to the planned day of a task.
+Widget waitsForRoomChip(BuildContext context) => TaskChip(
+  key: const ValueKey('waitsForRoom'),
+  label: context.l10n.reasonWaitsForRoom,
+  icon: Icons.hourglass_top,
+);

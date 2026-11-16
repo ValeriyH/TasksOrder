@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/domain/model/task_size.dart';
 
 void main() {
   final t0 = DateTime.utc(2026, 11, 13, 9);
@@ -147,6 +148,39 @@ void main() {
         () => newTask().copyWith(completedPlanDate: LocalDate(2026, 11, 13)),
         isAssertionError,
       );
+    });
+
+    test('weight is at least one half-slot (D21)', () {
+      expect(() => newTask().copyWith(weight: 0), isAssertionError);
+      expect(() => newTask().copyWith(weight: -2), isAssertionError);
+      expect(newTask().copyWith(weight: 1).weight, 1);
+      // Any weight above is valid, not only the named sizes.
+      expect(newTask().copyWith(weight: 7).weight, 7);
+    });
+  });
+
+  group('weight (D21)', () {
+    test('a new task is normal', () {
+      expect(newTask().weight, 2);
+      expect(newTask().weight, TaskSize.normal.weight);
+    });
+
+    test('create takes a weight and refuses one below 1', () {
+      final large = Task.create(
+        title: 'Roof',
+        priority: 5,
+        now: t0,
+        weight: TaskSize.large.weight,
+      );
+      expect(large.weight, 4);
+      expect(
+        () => Task.create(title: 'Roof', priority: 5, now: t0, weight: 0),
+        throwsArgumentError,
+      );
+    });
+
+    test('equality compares the weight', () {
+      expect(newTask().copyWith(weight: 1), isNot(newTask()));
     });
   });
 
