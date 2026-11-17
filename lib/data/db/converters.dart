@@ -44,6 +44,36 @@ class IntListConverter extends TypeConverter<List<int>, String> {
   String toSql(List<int> value) => jsonEncode(value);
 }
 
+/// The allowed weekdays of a task (D23) as a JSON array in ascending order,
+/// e.g. `[3,4]` for Thursday and Friday (Monday = 0). The same array is in
+/// the backup.
+class WeekdaySetConverter extends TypeConverter<Set<int>, String> {
+  const WeekdaySetConverter();
+
+  @override
+  Set<int> fromSql(String fromDb) =>
+      fromJson(jsonDecode(fromDb) as List<dynamic>);
+
+  @override
+  String toSql(Set<int> value) => jsonEncode(toJson(value));
+
+  /// The JSON array of [days], sorted.
+  static List<int> toJson(Set<int> days) => days.toList()..sort();
+
+  /// The set in [json]. Throws [FormatException] for an empty array, a value
+  /// that is not a weekday 0..6 or a repeated one.
+  static Set<int> fromJson(List<dynamic> json) {
+    final days = <int>{};
+    for (final item in json) {
+      if (item is! int || item < 0 || item > 6 || !days.add(item)) {
+        throw FormatException('Not a set of weekdays', json);
+      }
+    }
+    if (days.isEmpty) throw FormatException('No weekdays', json);
+    return days;
+  }
+}
+
 /// A repeat rule as JSON text (D20), the same in the database column and in
 /// the backup (docs/03 Data Model.md, "Recurrence"):
 ///

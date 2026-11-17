@@ -16,7 +16,7 @@ How to use TasksOrder 0.5. Українською: [[08 User Guide uk]]. The app
 ## Today
 What to do today, in order. At the top: the date, and a bar with "done of total" for today's list.
 - **+** adds a task: type a title, pick a priority if it is not Normal, press Add.
-- Each task is a card: its priority and marks (pinned, repeat, planned day, at risk), the title, the due date, and a **Done** button. A done task stays on the screen until the day ends, dimmed at the end of its section, with "Completed today"; its button reads **Completed**, and a tap on it takes the completion back. A completed task leaves its slot empty: the next task does not slide in, so finishing the list means the day is done.
+- Each task is a card: its priority and marks (pinned, repeat, the days it is limited to, planned day, at risk), the title, the due date, and a **Done** button. A done task stays on the screen until the day ends, dimmed at the end of its section, with "Completed today"; its button reads **Completed**, and a tap on it takes the completion back. A completed task leaves its slot empty: the next task does not slide in, so finishing the list means the day is done.
 - A tap on a card opens its menu: skip this time (a repeating task), **Postpone until…** (sets Not before: the task stays off the plan until that day; a pin before that day is removed) or Cancel postponement, **Pin to a day…** or Unpin, move or remove an overdue due date, edit. A task due today or overdue cannot be postponed, and it cannot be postponed past its due date. The menu closes when you switch to another tab.
 - A pinned card says "Pinned to <date>"; where the card already says "Planned for <date>" (Focus, Tasks) it says just "Pinned".
 - When nothing is left on today's list, a card under Planned says "All done for today" or "Nothing planned for today".
@@ -38,8 +38,14 @@ All tasks, with "N active" at the top and filters: **Active** (every task not do
 The bin button opens the **Trash**: deleted tasks stay there for 30 days, can be restored or deleted forever, and leave for good after that.
 
 ## Task editor
-Title, notes, priority, **Size** (Small, Normal, Large; new tasks and quick add are Normal), due date, **Not before**, Focus, and "Do on this day" (a pin: the task goes on that day whatever the plan would do). The bin in the top bar moves the task to the Trash. A small or large task has its size on the card.
+Title, notes, priority, **Size** (Small, Normal, Large; new tasks and quick add are Normal), due date, **Not before**, **Days**, Focus, and "Do on this day" (a pin: the task goes on that day whatever the plan would do). The bin in the top bar moves the task to the Trash. A small or large task has its size on the card.
 - **Not before**: the task stays off the plan until that day, then takes its turn by priority and due date like any task; the card says "From <date>" until then. Unlike a pin it does not jump the queue. A due date before it cannot be saved. With a pin as well, the pin wins. For a repeating task it is the date of the current repeat: change it to move the series (a haircut a few days later).
+- **Days**: the days of the week the task can be done on, for a thing that is only possible on some days (an office that takes papers on Thursdays and Fridays) or one you keep for the weekend (change the tyres: Saturdays). Tap the row, choose the days, Done; "Any day" or the cross removes the limit. The card says "Only Thu, Fri". The plan puts the task only on those days, by priority like any task, so more important tasks may go first. A missed day needs nothing from you: the task moves to the next one of its days by itself, and it does not go to Focus. A day of the set that is a rest day is passed over.
+  - With a due date the task gets one of its days before the date: on the last such day it goes first ("Deadline"). After the date has passed it is overdue, in Focus, and keeps to its days.
+  - A pin wins: pinned to another day, the task goes there (the row says so in the editor, nothing else warns). A pin left in the past moves to the nearest of its days.
+  - You can still complete it on any day, for example when a free hour turns up on a weekday.
+  - A repeating task keeps its days on every repeat.
+  - Under the days the editor may say, quietly, that the pin is on another day, that all the days are rest days, or that none of them comes before the due date. Saving is never blocked.
 
 ## Repeating tasks
 In the editor, "Repeat" opens a sheet: **Every N** days, weeks, months or years, or **Weekdays** (tap the days). "Count from the day it is done" makes the next date count from the completion (a haircut every 30 days); off, the dates follow the calendar whenever you do it (the rent on the 1st; a monthly task from the 31st falls on the last day of shorter months).

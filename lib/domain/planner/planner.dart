@@ -26,6 +26,9 @@ class Planner {
   ///
   /// Capacities are counted in half-slots (D21): a day of capacity `c` holds
   /// `2 × c`, a task weighs its [effWeight].
+  ///
+  /// A task limited to some days of the week (`Task.allowedWeekdays`, D23) is
+  /// placed only on such a day, unless it is pinned.
   Plan plan({
     required List<Task> activeTasks,
     required Settings settings,
@@ -56,7 +59,7 @@ class Planner {
         task,
         overdue ? null : dueOffset,
         release == null ? 0 : _atLeastZero(today.daysUntil(release)),
-        weight: _capped(task.weight, maxWeight),
+        weight: _weightOf(task, settings, maxWeight),
       );
       if (task.isFocused || overdue) focus.add(candidate);
       if (task.recurrence != null && task.occurrenceDate != null) {
@@ -66,20 +69,18 @@ class Planner {
       if (pin == null) {
         pool.add(candidate);
       } else {
-        // The user fixed the day; a pin in the past means today.
-        final pinOffset = _atLeastZero(today.daysUntil(pin));
+        // The user fixed the day; a pin in the past means today, or the
+        // nearest allowed day of a task limited to some weekdays (D23).
+        final pinOffset = pin < today
+            ? _firstAllowedOffset(task, today)
+            : today.daysUntil(pin);
         (pinned[pinOffset] ??= []).add(candidate);
       }
     }
     // 1b. Ghosts: the later repeats of recurring tasks inside the horizon
     // (D20, T-704). They take slots like real tasks, but never today, never
     // in Focus, later or the at-risk list.
-    for (final ghost in _ghosts(
-      activeTasks,
-      today,
-      settings.planningHorizonDays,
-      maxWeight,
-    )) {
+    for (final ghost in _ghosts(activeTasks, today, settings, maxWeight)) {
       series[ghost.task.id]?.add(ghost);
       final pinOffset = ghost.pinOffset;
       if (pinOffset == null) {
@@ -110,6 +111,12 @@ class Planner {
       for (final c in dueFirst)
         if (c.weight > TaskSize.defaultWeight) c.weight,
     }.toList()..sort();
+    // The sets of allowed weekdays the due tasks have: each gets the check
+    // of "a task counts only the days it may take" (D23).
+    final dueMasks = {
+      for (final c in dueFirst)
+        if (c.dayMask != _anyDay) c.dayMask,
+    }.toList()..sort();
     // The heaviest task that is not pinned: only a day too small for it can
     // see the top-level overflow.
     final heaviest = pool.fold(0, (w, c) => c.weight > w ? c.weight : w);
@@ -119,6 +126,7 @@ class Planner {
 
     for (var offset = 0; offset < settings.planningHorizonDays; offset++) {
       final date = today.addDays(offset);
+      final weekday = date.weekday;
       final base = resolver.capacityFor(date);
       // In half-slots (D21).
       final room = offset == 0
@@ -147,18 +155,23 @@ class Planner {
       if (hardRoom > 0) {
         // 2. The minimum weight that must happen today to keep deadlines
         // feasible, taken from the released tasks in deadline order: the
-        // check over every due task, and for each heavy weight the check
-        // over the tasks that heavy, counting only the days that can hold
-        // them (D21). A task that would pass the hard limit stays in the
+        // check over every due task, for each heavy weight the check over
+        // the tasks that heavy, counting only the days that can hold them
+        // (D21), and for each set of allowed weekdays the check over the
+        // tasks that can only use those days, counting only them (D23). A
+        // task that would pass the hard limit stays in the
         // pool and ends up at risk on a later day; a lighter one behind it
         // may still be taken.
         _force(
           dueFirst,
           offset,
+          weekday,
           future,
           heavyWeights,
+          dueMasks,
           fits: (candidate) =>
               candidate.releaseOffset <= offset &&
+              _allowed(candidate, weekday) &&
               load + candidate.weight <= hardRoom &&
               _ready(candidate, offset),
           place: (candidate) => place(candidate, PlanReason.deadline),
@@ -182,6 +195,7 @@ class Planner {
             in overflowPossible ? pool : const <_Candidate>[]) {
           if (taken.contains(candidate)) continue;
           if (candidate.releaseOffset > offset) continue;
+          if (!_allowed(candidate, weekday)) continue;
           if (!_ready(candidate, offset)) continue;
           final done = offset == 0 ? completedTodayWeight : 0;
           if (candidate.task.priority <= _overflowLevel &&
@@ -201,6 +215,9 @@ class Planner {
             if (taken.contains(candidate)) continue;
             // Not released yet: it waits for its day (T-703).
             if (candidate.releaseOffset > offset) continue;
+            // Not a day of its week (D23): it waits for one, and that is
+            // not "waits for room".
+            if (!_allowed(candidate, weekday)) continue;
             if (!_ready(candidate, offset)) continue;
             if (load + candidate.weight > room) {
               candidate.waitsForRoom = true;
@@ -314,8 +331,23 @@ class Planner {
   /// The weight of [task] the planner counts, in half-slots (D21, ADR-19):
   /// never more than the biggest weekday of [settings] holds, so every task
   /// fits some working day. Day overrides do not count.
+  ///
+  /// A task limited to some days of the week (D23) is capped by the biggest
+  /// of those weekdays instead, so it fits one of its own days.
   static int effWeight(Task task, Settings settings) =>
-      _capped(task.weight, _maxWeight(settings));
+      _weightOf(task, settings, _maxWeight(settings));
+
+  /// [effWeight] with the cap of the whole week, [maxWeight], at hand.
+  static int _weightOf(Task task, Settings settings, int maxWeight) {
+    final days = task.allowedWeekdays;
+    if (days == null) return _capped(task.weight, maxWeight);
+    var biggest = 0;
+    for (final day in days) {
+      final capacity = settings.weeklyCapacity[day];
+      if (capacity > biggest) biggest = capacity;
+    }
+    return _capped(task.weight, biggest > 0 ? 2 * biggest : 2);
+  }
 
   /// The `completedTodayWeight` for [plan]: the [effWeight] of the tasks
   /// completed on the planning day [today] from that day's list (D3, D19,
@@ -334,7 +366,7 @@ class Planner {
         completedAt.toLocal(),
         settings.dayStartHour,
       );
-      if (day == today) weight += _capped(task.weight, maxWeight);
+      if (day == today) weight += _weightOf(task, settings, maxWeight);
     }
     return weight;
   }
@@ -408,81 +440,117 @@ class Planner {
   /// for it (D21): Catastrophic and Critical, by their own priority.
   static const _overflowLevel = 2;
 
-  /// Places the deadline-forced tasks of the day at [dayOffset] (D21): the
-  /// weight of [dueFirst] that must be done that day so that every deadline
-  /// can still be met ([_forcedWeight]), and for each of [heavyWeights] `w`
-  /// the same over the tasks of weight `w` or more, counting only the days
-  /// that can hold `w`. One pass in deadline order takes a task while one of
-  /// the checks it belongs to still needs weight and it [fits] (released,
-  /// ready in its series, inside the hard limit); a task that does not fit
-  /// is skipped and the next one tried. What is taken lowers every check
+  /// Places the deadline-forced tasks of the day at [dayOffset], a
+  /// [weekday] (D21, D23). Several checks say how much weight must be done
+  /// that day so that every deadline can still be met ([_forcedWeight]):
+  /// - over all of [dueFirst], counting every day;
+  /// - for each of [heavyWeights] `w`, over the tasks of weight `w` or more,
+  ///   counting only the days that can hold `w`;
+  /// - for each of [dueMasks] `S` (a set of allowed weekdays), over the tasks
+  ///   that can only use days of `S`, counting only those days, and the same
+  ///   per heavy weight inside the set.
+  ///
+  /// One pass in deadline order takes a task while one of the checks it
+  /// belongs to still needs weight and it [fits] (released, on an allowed
+  /// day, ready in its series, inside the hard limit); a task that does not
+  /// fit is skipped and the next one tried. What is taken lowers every check
   /// the task belongs to: a task done today needs no room later.
   static void _force(
     List<_Candidate> dueFirst,
     int dayOffset,
+    int weekday,
     _FutureCapacity future,
-    List<int> heavyWeights, {
+    List<int> heavyWeights,
+    List<int> dueMasks, {
     required bool Function(_Candidate) fits,
     required void Function(_Candidate) place,
   }) {
-    var forced = _forcedWeight(dueFirst, dayOffset, future, 0);
-    final heavyForced = [
-      for (final w in heavyWeights)
-        _forcedWeight(
-          [
-            for (final c in dueFirst)
-              if (c.weight >= w) c,
-          ],
-          dayOffset,
-          future,
-          w,
-        ),
-    ];
-    bool needsMore() => forced > 0 || heavyForced.any((left) => left > 0);
-    if (!needsMore()) return;
-    for (final candidate in dueFirst) {
-      if (!needsMore()) break;
-      var wanted = forced > 0;
-      for (var k = 0; k < heavyWeights.length && !wanted; k++) {
-        wanted = heavyForced[k] > 0 && candidate.weight >= heavyWeights[k];
+    if (dueFirst.isEmpty) return;
+    final checks = <_ForceCheck>[];
+    void add(int mask, int minWeight) {
+      final check = _ForceCheck(mask, minWeight);
+      final members = mask == _anyDay && minWeight == 0
+          ? dueFirst
+          : [
+              for (final c in dueFirst)
+                if (check.has(c)) c,
+            ];
+      check.left = _forcedWeight(
+        members,
+        dayOffset,
+        weekday,
+        future,
+        minWeight,
+        mask,
+      );
+      if (check.left > 0) checks.add(check);
+    }
+
+    add(_anyDay, 0);
+    for (final w in heavyWeights) {
+      add(_anyDay, w);
+    }
+    for (final mask in dueMasks) {
+      add(mask, 0);
+      for (final w in heavyWeights) {
+        add(mask, w);
       }
+    }
+    if (checks.isEmpty) return;
+    for (final candidate in dueFirst) {
+      var wanted = false;
+      var needsMore = false;
+      for (final check in checks) {
+        if (check.left <= 0) continue;
+        needsMore = true;
+        if (check.has(candidate)) {
+          wanted = true;
+          break;
+        }
+      }
+      if (!needsMore) break;
       if (!wanted || !fits(candidate)) continue;
       place(candidate);
-      forced -= candidate.weight;
-      for (var k = 0; k < heavyWeights.length; k++) {
-        if (candidate.weight >= heavyWeights[k]) {
-          heavyForced[k] -= candidate.weight;
-        }
+      for (final check in checks) {
+        if (check.has(candidate)) check.left -= candidate.weight;
       }
     }
   }
 
-  /// The weight of the released tasks of [due] (in deadline order) that
-  /// must be done on the day at [dayOffset] so that every deadline can still
-  /// be met, in half-slots.
+  /// The weight of the tasks of [due] (in deadline order) that must be done
+  /// on the day at [dayOffset], a [weekday], so that every deadline can
+  /// still be met, in half-slots.
   ///
   /// For each due date D, the weight due by D that does not fit the free
   /// room of the days after today up to D has to happen today: exact for
   /// tasks of one size (earliest deadline first), a heuristic for mixed ones
   /// (D21). Only days with at least [minFree] free half-slots count, so a
-  /// heavy task does not count on days too small for it. Tasks not released
-  /// yet count in that need (they will take room before their due date), but
-  /// only released ones can be done today, so the result for D is cut to the
-  /// released weight due by D (T-703, docs/04 "With release dates").
+  /// heavy task does not count on days too small for it, and only the
+  /// weekdays of [mask], so tasks limited to some days of the week do not
+  /// count on the others (D23). Tasks that cannot be done today (not
+  /// released yet, or today is not one of their days) count in that need:
+  /// they will take room before their due date. But only the others can be
+  /// pulled into today, so the result for D is cut to their weight due by D
+  /// (T-703, docs/04 "With release dates").
   static int _forcedWeight(
     List<_Candidate> due,
     int dayOffset,
+    int weekday,
     _FutureCapacity future,
     int minFree,
+    int mask,
   ) {
     final count = due.length;
+    if (count == 0) return 0;
     final total = due.fold(0, (sum, c) => sum + c.weight);
     var forced = 0;
     var need = 0;
-    var released = 0;
+    var pullable = 0;
     for (var i = 0; i < count; i++) {
       need += due[i].weight;
-      if (due[i].releaseOffset <= dayOffset) released += due[i].weight;
+      if (due[i].releaseOffset <= dayOffset && _allowed(due[i], weekday)) {
+        pullable += due[i].weight;
+      }
       final dueOffset = due[i].dueOffset!;
       // Evaluate once per distinct due date, at its last task.
       if (i + 1 < count && due[i + 1].dueOffset == dueOffset) continue;
@@ -491,9 +559,10 @@ class Planner {
         dueOffset,
         enough: total,
         minFree: minFree,
+        mask: mask,
       );
       final short = need - available;
-      final now = short < released ? short : released;
+      final now = short < pullable ? short : pullable;
       if (now > forced) forced = now;
       // Room only grows with later dates and need never exceeds total.
       if (available >= total) break;
@@ -616,11 +685,10 @@ class Planner {
   static Iterable<_Candidate> _ghosts(
     List<Task> tasks,
     LocalDate today,
-    int horizon,
+    Settings settings,
     int maxWeight,
   ) sync* {
-    // Ghosts carry the weight of their task (D21).
-    final last = today.addDays(horizon - 1);
+    final last = today.addDays(settings.planningHorizonDays - 1);
     for (final task in tasks) {
       final rule = task.recurrence;
       final occurrence = task.occurrenceDate;
@@ -632,6 +700,8 @@ class Planner {
       final pin = task.pinnedDate;
       final due = task.dueDate;
       final dueFromPin = pin != null && due != null ? pin.daysUntil(due) : null;
+      // Ghosts carry the weight of their task (D21).
+      final weight = _weightOf(task, settings, maxWeight);
       var previous = occurrence > today ? occurrence : today;
       for (final date in rule.datesAfter(previous, last)) {
         final offset = today.daysUntil(date);
@@ -642,7 +712,7 @@ class Planner {
             offset,
             ghostDate: date,
             pinOffset: offset,
-            weight: _capped(task.weight, maxWeight),
+            weight: weight,
           );
         } else if (due != null) {
           yield _Candidate(
@@ -650,7 +720,7 @@ class Planner {
             offset,
             today.daysUntil(previous) + 1,
             ghostDate: date,
-            weight: _capped(task.weight, maxWeight),
+            weight: weight,
           );
         } else {
           // Without dates of its own a repeat is gone once the next one is
@@ -662,7 +732,7 @@ class Planner {
             offset,
             ghostDate: date,
             expiresOffset: today.daysUntil(rule.firstAfter(date)) - 1,
-            weight: _capped(task.weight, maxWeight),
+            weight: weight,
           );
         }
         previous = date;
@@ -688,6 +758,22 @@ class Planner {
     }
     return series.next < members.length &&
         identical(members[series.next], candidate);
+  }
+
+  /// Whether [candidate] may be placed on a day of the week [weekday] as far
+  /// as the allowed days of its task go (D23, ADR-25). A ghost follows its
+  /// task; a pinned candidate is never asked.
+  static bool _allowed(_Candidate candidate, int weekday) =>
+      (candidate.dayMask >> weekday) & 1 == 1;
+
+  /// The day offset a pin in the past stands for (D23): today, or for a task
+  /// limited to some weekdays the first allowed day from today on.
+  static int _firstAllowedOffset(Task task, LocalDate today) {
+    if (task.allowedWeekdays == null) return 0;
+    for (var offset = 0; offset < 7; offset++) {
+      if (task.allowsDay(today.addDays(offset))) return offset;
+    }
+    return 0;
   }
 
   /// Records that [candidate] was placed on the day at [offset].
@@ -726,7 +812,12 @@ class _Candidate {
     this.ghostDate,
     this.pinOffset,
     this.expiresOffset,
-  }) : effectivePriority = task.priority;
+  }) : effectivePriority = task.priority,
+       dayMask = _maskOf(task.allowedWeekdays);
+
+  /// The allowed weekdays of the task as bits, Monday = bit 0 (D23);
+  /// [_anyDay] without the limit.
+  final int dayMask;
 
   /// The [Planner.effWeight] of the task, in half-slots (D21).
   final int weight;
@@ -767,23 +858,54 @@ class _Candidate {
   int effectivePriority;
 }
 
+/// Every weekday as bits: the [_Candidate.dayMask] of a task that may be
+/// planned on any day.
+const _anyDay = 0x7f;
+
+/// A set of weekdays (Monday = 0) as bits; [_anyDay] for no set.
+int _maskOf(Set<int>? weekdays) {
+  if (weekdays == null) return _anyDay;
+  var mask = 0;
+  for (final day in weekdays) {
+    mask |= 1 << day;
+  }
+  return mask;
+}
+
+/// One feasibility check of [Planner._force]: the due tasks that can only
+/// use the weekdays of [mask] ([_anyDay]: every due task) and weigh at least
+/// [minWeight], with the weight that still has to be placed today.
+class _ForceCheck {
+  _ForceCheck(this.mask, this.minWeight);
+
+  final int mask;
+  final int minWeight;
+  int left = 0;
+
+  bool has(_Candidate candidate) =>
+      candidate.weight >= minWeight &&
+      (mask == _anyDay ||
+          (candidate.dayMask != _anyDay && candidate.dayMask & ~mask == 0));
+}
+
 /// Running totals of the free base room (no overflow) of the days from
 /// today on, in half-slots (D21), extended on demand. A day's free room is
 /// `2 × capacity` minus the weight pinned on it, never below 0.
 class _FutureCapacity {
   _FutureCapacity(this._resolver, this._today, this._pinnedOn)
-    : _allZeroFrom = _findAllZeroFrom(_resolver, _today);
+    : _todayWeekday = _today.weekday;
 
   final CapacityResolver _resolver;
   final LocalDate _today;
+  final int _todayWeekday;
 
   /// Pinned weight per day offset; those half-slots are already taken.
   final Map<int, int> _pinnedOn;
 
-  /// When no weekday has capacity: the first offset after the last override
-  /// that grants some. From there on nothing is ever added. `null` when the
-  /// week has capacity.
-  final int? _allZeroFrom;
+  /// Per set of weekdays, when none of them has capacity in the week: the
+  /// first offset after the last override that grants some on such a day.
+  /// From there on nothing is ever added. -1 when the set has capacity.
+  final Map<int, int> _zeroFrom = {};
 
   /// Free room of the offsets `0, 1, ...` computed so far.
   final List<int> _free = [];
@@ -791,36 +913,47 @@ class _FutureCapacity {
   /// `_sumsAll[k]` = the free room of the offsets `0 .. k - 1`.
   final List<int> _sumsAll = [0];
 
-  /// The same per minimum free room above 0, counting only the days that
-  /// have at least that much (rare: heavy due tasks).
+  /// The same per minimum free room and set of weekdays, counting only the
+  /// days that have at least that much and are in the set (rare: heavy due
+  /// tasks, due tasks limited to some weekdays).
   final Map<int, List<int>> _sums = {};
 
   /// Free room of the days after offset [after] up to and including
   /// [until], counting only the days with at least [minFree] (D21: a heavy
-  /// task does not count on a day too small for it).
+  /// task does not count on a day too small for it) and on a weekday of
+  /// [mask] (D23: a task does not count on a day it may not take).
   ///
   /// Counting stops as soon as the result reaches [enough]: the caller only
   /// needs to know that there is at least that much, and a due date decades
   /// away must not make the planner walk there day by day.
-  int between(int after, int until, {required int enough, int minFree = 0}) {
+  int between(
+    int after,
+    int until, {
+    required int enough,
+    int minFree = 0,
+    int mask = _anyDay,
+  }) {
     if (until <= after) return 0;
-    final sums = minFree == 0 ? _sumsAll : (_sums[minFree] ??= [0]);
+    final sums = minFree == 0 && mask == _anyDay
+        ? _sumsAll
+        : (_sums[minFree * (_anyDay + 1) + mask] ??= [0]);
     final from = after + 1;
     while (sums.length <= from) {
-      _append(sums, minFree);
+      _append(sums, minFree, mask);
     }
+    final allZeroFrom = _allZeroFrom(mask);
     while (sums.length <= until + 1) {
       if (sums.last - sums[from] >= enough) break;
-      final allZeroFrom = _allZeroFrom;
-      if (allZeroFrom != null && sums.length - 1 >= allZeroFrom) break;
-      _append(sums, minFree);
+      if (allZeroFrom >= 0 && sums.length - 1 >= allZeroFrom) break;
+      _append(sums, minFree, mask);
     }
     final to = until + 1 < sums.length ? until + 1 : sums.length - 1;
     return sums[to] - sums[from];
   }
 
-  /// Adds the next day to [sums], the running totals for [minFree].
-  void _append(List<int> sums, int minFree) {
+  /// Adds the next day to [sums], the running totals for [minFree] and
+  /// [mask].
+  void _append(List<int> sums, int minFree, int mask) {
     final offset = sums.length - 1;
     while (_free.length <= offset) {
       final room =
@@ -829,16 +962,25 @@ class _FutureCapacity {
       _free.add(room > 0 ? room : 0);
     }
     final free = _free[offset];
-    sums.add(sums.last + (free >= minFree ? free : 0));
+    final counts =
+        free >= minFree && (mask >> ((_todayWeekday + offset) % 7)) & 1 == 1;
+    sums.add(sums.last + (counts ? free : 0));
   }
 
-  static int? _findAllZeroFrom(CapacityResolver resolver, LocalDate today) {
-    if (resolver.settings.weeklyCapacity.any((c) => c > 0)) return null;
+  /// See [_zeroFrom].
+  int _allZeroFrom(int mask) => _zeroFrom[mask] ??= _findAllZeroFrom(mask);
+
+  int _findAllZeroFrom(int mask) {
+    final weekly = _resolver.settings.weeklyCapacity;
+    for (var day = 0; day < 7; day++) {
+      if ((mask >> day) & 1 == 1 && weekly[day] > 0) return -1;
+    }
     var from = 0;
     for (final MapEntry(key: date, value: override)
-        in resolver.overrides.entries) {
+        in _resolver.overrides.entries) {
       if (override.capacity == 0) continue;
-      final next = today.daysUntil(date) + 1;
+      if ((mask >> date.weekday) & 1 == 0) continue;
+      final next = _today.daysUntil(date) + 1;
       if (next > from) from = next;
     }
     return from;

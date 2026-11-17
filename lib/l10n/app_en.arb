@@ -1082,5 +1082,42 @@
   "bringBackAsOrdinary": "Bring back as ordinary",
   "@bringBackAsOrdinary": {
     "description": "Dialog button: take the completion back, the task returns without its repeat rule (T-713)"
+  },
+  "taskDaysLabel": "Days",
+  "@taskDaysLabel": {
+    "description": "Task editor: the days of the week the task may be planned on (D23)"
+  },
+  "taskDaysAny": "Any day",
+  "@taskDaysAny": {
+    "description": "Task editor and days sheet: the task is not limited to days of the week"
+  },
+  "taskDaysHint": "Planned only on these days of the week",
+  "@taskDaysHint": {
+    "description": "Task editor: what the chosen days do, under them"
+  },
+  "taskDaysPinOutside": "Pinned to another day: the pin leads",
+  "@taskDaysPinOutside": {
+    "description": "Task editor: quiet hint under the days, the pin is on a day of the week that is not chosen"
+  },
+  "taskDaysRestOnly": "These are rest days: the task will not get into the plan",
+  "@taskDaysRestOnly": {
+    "description": "Task editor: quiet hint under the days, every chosen weekday has capacity 0"
+  },
+  "taskDaysNoneBeforeDue": "No such day before the due date",
+  "@taskDaysNoneBeforeDue": {
+    "description": "Task editor: quiet hint under the days, none of them falls between the start and the due date"
+  },
+  "daysSheetTitle": "Days of the week",
+  "@daysSheetTitle": {
+    "description": "Title of the sheet that picks the allowed days of a task"
+  },
+  "daysSheetHint": "The task is planned only on the chosen days. A missed day moves it to the next one. Nothing chosen: any day.",
+  "@daysSheetHint": {
+    "description": "Days sheet: what the choice does"
+  },
+  "onlyDays": "Only {days}",
+  "@onlyDays": {
+    "description": "Badge on a task card: the days of the week the task may be planned on, e.g. Only Thu, Fri",
+    "placeholders": {"days": {"type": "String"}}
   }
 }

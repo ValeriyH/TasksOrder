@@ -21,6 +21,9 @@ class BackupCodec {
 
   /// Format version this app writes, and the highest one it reads.
   ///
+  /// 6: a task may carry `allowedWeekdays` (D23, T-1004), left out for a
+  /// task without the limit; the version went up so that an older app
+  /// refuses the file instead of planning such a task on any day.
   /// 5: a task may carry `weight` (D21, T-804), left out for a normal
   /// task; the version went up so that an older app refuses the file instead
   /// of making every task normal.
@@ -31,7 +34,7 @@ class BackupCodec {
   /// dropping the rules. 2: a priority is a level of the ten-level table
   /// (ADR-17). 1: it was the position in the scale of the file,
   /// `1..priorityScale`; read as the level that stands at that position.
-  static const version = 5;
+  static const version = 6;
 
   String encode(Backup backup) => const JsonEncoder.withIndent('  ').convert({
     'app': appName,
@@ -158,6 +161,10 @@ class BackupCodec {
     'focusedAt': ?_instantOrNull(task.focusedAt),
     'pinnedDate': ?task.pinnedDate?.toIso(),
     'notBefore': ?task.notBefore?.toIso(),
+    'allowedWeekdays': ?switch (task.allowedWeekdays) {
+      final days? => WeekdaySetConverter.toJson(days),
+      null => null,
+    },
     'status': task.status.name,
     'createdAt': _instant(task.createdAt),
     'updatedAt': _instant(task.updatedAt),
@@ -191,6 +198,14 @@ class BackupCodec {
     // A file before version 5 has no weight: every task is normal.
     final weight = json['weight'] as int? ?? TaskSize.defaultWeight;
     _require(weight >= 1);
+    // A file before version 6 has no allowed days: any day. An empty array,
+    // a value outside 0..6 or a repeated one is refused; all seven days are
+    // no limit.
+    final daysJson = json['allowedWeekdays'] as List<dynamic>?;
+    final days = daysJson == null
+        ? null
+        : WeekdaySetConverter.fromJson(daysJson);
+    final allowedWeekdays = days == null || days.length == 7 ? null : days;
     final completedPlanDate = _readDate(json['completedPlanDate']);
     _require(completedPlanDate == null || status == TaskStatus.done);
     final ruleJson = json['recurrence'] as Map<String, dynamic>?;
@@ -213,6 +228,7 @@ class BackupCodec {
       focusedAt: focusedAt,
       pinnedDate: _readDate(json['pinnedDate']),
       notBefore: _readDate(json['notBefore']),
+      allowedWeekdays: allowedWeekdays,
       status: status,
       createdAt: _readInstant(json['createdAt'])!,
       updatedAt: _readInstant(json['updatedAt'])!,

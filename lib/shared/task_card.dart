@@ -32,7 +32,8 @@ abstract final class _Text {
 /// Done button.
 ///
 /// The chips the task itself knows come first: priority, focus (unless
-/// [showFocus] is off: Today has a Focus section), pin, repeat; then the
+/// [showFocus] is off: Today has a Focus section), pin, repeat, the allowed
+/// days of the week; then the
 /// [chips] of the list (planned day, over plan, at risk, reasons); then
 /// "paused" and "from" a date. A done task ([isDone]) is dimmed with its
 /// title struck through, and its button reads "Completed"; a tap on it calls
@@ -160,6 +161,13 @@ class TaskCard extends StatelessWidget {
                 ),
               if (rule != null)
                 TaskChip(label: repeatSummary(l10n, rule), icon: Icons.repeat),
+              // Planned only on these days of the week (D23).
+              if (task.allowedWeekdays case final days?)
+                TaskChip(
+                  key: const ValueKey('daysChip'),
+                  label: l10n.onlyDays(weekdaysText(l10n, days)),
+                  icon: Icons.date_range,
+                ),
               ...chips,
               if (paused)
                 TaskChip(

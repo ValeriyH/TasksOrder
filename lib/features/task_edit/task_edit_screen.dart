@@ -8,8 +8,10 @@ import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/recurrence.dart';
+import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
 import 'package:tasks_order/domain/model/task_size.dart';
+import 'package:tasks_order/features/task_edit/days_sheet.dart';
 import 'package:tasks_order/features/task_edit/repeat_sheet.dart';
 import 'package:tasks_order/l10n/l10n.dart';
 import 'package:tasks_order/shared/priority_dropdown.dart';
@@ -60,6 +62,9 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   /// How the task repeats (D20); null for an ordinary task.
   Recurrence? _recurrence;
 
+  /// The days of the week the task may be planned on (D23); null = any day.
+  Set<int>? _allowedDays;
+
   @override
   void initState() {
     super.initState();
@@ -92,6 +97,7 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
       _notBefore = task.notBefore;
       _focused = task.isFocused;
       _recurrence = task.recurrence;
+      _allowedDays = task.allowedWeekdays;
     });
   }
 
@@ -122,7 +128,8 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
           pinnedDate: _pinnedDate,
           notBefore: _notBefore,
         )
-        .setFocus(_focused, now);
+        .setFocus(_focused, now)
+        .setAllowedWeekdays(_allowedDays, now);
     final rule = _recurrence;
     final original = _original;
     if (rule == null) {
@@ -183,6 +190,41 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
     if (choice != null && mounted) {
       setState(() => _recurrence = choice.rule);
     }
+  }
+
+  Future<void> _pickDays() async {
+    final choice = await showDaysSheet(context, current: _allowedDays);
+    if (choice != null && mounted) {
+      setState(() => _allowedDays = choice.days);
+    }
+  }
+
+  /// A quiet hint under the chosen days when they cannot work as they are
+  /// (D23): never an error, the save goes through.
+  String? _daysWarning(
+    AppLocalizations l10n,
+    Set<int> days,
+    Settings settings,
+    LocalDate today,
+  ) {
+    final pin = _pinnedDate;
+    if (pin != null) {
+      // The pin is the manual mode: it leads, the other hints do not apply.
+      return days.contains(pin.weekday) ? null : l10n.taskDaysPinOutside;
+    }
+    if (days.every((day) => settings.weeklyCapacity[day] == 0)) {
+      return l10n.taskDaysRestOnly;
+    }
+    final due = _dueDate;
+    final notBefore = _notBefore;
+    final start = notBefore != null && notBefore > today ? notBefore : today;
+    if (due != null && due >= start && start.daysUntil(due) < 6) {
+      for (var date = start; date <= due; date = date.addDays(1)) {
+        if (days.contains(date.weekday)) return null;
+      }
+      return l10n.taskDaysNoneBeforeDue;
+    }
+    return null;
   }
 
   static DateTime _dateTime(LocalDate date) =>
@@ -318,6 +360,15 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
               ),
               onClear: () => setState(() => _notBefore = null),
             ),
+            _DaysTile(
+              days: _allowedDays,
+              warning: switch (_allowedDays) {
+                final days? => _daysWarning(l10n, days, settings, today),
+                null => null,
+              },
+              onTap: () => unawaited(_pickDays()),
+              onClear: () => setState(() => _allowedDays = null),
+            ),
             SwitchListTile(
               secondary: const Icon(Icons.center_focus_strong_outlined),
               title: Text(l10n.taskFocusLabel),
@@ -431,6 +482,48 @@ class _DateTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The "Days" row (D23, T-1005): the days of the week the task may be
+/// planned on, or "Any day"; a tap opens the days sheet. Under the days one
+/// quiet line: what they do, or why they cannot work as they are.
+class _DaysTile extends StatelessWidget {
+  const _DaysTile({
+    required this.days,
+    required this.warning,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final Set<int>? days;
+  final String? warning;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final days = this.days;
+    return ListTile(
+      key: const ValueKey('days'),
+      leading: const Icon(Icons.date_range),
+      title: Text(l10n.taskDaysLabel),
+      subtitle: Text(
+        days == null
+            ? l10n.taskDaysAny
+            : '${weekdaysText(l10n, days)}\n${warning ?? l10n.taskDaysHint}',
+      ),
+      isThreeLine: days != null,
+      onTap: onTap,
+      trailing: days == null
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: l10n.actionClear,
+              onPressed: onClear,
+            ),
     );
   }
 }

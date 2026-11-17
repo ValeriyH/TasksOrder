@@ -50,6 +50,7 @@ void main() {
         focusedAt: t0,
         pinnedDate: LocalDate(2026, 11, 18),
         notBefore: LocalDate(2026, 11, 14),
+        allowedWeekdays: {3, 4},
         status: TaskStatus.done,
         createdAt: t0,
         updatedAt: t0,
@@ -76,6 +77,17 @@ void main() {
       expect(read.title, 'Renamed');
       expect(read.dueDate, LocalDate(2026, 12, 1));
       expect(await repo.watchAll().first, hasLength(1));
+    });
+
+    test('the allowed days are stored, changed and cleared (D23)', () async {
+      await repo.upsert(task('a').setAllowedWeekdays({3, 4}, t0), t0);
+      expect((await stored('a')).allowedWeekdays, {3, 4});
+
+      await repo.upsert((await stored('a')).setAllowedWeekdays({5}, t1), t1);
+      expect((await stored('a')).allowedWeekdays, {5});
+
+      await repo.upsert((await stored('a')).setAllowedWeekdays(null, t2), t2);
+      expect((await stored('a')).allowedWeekdays, isNull);
     });
 
     test('upsert clears the fields that became null', () async {
@@ -407,6 +419,17 @@ void main() {
       await repo.complete('a', t1, onPlan: true, today: today);
 
       expect((await stored(a.successorId)).weight, 4);
+    });
+
+    test('the stored successor carries the allowed days (D23)', () async {
+      final a = task('a')
+          .setAllowedWeekdays({5}, t0)
+          .setRecurrence(monthly, today: today, now: t0);
+      await repo.upsert(a, t0);
+
+      await repo.complete('a', t1, onPlan: true, today: today);
+
+      expect((await stored(a.successorId)).allowedWeekdays, {5});
     });
 
     test('a second complete changes nothing', () async {

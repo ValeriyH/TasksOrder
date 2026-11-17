@@ -322,6 +322,53 @@ void main() {
     });
   });
 
+  group('allowed days (D23)', () {
+    testWidgets('a chip with the days in the order of the week', (
+      tester,
+    ) async {
+      await pump(tester, card(testTask('a').copyWith(allowedWeekdays: {4, 3})));
+
+      expect(find.text('Only Thu, Fri'), findsOneWidget);
+      expect(find.byKey(const ValueKey('daysChip')), findsOneWidget);
+      expect(chipTexts(tester), ['priority', 'Only Thu, Fri']);
+    });
+
+    testWidgets('after the repeat chip, before the chips of the list', (
+      tester,
+    ) async {
+      final task = testTask('a')
+          .copyWith(allowedWeekdays: {5})
+          .setRecurrence(
+            Recurrence.interval(
+              every: 1,
+              unit: RecurrenceUnit.week,
+              anchor: today,
+            ),
+            today: today,
+            now: AppHarness.now,
+          );
+      await pump(tester, card(task, chips: const [TaskChip(label: 'list')]));
+
+      expect(chipTexts(tester), ['priority', 'Every week', 'Only Sat', 'list']);
+    });
+
+    testWidgets('no chip without the limit', (tester) async {
+      await pump(tester, card(testTask('a')));
+
+      expect(find.byKey(const ValueKey('daysChip')), findsNothing);
+    });
+
+    testWidgets('in Ukrainian', (tester) async {
+      await pump(
+        tester,
+        card(testTask('a').copyWith(allowedWeekdays: {5})),
+        locale: const Locale('uk'),
+      );
+
+      expect(find.text('Лише Сб'), findsOneWidget);
+    });
+  });
+
   testWidgets('dark theme: no shadow on the card', (tester) async {
     await pump(tester, card(testTask('a')), brightness: Brightness.dark);
 

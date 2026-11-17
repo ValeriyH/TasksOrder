@@ -60,6 +60,11 @@ class Tasks extends Table {
   TextColumn get occurrenceDate =>
       text().map(const LocalDateConverter()).nullable()();
 
+  /// Schema 6 (D23, ADR-25): the weekdays the task may be planned on as a
+  /// JSON array, null for any day.
+  TextColumn get allowedWeekdays =>
+      text().map(const WeekdaySetConverter()).nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
@@ -131,6 +136,7 @@ class AppDatabase extends _$AppDatabase {
     isUtc: true,
   );
 
+  /// 6 (D23, ADR-25): `tasks.allowed_weekdays`, null for every existing task.
   /// 5 (D21, ADR-19): `tasks.weight`, 2 for every existing task.
   /// 4 (T-907, ADR-23): `tasks.completed_plan_date`. 3 (D20, ADR-18):
   /// `tasks.recurrence`, `series_id`, `occurrence_date` and
@@ -138,7 +144,7 @@ class AppDatabase extends _$AppDatabase {
   /// of the ten-level table; the tables did not change. 1: it was the
   /// position in the scale of the settings.
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -165,6 +171,10 @@ class AppDatabase extends _$AppDatabase {
         // Every existing task is a normal one (the column default), so the
         // plan does not change.
         await m.addColumn(tasks, tasks.weight);
+      }
+      if (from < 6) {
+        // Every existing task may be planned on any day: null.
+        await m.addColumn(tasks, tasks.allowedWeekdays);
       }
     },
   );

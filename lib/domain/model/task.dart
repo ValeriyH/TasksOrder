@@ -20,7 +20,8 @@ enum TaskStatus { active, done }
 /// - [completedOnPlan] is true and [completedPlanDate] is set only for a
 ///   done task;
 /// - a [recurrence] comes with a [seriesId] and an [occurrenceDate] (D20);
-/// - [weight] is at least 1 (D21).
+/// - [weight] is at least 1 (D21);
+/// - [allowedWeekdays] is null or holds one to six weekdays, 0..6 (D23).
 ///
 /// Use [Task.create] and the transition methods ([complete], [setFocus],
 /// [trash], ...) instead of `copyWith` for those fields: they keep the
@@ -50,6 +51,13 @@ abstract class Task with _$Task {
     'a repeat rule needs seriesId and occurrenceDate',
   )
   @Assert('weight >= 1', 'weight is at least one half-slot')
+  @Assert(
+    'allowedWeekdays == null || '
+        '(allowedWeekdays.isNotEmpty && '
+        'allowedWeekdays.length < 7 && '
+        'allowedWeekdays.every((day) => day >= 0 && day <= 6))',
+    'allowedWeekdays is null or one to six weekdays within 0..6',
+  )
   // Not const: the title assertion calls a method.
   factory Task({
     /// UUID v4.
@@ -81,6 +89,12 @@ abstract class Task with _$Task {
     /// planner honours it from T-703). Set on the successor of a recurring
     /// task; a snooze by hand may use it later.
     LocalDate? notBefore,
+
+    /// The days of the week the task may be planned on (D23, ADR-25):
+    /// 0..6, Monday = 0 as [LocalDate.weekday]; null = any day. Never empty
+    /// and never all seven: [setAllowedWeekdays] stores null for both. A pin
+    /// beats it. The same for every instance of a series.
+    Set<int>? allowedWeekdays,
     @Default(TaskStatus.active) TaskStatus status,
 
     /// UTC; planner tie-breaker, older first.
@@ -223,6 +237,34 @@ abstract class Task with _$Task {
     return copyWith(deletedAt: null, updatedAt: now.toUtc());
   }
 
+  /// Whether the planner may place the task on [date] as far as its
+  /// [allowedWeekdays] go (D23): always without the limit.
+  bool allowsDay(LocalDate date) =>
+      allowedWeekdays?.contains(date.weekday) ?? true;
+
+  /// Limits the task to [days] of the week (0..6, Monday = 0), or lifts the
+  /// limit: null, an empty set and all seven days mean any day and are
+  /// stored as null (D23). A day outside 0..6 throws [ArgumentError].
+  Task setAllowedWeekdays(Set<int>? days, DateTime now) {
+    if (days != null) {
+      for (final day in days) {
+        if (day < 0 || day > 6) {
+          throw ArgumentError.value(days, 'days', 'Weekdays are 0..6');
+        }
+      }
+    }
+    final limited = days != null && days.isNotEmpty && days.length < 7;
+    final next = limited ? Set<int>.of(days) : null;
+    final current = allowedWeekdays;
+    final same = next == null
+        ? current == null
+        : current != null &&
+              current.length == next.length &&
+              current.containsAll(next);
+    if (same) return this;
+    return copyWith(allowedWeekdays: next, updatedAt: now.toUtc());
+  }
+
   /// A fixed namespace for [successorId]: version 5 UUIDs of the app.
   static const _seriesNamespace = '6f1c2a3e-8d4b-5e7f-9a0b-1c2d3e4f5a6b';
 
@@ -338,6 +380,8 @@ abstract class Task with _$Task {
       dueDate: nextDue,
       pinnedDate: nextPin,
       notBefore: release,
+      // The repeats of a series keep its allowed days (D23).
+      allowedWeekdays: allowedWeekdays,
       createdAt: utc,
       updatedAt: utc,
       recurrence: rule,

@@ -6,6 +6,13 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.7.0+14 — 2026-11-17 (M10)
+- **Days** (D23, ADR-25): a task can be limited to some days of the week in the editor ("Only Thu, Fri", "Only Sat" on the card). It is planned only on those days, by priority like any task; a missed day moves it to the next one by itself, without Focus. A rest day of the set is passed over.
+- With a due date the task gets one of its days before the date; on the last one it goes first ("Deadline"). After the date it is overdue and in Focus, and keeps to its days.
+- A pin still wins; a pin left in the past moves to the nearest of the task's days. The task can be completed on any day. A repeating task keeps its days.
+- The editor says quietly when the pin is on another day, when all the chosen days are rest days, or when none of them comes before the due date; it never blocks saving.
+- Database schema 6 and backup format 6 (`allowedWeekdays`); existing tasks may be planned on any day, so the plan does not change. A backup of 0.7 cannot be read by 0.6.
+
 ## 0.6.0+13 — 2026-11-16 (M8)
 - **Task size** (D21, ADR-19): Small, Normal or Large in the editor: half a slot, one or two slots of a day. Two small tasks share a slot; a large task waits for a day with room ("Waits for a day with room" on its card) while lighter tasks go ahead; a Critical large task first in line takes the next working day as an extra task. A large task never counts more than the biggest day of the week.
 - The Plan counts slots ("1½/2", a half-filled dot, "½ slots free"); Today's overload banner too.

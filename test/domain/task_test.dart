@@ -184,6 +184,92 @@ void main() {
     });
   });
 
+  group('allowed weekdays (D23)', () {
+    // 2026-11-16 is a Monday (weekday 0).
+    final monday = LocalDate(2026, 11, 16);
+
+    test('a new task may be planned on any day', () {
+      expect(newTask().allowedWeekdays, isNull);
+      for (var i = 0; i < 7; i++) {
+        expect(newTask().allowsDay(monday.addDays(i)), isTrue);
+      }
+    });
+
+    test('allowsDay follows the set over a week', () {
+      final task = newTask().setAllowedWeekdays({3, 4}, t1);
+      expect(
+        [for (var i = 0; i < 14; i++) task.allowsDay(monday.addDays(i))],
+        [
+          false, false, false, true, true, false, false, //
+          false, false, false, true, true, false, false,
+        ],
+      );
+    });
+
+    test('setAllowedWeekdays stores the set and bumps updatedAt', () {
+      final task = newTask().setAllowedWeekdays({5}, t1);
+      expect(task.allowedWeekdays, {5});
+      expect(task.updatedAt, t1);
+    });
+
+    test('the stored set is a copy', () {
+      final days = {5};
+      final task = newTask().setAllowedWeekdays(days, t1);
+      days.add(6);
+      expect(task.allowedWeekdays, {5});
+    });
+
+    test('null, an empty set and all seven days mean any day', () {
+      final limited = newTask().setAllowedWeekdays({5}, t1);
+      expect(limited.setAllowedWeekdays(null, t2).allowedWeekdays, isNull);
+      expect(limited.setAllowedWeekdays({}, t2).allowedWeekdays, isNull);
+      expect(
+        limited.setAllowedWeekdays({0, 1, 2, 3, 4, 5, 6}, t2).allowedWeekdays,
+        isNull,
+      );
+      expect(limited.setAllowedWeekdays(null, t2).updatedAt, t2);
+    });
+
+    test('the same set changes nothing', () {
+      final task = newTask();
+      expect(task.setAllowedWeekdays(null, t1), same(task));
+      expect(task.setAllowedWeekdays({}, t1), same(task));
+      final limited = task.setAllowedWeekdays({3, 4}, t1);
+      expect(limited.setAllowedWeekdays({4, 3}, t2), same(limited));
+    });
+
+    test('a day outside 0..6 is refused', () {
+      expect(() => newTask().setAllowedWeekdays({7}, t1), throwsArgumentError);
+      expect(
+        () => newTask().setAllowedWeekdays({-1, 2}, t1),
+        throwsArgumentError,
+      );
+    });
+
+    test('the invariant: null, or one to six weekdays within 0..6', () {
+      expect(
+        () => newTask().copyWith(allowedWeekdays: <int>{}),
+        isAssertionError,
+      );
+      expect(
+        () => newTask().copyWith(allowedWeekdays: {0, 1, 2, 3, 4, 5, 6}),
+        isAssertionError,
+      );
+      expect(() => newTask().copyWith(allowedWeekdays: {7}), isAssertionError);
+      expect(newTask().copyWith(allowedWeekdays: {0, 6}).allowedWeekdays, {
+        0,
+        6,
+      });
+    });
+
+    test('equality compares the set, not its order', () {
+      final a = newTask().setAllowedWeekdays({3, 4}, t1);
+      final b = newTask().setAllowedWeekdays({4, 3}, t1);
+      expect(a, b);
+      expect(a, isNot(newTask().setAllowedWeekdays({3}, t1)));
+    });
+  });
+
   group('complete / uncomplete', () {
     test('complete marks the task done and bumps updatedAt', () {
       final done = newTask().complete(t1, onPlan: true);

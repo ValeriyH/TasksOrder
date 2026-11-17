@@ -118,6 +118,43 @@ load(day)    = sum of effWeight over its entries
 - **Ghosts** (D20) carry the weight of their task.
 - The trim at the end of a day works on the load: entries are returned to the pool from the tail while `load(day) > hard2(d)`; pinned entries are never trimmed.
 
+## Allowed days (D23, ADR-25; T-1002, T-1003)
+A task may carry a set of weekdays, `allowedWeekdays`; without it every day is allowed.
+
+```
+allowed(t, d) = t.allowedWeekdays == null or d.weekday in t.allowedWeekdays
+```
+It is one more "may `t` be placed on `d`" test, next to the release date (T-703) and the order of a series (T-709). Everything else about the task is as for any task.
+
+- **Priority fill, top-level overflow, forced picks** of `d` skip a task with `allowed(t, d) == false`. Such a skip does not set `waitsForRoom` (the day had room, it was the wrong day), and "the first task of the queue" of the top-level overflow passes over it as over a task that is not released.
+- **No extra state for a miss.** A task not done on its day is planned again from the new today and lands on the next allowed day with room. It is not in `focus` and not at risk for that.
+- **A rest day stays empty** (D6): an allowed day with capacity 0 (weekday or override) is passed over. A task whose allowed days never have room inside the horizon is in `later`.
+- **A pin wins**: a pinned task sits on its day whatever the set says. A pin in the past, which means today for other tasks, means the first day `>= today` with `allowed(t, d)` (today itself when it is allowed); the task is placed there as pinned, whatever the capacity. `pinnedOn(x)` counts it on that day.
+- **Urgency boost** is unchanged: the slack is counted in calendar days.
+- **Overdue** (D18) is unchanged: the due date stops counting, the task is in `focus` and is planned by priority on its allowed days.
+- **Ghosts** (D20) carry the set of their task; a pinned ghost stays on its date. A ghost without dates that meets no allowed day before it expires is dropped, as a ghost that finds no room.
+- **Weight** (D21): `effWeight` of a task with a set is capped by the biggest weekday **of the set**, `min(t.weight, 2 × max(weeklyCapacity[x] for x in set))`, and by 2 when all of them are rest days. A large task "only Mon" with one slot on Mondays weighs one slot and takes a Monday; with the cap of the whole week it would fit none of its days and never be planned (T-1003).
+- **At risk**: a task whose allowed days up to its due date cannot take it is placed on the first allowed day after the date and flagged, as any task that is late; it is visible from today.
+
+### Forcing with allowed days (T-1003)
+The plain check counts the free room of every day up to `D`, also of days the task cannot use. So, like the check per heavy weight of D21, the check is repeated for every distinct set `S` that the due tasks carry:
+
+```
+group(S)    = dueTasks with allowedWeekdays != null and allowedWeekdays ⊆ S   // can only use days of S
+need_S(D)   = sum of effWeight over group(S) with effDue <= D
+avail_S(D)  = sum of free(x) over x in (d+1 .. D) with x.weekday in S
+pull_S(D)   = sum of effWeight over group(S) with effDue <= D, released on d and allowed(t, d)
+forced_S    = max over D of min(need_S(D) - avail_S(D), pull_S(D))
+take the tasks of group(S) in EDF order until the weight taken >= forced_S, under hard2(d)
+```
+- The forced set of `d` is the union of all checks (plain, per heavy weight, per set), placed in EDF order in the one pass of `Planner._force`; a task taken lowers every check it belongs to.
+- The cut of every check (`released(D)` of T-703) also asks `allowed(t, d)`: only a task that may be placed on `d` frees room by being pulled into `d`. So in the plain check a cluster of tasks that cannot be done today forces the unrestricted ones due by the same date, not nothing.
+- A group with heavy tasks gets the heavy check inside the set too: `need` over the tasks of `group(S)` with `effWeight >= w`, `avail` over the days of `S` with `free(x) >= w`.
+- Result: "only Sat, due Mon 30" has `avail_S = 0` on Sat 28 and is forced there; on Sat 21 the room of Sat 28 still covers it, so it is not forced and competes by priority. When Sat 28 is a rest day by an override, it is forced on Sat 21.
+- Still a heuristic, as with mixed weights: two different sets that overlap (`{Thu, Fri}` and `{Fri, Sat}`) are checked each on its own and by the plain check, not as a matching; what does not fit is at risk on its day.
+- Cost: one more pass per distinct set among the due tasks (few in practice), with its own running totals in `_FutureCapacity`. A set whose weekdays are all rest days stops counting after the last override that gives one of them capacity, so "only Sun, due in ten years" does not walk the calendar.
+- In the code: `_Candidate.dayMask` (the set as bits), `_ForceCheck` (a set, a minimum weight, the weight still to place), `_FutureCapacity.between(…, minFree:, mask:)`.
+
 ## Focus: a view, not a queue
 `Plan.focus` lists the tasks with `isFocused == true` **or** `dueDate < today`. It is built from the same tasks the day loop places and changes nothing in the plan: no capacity, no deadline math (D17).
 - Order: priority, then `dueDate` (nulls last; overdue therefore first within a priority), then `focusedAt` (nulls last), then `createdAt`.
@@ -344,6 +381,22 @@ With T-802 and T-803 (task size, D21), in `test/domain/planner_weight_test.dart`
 46. Weekly L series → the instance and each ghost take two slots of a Saturday.
 47. Determinism and performance with mixed weights: 500 tasks, a third of each size, horizon 90 → same plan twice, under 50 ms.
 
+With T-1002 and T-1003 (allowed days, D23), in `test/domain/planner_days_test.dart`. Week `[1,1,1,1,1,3,0]`, today is Monday 2026-11-16 unless said otherwise:
+
+48. No task has a set → every earlier scenario gives the same plan.
+49. A Critical task "only Sat" next to five Low tasks → the Low tasks take Mon–Fri, the Critical one is on Saturday; not in `focus`, not at risk, no `waitsForRoom`.
+50. A Low task "only Sat" and enough tasks of a higher priority to fill Mon–Sat → it is on the Saturday of the next week; with the horizon cut before that Saturday → in `later`.
+51. "Only Sat" with a day override of 0 on this Saturday → the next Saturday. "Only Sun" (a rest day in the week) → `later`; with an override of 1 on one Sunday → on that Sunday.
+52. Pins: "only Sat" pinned on Wednesday → on Wednesday, reason `pinned`. Pinned on the Wednesday of last week → on this Saturday, reason `pinned`, also when Saturday is full; when today is a Saturday → today.
+53. "Thu, Fri" planned from a Friday that is full → the Thursday of the next week, not Saturday or Monday.
+54. A weekly series by schedule without dates, anchored on Monday, "only Sat" → the instance and each ghost on the Saturday of its week, one a week. A pinned series keeps its pinned dates.
+55. Forcing: a Low "only Sat" task due Mon 30 Nov, thresholds 0/0, enough plain tasks of a higher priority to fill both Saturdays → not on Sat 21, forced on Sat 28 (reason `deadline`), not at risk.
+56. The same with an override of 0 on Sat 28 → forced on Sat 21.
+57. Capacity 1 on every working day, overflow 0; two "Thu, Fri" tasks and one task without a set, all due Friday, plain tasks of a higher priority on the other days → the two take Thursday and Friday, the third is forced no later than Wednesday; nothing at risk.
+58. "Only Sat" due Thursday → on Saturday with `atRisk`, in `atRiskTaskIds`.
+59. An overdue "only Sat" task → in `focus` with its `plannedDate` on a Saturday, placed by priority, not at risk.
+60. A large "only Sat" task due Mon 30 Nov, with pins on Sat 28 that leave one free slot there → the heavy check inside the set forces it on Sat 21 (the last Saturday that can hold it), not at risk. Determinism and performance: 500 tasks, a fifth with a set, horizon 90 → same plan twice, under 50 ms.
+
 ## Complexity
 Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomputed once per plan. Effective priority depends on `d`, so the pool is re-sorted per day (T log T). Total O(H × T log T) with H = horizon days. With heavy due tasks (D21) forcing runs once more per heavy weight, with its own running totals of the free room. For H = 90, T = 500 this is trivially fast on a phone.
 
@@ -354,4 +407,5 @@ Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomput
 - `notBefore` is a release date (T-703). Set by hand in the editor since T-714 ("Not before").
 - A rule from completion shows no repeats ahead (T-712), so its later load is not in the plan; a window "done within N days" is in the parking lot.
 - The forcing formula with release dates checks the periods that start tomorrow. A cluster of unreleased tasks that cannot fit its own period is not solved earlier; it shows as at risk.
+- Allowed days (D23): a low task with one allowed day a week can be passed over for weeks by tasks of a higher priority that could have gone elsewhere; accepted, as for any low task (parking lot: a share of the slots per priority level).
 - Boost thresholds are global; per-task "lead time" could come later.

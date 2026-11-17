@@ -56,6 +56,23 @@ void main() {
     });
   });
 
+  group('WeekdaySetConverter (D23)', () {
+    const converter = WeekdaySetConverter();
+
+    test('a set is a sorted JSON array and reads back', () {
+      expect(converter.toSql({4, 3}), '[3,4]');
+      expect(converter.toSql({5}), '[5]');
+      expect(converter.fromSql('[3,4]'), {3, 4});
+      expect(converter.fromSql(converter.toSql({6, 0, 2})), {0, 2, 6});
+    });
+
+    test('what is not a set of weekdays is refused', () {
+      for (final text in ['[]', '[7]', '[-1]', '[3,3]', '["3"]', '[1.5]']) {
+        expect(() => converter.fromSql(text), throwsFormatException);
+      }
+    });
+  });
+
   group('RecurrenceConverter (D20)', () {
     const converter = RecurrenceConverter();
     final rules = <String, Recurrence>{

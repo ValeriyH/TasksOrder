@@ -98,7 +98,7 @@ void main() {
     final json = jsonDecode(codec.encode(sample())) as Map<String, dynamic>;
 
     expect(json['app'], 'TasksOrder');
-    expect(json['version'], 5);
+    expect(json['version'], 6);
     expect(json['exportedAt'], '2026-11-13T08:30:15.250Z');
     expect(firstTask(json)['createdAt'], '2026-11-13T08:30:15.250Z');
   });
@@ -203,9 +203,101 @@ void main() {
 
   test('a backup of a newer format is told apart', () {
     expect(
-      () => codec.decode(changed((json) => json['version'] = 6)),
+      () => codec.decode(changed((json) => json['version'] = 7)),
       fails(BackupProblem.newerVersion),
     );
+  });
+
+  group('allowed weekdays (format 6, T-1004)', () {
+    Backup limited() {
+      final base = sample();
+      final sets = <Set<int>?>[
+        {3, 4},
+        null,
+        {5},
+        {0, 6},
+      ];
+      return Backup(
+        exportedAt: base.exportedAt,
+        settings: base.settings,
+        tasks: [
+          for (final (i, task) in base.tasks.indexed)
+            task.copyWith(allowedWeekdays: sets[i]),
+        ],
+        dayOverrides: base.dayOverrides,
+      );
+    }
+
+    Map<String, dynamic> task(Map<String, dynamic> json, String id) =>
+        (json['tasks'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .singleWhere((task) => task['id'] == id);
+
+    test('the sets are read back, also on a done and a deleted task', () {
+      final backup = limited();
+      final read = codec.decode(codec.encode(backup));
+
+      expect(
+        [for (final t in read.tasks) t.allowedWeekdays],
+        [
+          {3, 4},
+          null,
+          {5},
+          {0, 6},
+        ],
+      );
+      expect(read.tasks, backup.tasks);
+    });
+
+    test('written as a sorted array, left out without the limit', () {
+      final json = jsonDecode(codec.encode(limited())) as Map<String, dynamic>;
+
+      expect(task(json, 'plain')['allowedWeekdays'], [3, 4]);
+      expect(task(json, 'full').containsKey('allowedWeekdays'), isFalse);
+      expect(task(json, 'deleted')['allowedWeekdays'], [0, 6]);
+    });
+
+    test('files of version 1 to 5 read with no limit', () {
+      for (final version in [1, 2, 3, 4, 5]) {
+        final read = codec.decode(
+          changed((json) {
+            json['version'] = version;
+            if (version < 4) task(json, 'done').remove('completedPlanDate');
+          }),
+        );
+        expect(read.tasks.every((t) => t.allowedWeekdays == null), isTrue);
+      }
+    });
+
+    test('all seven days read as no limit', () {
+      final read = codec.decode(
+        changed(
+          (json) =>
+              task(json, 'plain')['allowedWeekdays'] = [0, 1, 2, 3, 4, 5, 6],
+        ),
+      );
+      expect(read.tasks.first.allowedWeekdays, isNull);
+    });
+
+    test('a broken set is refused', () {
+      final broken = <Object>[
+        <int>[],
+        [7],
+        [-1],
+        [3, 3],
+        ['3'],
+        'sat',
+      ];
+      for (final value in broken) {
+        expect(
+          () => codec.decode(
+            changed((json) => task(json, 'plain')['allowedWeekdays'] = value),
+          ),
+          fails(BackupProblem.notABackup),
+          reason: '$value',
+        );
+      }
+    });
   });
 
   group('task size (format 5, T-804)', () {

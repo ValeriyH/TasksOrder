@@ -150,6 +150,21 @@ void main() {
       }
     });
 
+    test('carries the allowed days of the series (D23)', () {
+      for (final rule in [monthly, every10DaysAfterDone]) {
+        final t = recurring(rule).setAllowedWeekdays({5}, now);
+        expect(t.successor(now: doneAt, today: today).allowedWeekdays, {5});
+        expect(
+          t.successor(now: doneAt, today: today, skipped: true).allowedWeekdays,
+          {5},
+        );
+      }
+      expect(
+        recurring(monthly).successor(now: doneAt, today: today).allowedWeekdays,
+        isNull,
+      );
+    });
+
     test('the successor id is the same on every call and every device', () {
       final t = recurring(monthly);
 

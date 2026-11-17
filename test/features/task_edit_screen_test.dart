@@ -559,4 +559,245 @@ void main() {
       expect(task.recurrence, rule);
     });
   });
+
+  // Today is Friday 2026-11-13; the week is 1 slot on working days, 3 on
+  // Saturday, Sunday is a rest day.
+  group('days (D23, T-1005)', () {
+    Finder daysRow() => find.byKey(const ValueKey('days'));
+    Finder inRow(String text) =>
+        find.descendant(of: daysRow(), matching: find.textContaining(text));
+
+    Future<void> openSheet(WidgetTester tester) async {
+      await tester.tap(daysRow());
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> toggle(WidgetTester tester, List<int> days) async {
+      for (final day in days) {
+        await tester.tap(find.byKey(ValueKey('allowedDay$day')));
+        await tester.pump();
+      }
+    }
+
+    Future<void> done(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('daysDone')));
+      await tester.pumpAndSettle();
+    }
+
+    Task existing(Set<int>? days, {LocalDate? due, LocalDate? pin}) =>
+        Task.create(
+          id: 'd',
+          title: 'Hand in the papers',
+          priority: PriorityLabels.normal,
+          dueDate: due,
+          now: now,
+        ).copyWith(pinnedDate: pin, allowedWeekdays: days);
+
+    testWidgets('set: stored, the chip on the card, off Today', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      await tester.enterText(field('Title'), 'Change the tyres');
+      expect(inRow('Any day'), findsOneWidget);
+
+      await openSheet(tester);
+      expect(find.text('Days of the week'), findsOneWidget);
+      await toggle(tester, [5]);
+      await done(tester);
+
+      expect(inRow('Sat'), findsOneWidget);
+      expect(inRow('Planned only on these days of the week'), findsOneWidget);
+      await save(tester);
+
+      final task = (await stored(tester)).single;
+      expect(task.allowedWeekdays, {5});
+      // The Tasks tab: the chip and tomorrow, a Saturday.
+      expect(find.text('Only Sat'), findsOneWidget);
+      expect(find.textContaining('Sat, Nov 14'), findsOneWidget);
+      // Today is a Friday: not there.
+      await tester.tap(find.byIcon(Icons.today_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Change the tyres'), findsNothing);
+    });
+
+    testWidgets('several days read in the order of the week', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester);
+      await tester.enterText(field('Title'), 'Papers');
+
+      await openSheet(tester);
+      await toggle(tester, [4, 3]);
+      await done(tester);
+
+      expect(inRow('Thu, Fri'), findsOneWidget);
+      await save(tester);
+      expect((await stored(tester)).single.allowedWeekdays, {3, 4});
+      expect(find.text('Only Thu, Fri'), findsOneWidget);
+    });
+
+    testWidgets('change: the sheet starts from the stored days', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({3, 4}));
+      expect(inRow('Thu, Fri'), findsOneWidget);
+
+      await openSheet(tester);
+      // Thursday off, Saturday on.
+      await toggle(tester, [3, 5]);
+      await done(tester);
+
+      expect(inRow('Fri, Sat'), findsOneWidget);
+      await save(tester);
+      expect((await stored(tester)).single.allowedWeekdays, {4, 5});
+    });
+
+    testWidgets('cancel keeps the days', (tester) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({5}));
+
+      await openSheet(tester);
+      await toggle(tester, [0, 1]);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(inRow('Sat'), findsOneWidget);
+      await save(tester);
+      expect((await stored(tester)).single.allowedWeekdays, {5});
+    });
+
+    testWidgets('clear with the button of the row', (tester) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({5}));
+
+      await tester.tap(
+        find.descendant(of: daysRow(), matching: find.byIcon(Icons.close)),
+      );
+      await tester.pump();
+
+      expect(inRow('Any day'), findsOneWidget);
+      await save(tester);
+      expect((await stored(tester)).single.allowedWeekdays, isNull);
+    });
+
+    testWidgets('"Any day" in the sheet clears the choice', (tester) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({3, 4}));
+
+      await openSheet(tester);
+      await tester.tap(find.byKey(const ValueKey('daysAny')));
+      await tester.pump();
+      await done(tester);
+
+      expect(inRow('Any day'), findsOneWidget);
+      await save(tester);
+      expect((await stored(tester)).single.allowedWeekdays, isNull);
+    });
+
+    testWidgets('all seven days are stored as any day', (tester) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({5}));
+
+      await openSheet(tester);
+      await toggle(tester, [0, 1, 2, 3, 4, 6]);
+      await done(tester);
+
+      expect(inRow('Any day'), findsOneWidget);
+      await save(tester);
+      expect((await stored(tester)).single.allowedWeekdays, isNull);
+    });
+
+    testWidgets('hint: the pin is on another day, and the save goes '
+        'through', (tester) async {
+      await pumpApp(tester);
+      // Pinned to Monday the 16th, only Saturdays.
+      await openExisting(tester, existing({5}, pin: LocalDate(2026, 11, 16)));
+
+      expect(inRow('Pinned to another day: the pin leads'), findsOneWidget);
+      await save(tester);
+
+      final task = (await stored(tester)).single;
+      expect(task.allowedWeekdays, {5});
+      expect(task.pinnedDate, LocalDate(2026, 11, 16));
+    });
+
+    testWidgets('no hint when the pin is on a chosen day', (tester) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({5}, pin: LocalDate(2026, 11, 14)));
+
+      expect(inRow('Planned only on these days of the week'), findsOneWidget);
+    });
+
+    testWidgets('hint: only rest days', (tester) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({6}));
+
+      expect(
+        inRow('These are rest days: the task will not get into the plan'),
+        findsOneWidget,
+      );
+      // A working day next to it is enough.
+      await openSheet(tester);
+      await toggle(tester, [5]);
+      await done(tester);
+      expect(inRow('Planned only on these days of the week'), findsOneWidget);
+    });
+
+    testWidgets('hint: no chosen day before the due date', (tester) async {
+      await pumpApp(tester);
+      // Due on Monday the 16th: Fri, Sat, Sun, Mon hold no Thursday.
+      await openExisting(tester, existing({3}, due: LocalDate(2026, 11, 16)));
+
+      expect(inRow('No such day before the due date'), findsOneWidget);
+      await save(tester);
+      expect((await stored(tester)).single.allowedWeekdays, {3});
+    });
+
+    testWidgets('no hint when a chosen day comes before the due date', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openExisting(tester, existing({3}, due: LocalDate(2026, 11, 19)));
+
+      expect(inRow('Planned only on these days of the week'), findsOneWidget);
+    });
+
+    testWidgets('a repeating task keeps the days on its next repeat', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      final rule = Recurrence.interval(
+        every: 1,
+        unit: RecurrenceUnit.week,
+        anchor: today,
+      );
+      final task = await openExisting(
+        tester,
+        existing({5}).setRecurrence(rule, today: today, now: now),
+      );
+
+      await tester.enterText(field('Title'), 'Clean the flat');
+      await save(tester);
+      await real(
+        tester,
+        () => tasks.complete(task.id, now, onPlan: false, today: today),
+      );
+
+      final next = (await stored(tester)).singleWhere((t) => !t.isDone);
+      expect(next.id, task.successorId);
+      expect(next.title, 'Clean the flat');
+      expect(next.allowedWeekdays, {5});
+    });
+
+    testWidgets('in Ukrainian', (tester) async {
+      await pumpApp(tester, stored: {'device.locale': 'uk'});
+      await openExisting(tester, existing({3, 4}));
+
+      expect(find.text('Дні'), findsOneWidget);
+      expect(inRow('Чт, Пт'), findsOneWidget);
+      expect(inRow('Планується лише в ці дні тижня'), findsOneWidget);
+      await openSheet(tester);
+      expect(find.text('Дні тижня'), findsOneWidget);
+      expect(find.text('Будь-який день'), findsOneWidget);
+    });
+  });
 }

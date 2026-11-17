@@ -20,6 +20,7 @@ updated: 2026-11-14
 | `focusedAt` | `DateTime?` (UTC) | set when `isFocused` becomes true; Focus tie-breaker |
 | `pinnedDate` | `LocalDate?` | manual "do it on this day"; placed whatever the capacity; a pin in the past behaves as today |
 | `notBefore` | `LocalDate?` | release date: the planner does not place the task before this day (T-703; ignored until then). Set by the app for the next instance of a series (D20) and by hand in the editor ("Not before", T-714). A pin beats it (the card then shows no "From"); a due date before it is refused by the editor |
+| `allowedWeekdays` | `Set<int>?` | D23, ADR-25; T-1001, schema 6; the "Days" row of the editor (T-1005). The days of the week the task may be planned on: 0..6, Monday = 0; `null` = any day. Never empty and never all seven (the editor stores `null` for both). The planner places the task only on such a day; a pin beats it, a pin in the past means the nearest allowed day. Copied to the successor of a repeating task. See "Allowed days" in [[04 Planner Algorithm]] |
 | `recurrence` | `Recurrence?` | repeat rule (D20, schema 3); `null` = an ordinary task. The same for every instance of a series |
 | `seriesId` | `String?` | id of the first task of the series; ties the done instances, the active one and the Trash together. Stays when the rule is removed |
 | `occurrenceDate` | `LocalDate?` | the date of this instance in its series. Set with the rule; a one-off move of the pin or the due date does not change it, so the schedule does not shift |
@@ -31,7 +32,7 @@ updated: 2026-11-14
 | `completedPlanDate` | `LocalDate?` | set at completion: the day the plan had the task on at that moment (T-907, D22, schema 4); null for a task the plan had not placed (Later) and for completions stored before schema 4. The Plan keeps the done task at the end of that day until the day is past (`Planner.keptOnDay`); the day's slot is planned again. Not a capacity input: D19 still counts only `completedOnPlan`. Cleared by uncomplete |
 | `deletedAt` | `DateTime?` (UTC) | soft delete = Trash (D14) and sync tombstone (D12); deleted rows are filtered out of every query except Trash; purged after 30 days |
 
-Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` and `completedPlanDate` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`). With D21: `weight >= 1`; the successor of a recurring task copies it.
+Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` and `completedPlanDate` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`). With D21: `weight >= 1`; the successor of a recurring task copies it. With D23: `allowedWeekdays` is `null` or holds 1..6 values within 0..6; the successor copies it.
 
 ### Recurrence (value object, D20, T-701)
 Two kinds, a sealed class in `lib/domain/model/recurrence.dart` (`IntervalRecurrence`, `WeekdaysRecurrence`; not `freezed`, so the factories refuse a broken rule with `ArgumentError` also in a release build, where assertions are off):
@@ -171,6 +172,7 @@ CREATE TABLE tasks (
   focused_at    INTEGER,          -- UTC epoch ms
   pinned_date   TEXT,
   not_before    TEXT,
+  allowed_weekdays TEXT,          -- schema 6: JSON array of weekdays (Monday = 0), e.g. '[3,4]', or NULL = any day (D23)
   recurrence    TEXT,             -- schema 3: JSON repeat rule or NULL (D20)
   series_id     TEXT,             -- schema 3: id of the first task of the series
   occurrence_date TEXT,           -- schema 3: 'yyyy-MM-dd', date of this instance in the series
@@ -207,11 +209,12 @@ CREATE TABLE day_overrides (
   deleted_at  INTEGER
 );
 ```
-The code is at schema version 5 (snapshots: `drift_schemas/drift_schema_v1.json` … `drift_schema_v5.json`; v1 and v2 have the same tables). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart` with drift's `SchemaVerifier` on the helpers in `test/data/generated_migrations/`. After a schema change: `dart run drift_dev schema dump lib/data/db/database.dart drift_schemas/`, then `dart run drift_dev schema generate drift_schemas/ test/data/generated_migrations/`.
+The code is at schema version 6 (snapshots: `drift_schemas/drift_schema_v1.json` … `drift_schema_v6.json`; v1 and v2 have the same tables). Migrations are handled by drift `MigrationStrategy` and tested in `test/data/database_schema_test.dart` with drift's `SchemaVerifier` on the helpers in `test/data/generated_migrations/`. After a schema change: `dart run drift_dev schema dump lib/data/db/database.dart drift_schemas/`, then `dart run drift_dev schema generate drift_schemas/ test/data/generated_migrations/`.
 - 1 → 2 (ADR-17): `tasks.priority` was the position in the scale of the settings, `1..priority_scale`; it becomes the level at that position (`PriorityLabels.fromPosition`): scale 5 → 2, 3, 5, 7, 8; scale 3 → 2, 5, 7; scale 10 unchanged. A value past either end becomes that end. `updated_at` stays.
 - 2 → 3 (D20, ADR-18; T-705): three nullable columns on `tasks` (`recurrence`, `series_id`, `occurrence_date`) and the index `idx_tasks_series`. No row changes: every existing task is an ordinary one. `not_before` is in the table since schema 1 and only starts to be used. New snapshot `drift_schema_v3.json`.
 - 3 → 4 (T-907, D22, ADR-23): `tasks.completed_plan_date TEXT` (nullable). No row changes: a completion stored before does not know its plan day, and one from today's list still shows on the day it was done (`completedOnPlan`). New snapshot `drift_schema_v4.json`.
 - 4 → 5 (D21, ADR-19; T-804): `tasks.weight INTEGER NOT NULL DEFAULT 2`. Every existing task becomes a normal one, so the plan does not change. New snapshot `drift_schema_v5.json`. (Planned as 3 → 4; M9 came first, owner 2026-11-15.)
+- 5 → 6 (D23, ADR-25; T-1004): `tasks.allowed_weekdays TEXT` (nullable; a JSON array of weekdays in ascending order, e.g. `[3,4]`, `WeekdaySetConverter`). No row changes: every existing task may be planned on any day. New snapshot `drift_schema_v6.json`.
 
 The `settings` row is seeded when the database is created, with the column defaults and `updated_at = 0`: the epoch marks a row the user never changed, so it loses any last-write-wins merge. Drift row classes are named `TaskRow`, `SettingsRow`, `DayOverrideRow`; they stay inside `lib/data`.
 
@@ -277,6 +280,7 @@ One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `Backu
 - **Version 3 (T-706, D20):** a task may also carry `recurrence` (the JSON object shown under Recurrence), `seriesId` and `occurrenceDate`; all three are left out for an ordinary task. Reading checks the rule (`every ≥ 1`, a known `unit`, `anchor` exactly when `afterDone` is false, `days` non-empty within 0..6), that a rule comes with `seriesId` and `occurrenceDate`, and that no series has two active instances with a rule outside the Trash. Files of version 1 and 2 are read as before. The version goes up because an older app ignores unknown fields and would silently drop the rules; with 3 it refuses the file.
 - **Version 4 (T-907, D22):** a done task may carry `completedPlanDate`; it is left out when there is none, and a file of version 1–3 reads with none. On an active task it is refused. The version goes up for the same reason as with 3.
 - **Version 5 (T-804, D21):** a task may carry `weight` (half-slots, ≥ 1); it is left out for a normal task (2), and a file of version 1–4 reads with 2 everywhere. A weight below 1 is refused. The version goes up for the same reason as with 3.
+- **Version 6 (T-1004, D23):** a task may carry `allowedWeekdays` (an array of weekdays 0..6, Monday = 0); it is left out for a task without the limit, and a file of version 1–5 reads with none. An empty array, a value outside 0..6 or a repeated value is refused; all seven days read as no limit. The version goes up for the same reason as with 3.
 
 ```dart
 abstract interface class BackupRepository {

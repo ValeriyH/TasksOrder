@@ -16,11 +16,15 @@ String repeatSummary(AppLocalizations l10n, Recurrence rule) => switch (rule) {
     RecurrenceUnit.year =>
       every == 1 ? l10n.repeatYearly : l10n.repeatEveryYear(every),
   },
-  WeekdaysRecurrence(:final days) => [
-    for (var day = 0; day < 7; day++)
-      if (days.contains(day)) shortWeekday(l10n, day),
-  ].join(', '),
+  WeekdaysRecurrence(:final days) => weekdaysText(l10n, days),
 };
+
+/// Weekdays in the order of the week: "Thu, Fri". Also the allowed days of a
+/// task (D23).
+String weekdaysText(AppLocalizations l10n, Set<int> days) => [
+  for (var day = 0; day < 7; day++)
+    if (days.contains(day)) shortWeekday(l10n, day),
+].join(', ');
 
 /// "3 days", "1 week", "2 months".
 String unitCount(AppLocalizations l10n, RecurrenceUnit unit, int count) =>
