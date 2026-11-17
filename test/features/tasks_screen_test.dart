@@ -103,8 +103,8 @@ void main() {
     );
 
     expect(tiles(tester), ['Task high', 'Task dated', 'Task mid', 'Task low']);
-    expect(inTile('high', find.text('Planned for today')), findsOneWidget);
-    expect(inTile('mid', find.text('Planned for Sat, Nov 14')), findsOneWidget);
+    expect(inTile('high', find.text('Today')), findsOneWidget);
+    expect(inTile('mid', find.text('On Sat, Nov 14')), findsOneWidget);
     expect(inTile('dated', find.text('Due Fri, Nov 20')), findsOneWidget);
     expect(inTile('low', find.text('Low')), findsOneWidget);
   });
@@ -118,7 +118,7 @@ void main() {
       ],
     );
 
-    expect(inTile('L', find.text('Planned for Sat, Nov 14')), findsOneWidget);
+    expect(inTile('L', find.text('On Sat, Nov 14')), findsOneWidget);
     expect(inTile('L', find.text('Waits for a day with room')), findsOneWidget);
     expect(inTile('L', find.text('Large')), findsOneWidget);
     expect(inTile('n', find.text('Waits for a day with room')), findsNothing);
@@ -270,29 +270,7 @@ void main() {
   });
 
   group('swipes', () {
-    testWidgets('right completes; from today\'s list it uses the slot', (
-      tester,
-    ) async {
-      final app = await start(
-        tester,
-        tasks: [testTask('a', priority: 1), testTask('b', priority: 2)],
-      );
-
-      await swipe(tester, 'a', right: true);
-
-      expect(tiles(tester), ['Task b']);
-      expect(doneTiles(tester), ['Task a']);
-      expect((await app.task('a')).completedOnPlan, isTrue);
-      // The slot of today stays empty.
-      expect(inTile('b', find.text('Planned for Sat, Nov 14')), findsOneWidget);
-      expect(find.text('Undo'), findsNothing);
-
-      await tester.tap(inTile('a', find.text('Completed')));
-      await tester.pumpAndSettle();
-      expect(tiles(tester), ['Task a', 'Task b']);
-    });
-
-    testWidgets('right on a task of another day leaves today as it is', (
+    testWidgets('right pins a task to its planned day (T-1101)', (
       tester,
     ) async {
       final app = await start(
@@ -302,10 +280,47 @@ void main() {
 
       await swipe(tester, 'b', right: true);
 
-      expect(tiles(tester), ['Task a']);
-      final done = await app.task('b');
-      expect(done.isDone, isTrue);
-      expect(done.completedOnPlan, isFalse);
+      final pinned = await app.task('b');
+      expect(pinned.pinnedDate, LocalDate(2026, 11, 14));
+      expect(pinned.isDone, isFalse);
+      expect(find.text('Pinned to Sat, Nov 14'), findsOneWidget);
+      expect(tiles(tester), ['Task a', 'Task b']);
+      expect(inTile('b', find.text('Pinned')), findsOneWidget);
+      expect(inTile('b', find.text('On Sat, Nov 14')), findsOneWidget);
+    });
+
+    testWidgets('right on today\'s task pins it to today', (tester) async {
+      final app = await start(tester, tasks: [testTask('a')]);
+
+      await swipe(tester, 'a', right: true);
+
+      expect((await app.task('a')).pinnedDate, AppHarness.today);
+      expect((await app.task('a')).isDone, isFalse);
+      expect(inTile('a', find.text('Today')), findsOneWidget);
+    });
+
+    testWidgets('right does nothing for a Later or a pinned task', (
+      tester,
+    ) async {
+      final app = await start(
+        tester,
+        tasks: [
+          testTask('a', pinnedDate: AppHarness.today),
+          testTask('top', priority: 1, minute: 1),
+          testTask('far', priority: 5, minute: 2),
+        ],
+        // Today holds one task besides the pin; the rest is Later.
+        settings: Settings(planningHorizonDays: 1),
+      );
+      final pinnedBefore = await app.task('a');
+      expect(inTile('far', find.text('Later')), findsOneWidget);
+
+      await swipe(tester, 'a', right: true);
+      await swipe(tester, 'far', right: true);
+
+      expect(await app.task('a'), pinnedBefore);
+      expect((await app.task('far')).pinnedDate, isNull);
+      expect(find.byType(SnackBar), findsNothing);
     });
 
     testWidgets('left sets and clears the Focus mark', (tester) async {
@@ -449,6 +464,6 @@ void main() {
     expect(chip(tester, 'due'), ['З терміном', '0']);
     expect(chip(tester, 'recurring'), ['Регулярні', '0']);
     expect(chip(tester, 'done'), ['Виконані']);
-    expect(find.text('Заплановано на сьогодні'), findsOneWidget);
+    expect(find.text('На сьогодні'), findsOneWidget);
   });
 }

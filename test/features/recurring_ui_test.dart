@@ -108,7 +108,7 @@ void main() {
       expect(
         find.descendant(
           of: find.widgetWithText(TaskCard, 'Task w'),
-          matching: find.text('Planned for today'),
+          matching: find.text('Today'),
         ),
         findsOneWidget,
       );

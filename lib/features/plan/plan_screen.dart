@@ -131,7 +131,7 @@ class _PlanBody extends ConsumerWidget {
       Task task, {
       required LocalDate? plannedDate,
       bool isDone = false,
-      List<Widget> chips = const [],
+      List<TaskChip> chips = const [],
     }) => TaskCard(
       key: ValueKey(task.id),
       task: task,

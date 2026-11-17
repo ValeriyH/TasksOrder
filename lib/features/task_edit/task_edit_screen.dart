@@ -19,12 +19,27 @@ import 'package:tasks_order/shared/repeat_text.dart';
 import 'package:tasks_order/shared/task_actions_ui.dart';
 import 'package:tasks_order/shared/task_size_text.dart';
 
+/// What a new task starts with in the editor: the quick-add sheet hands
+/// over what was typed there (T-1102).
+class TaskDraft {
+  const TaskDraft({this.title = '', this.priority, this.pinnedDate});
+
+  final String title;
+
+  /// Null: Normal, as for any new task.
+  final int? priority;
+  final LocalDate? pinnedDate;
+}
+
 /// Creates a task or changes the one with [taskId].
 class TaskEditScreen extends ConsumerStatefulWidget {
-  const TaskEditScreen({this.taskId, super.key});
+  const TaskEditScreen({this.taskId, this.draft, super.key});
 
   /// Null for a new task.
   final String? taskId;
+
+  /// The starting values of a new task; ignored with [taskId].
+  final TaskDraft? draft;
 
   @override
   ConsumerState<TaskEditScreen> createState() => _TaskEditScreenState();
@@ -68,7 +83,13 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.taskId case final id?) unawaited(_load(id));
+    if (widget.taskId case final id?) {
+      unawaited(_load(id));
+    } else if (widget.draft case final draft?) {
+      _title.text = draft.title;
+      _priority = draft.priority;
+      _pinnedDate = draft.pinnedDate;
+    }
   }
 
   @override

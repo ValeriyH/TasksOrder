@@ -189,7 +189,7 @@ void main() {
       expect(tiles(tester), ['Task d1', 'Task d2']);
       expect(inTile('d1', find.text('Deadline')), findsOneWidget);
       expect(inTile('d1', find.text('Due today')), findsOneWidget);
-      expect(inTile('d2', find.text('Extra')), findsOneWidget);
+      expect(inTile('d2', find.text('+ Over plan')), findsOneWidget);
       expect(
         find.text('More than planned: 2 of 1 slots taken'),
         findsOneWidget,
@@ -252,7 +252,7 @@ void main() {
       );
 
       expect(inTile('p', find.text('Pinned')), findsOneWidget);
-      expect(inTile('p', find.text('Planned for Sat, Nov 14')), findsOneWidget);
+      expect(inTile('p', find.text('On Sat, Nov 14')), findsOneWidget);
     });
 
     testWidgets('the reason badges can be switched off', (tester) async {
@@ -269,7 +269,7 @@ void main() {
       // The scenario of "deadlines are forced" without its reason chips.
       expect(tiles(tester), ['Task d1', 'Task d2']);
       expect(find.text('Deadline'), findsNothing);
-      expect(find.text('Extra'), findsNothing);
+      expect(find.text('+ Over plan'), findsNothing);
     });
 
     testWidgets('a tap opens the menu, and Edit the editor (D22)', (
@@ -299,7 +299,7 @@ void main() {
       // repeated in Focus.
       expect(tiles(tester), ['Task f', 'Task a']);
       expect(find.text('FOCUS'), findsOneWidget);
-      expect(inTile('f', find.text('Planned for Sat, Nov 14')), findsOneWidget);
+      expect(inTile('f', find.text('On Sat, Nov 14')), findsOneWidget);
       // Today has its Focus section: no focus chip on the cards (D22).
       expect(
         inTile('f', find.byIcon(Icons.center_focus_strong_outlined)),
@@ -447,6 +447,6 @@ void main() {
     expect(find.text('Термін сьогодні'), findsNWidgets(2));
     expect(find.text('Дедлайн'), findsNWidgets(2));
     expect(find.text('1 завдання не встигне до терміну'), findsOneWidget);
-    expect(find.textContaining('Заплановано на'), findsWidgets);
+    expect(find.textContaining('На '), findsWidgets);
   });
 }

@@ -274,7 +274,7 @@
       }
     }
   },
-  "plannedFor": "Planned for {date}",
+  "plannedFor": "On {date}",
   "@plannedFor": {
     "description": "Badge: the day the plan puts the task on",
     "placeholders": {
@@ -326,7 +326,7 @@
   "@reasonDeadline": {
     "description": "Badge: the task is on this day because of its due date"
   },
-  "reasonOverflow": "Extra",
+  "reasonOverflow": "+ Over plan",
   "@reasonOverflow": {
     "description": "Badge: the task is above the capacity of the day"
   },
@@ -371,7 +371,7 @@
   "@tasksEmpty": {
     "description": "Tasks: empty list, also for a filter without matches"
   },
-  "plannedToday": "Planned for today",
+  "plannedToday": "Today",
   "@plannedToday": {
     "description": "Badge: the plan puts the task on today"
   },
@@ -423,7 +423,7 @@
   "@settingsShowReasons": {
     "description": "Settings: switch for the reason badges"
   },
-  "settingsShowReasonsHint": "Badges: Pinned, Deadline, Extra",
+  "settingsShowReasonsHint": "Badges: Pinned, Deadline, + Over plan",
   "@settingsShowReasonsHint": {
     "description": "Explains the reasons switch"
   },
@@ -603,6 +603,14 @@
   "actionAdd": "Add",
   "@actionAdd": {
     "description": "Button of the quick-add sheet: create the task"
+  },
+  "quickAddPinToday": "Today",
+  "@quickAddPinToday": {
+    "description": "Chip of the quick-add sheet: pin the new task to today (T-1102)"
+  },
+  "quickAddFullEditor": "Full editor",
+  "@quickAddFullEditor": {
+    "description": "Tooltip of the quick-add sheet's button that opens the full editor with what was typed (T-1102)"
   },
   "dateTomorrow": "Tomorrow",
   "@dateTomorrow": {
@@ -1051,10 +1059,6 @@
   "@completedOn": {
     "description": "Task card of a done task: the line under the title, with a short date",
     "placeholders": {"date": {"type": "String"}}
-  },
-  "noDueDate": "No due date",
-  "@noDueDate": {
-    "description": "Task card: due line of a task without a due date"
   },
   "markDoneA11y": "Mark as done: {title}",
   "@markDoneA11y": {

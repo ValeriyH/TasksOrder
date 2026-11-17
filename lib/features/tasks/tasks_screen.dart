@@ -378,19 +378,37 @@ class _TaskList extends ConsumerWidget {
             );
         }
 
+        // The right swipe pins the task to its planned day (T-1101); a task
+        // with no planned day (Later) or one already pinned has nothing to
+        // pin, so the swipe is not offered.
+        final pinDay = task.pinnedDate == null ? date : null;
+
+        Future<void> pin(LocalDate day) async {
+          final messenger = ScaffoldMessenger.of(context);
+          final label = l10n.pinnedTo(shortDate(context, day));
+          await ref.read(taskActionsProvider).setPinnedDate(task, day);
+          unawaited(HapticFeedback.selectionClick());
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(label)));
+        }
+
         return Dismissible(
           key: ValueKey(task.id),
+          direction: pinDay == null
+              ? DismissDirection.endToStart
+              : DismissDirection.horizontal,
           // The swipe only triggers the action and the card slides back.
           confirmDismiss: (direction) async {
             if (direction == DismissDirection.startToEnd) {
-              await complete();
+              if (pinDay != null) await pin(pinDay);
             } else {
               await toggleFocus();
             }
             return false;
           },
           background: _SwipeBackground(
-            icon: Icons.check,
+            icon: Icons.push_pin_outlined,
             alignment: AlignmentDirectional.centerStart,
             color: theme.colorScheme.primaryContainer,
             iconColor: theme.colorScheme.onPrimaryContainer,
@@ -420,6 +438,7 @@ class _TaskList extends ConsumerWidget {
                   final date => l10n.plannedFor(shortDate(context, date)),
                 },
                 icon: Icons.calendar_today_outlined,
+                slot: ChipSlot.planned,
               ),
               if (waiting.contains(task.id)) waitsForRoomChip(context),
             ],

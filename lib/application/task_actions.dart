@@ -26,10 +26,18 @@ class TaskActions {
   final Set<String> Function() _paused;
 
   /// Creates a task with a title and a priority only (quick add).
-  Future<void> add({required String title, required int priority}) {
+  Future<void> add({
+    required String title,
+    required int priority,
+    LocalDate? pinnedDate,
+  }) {
     final now = _clock();
     return _repository.upsert(
-      Task.create(title: title, priority: priority, now: now),
+      Task.create(
+        title: title,
+        priority: priority,
+        now: now,
+      ).copyWith(pinnedDate: pinnedDate),
       now,
     );
   }

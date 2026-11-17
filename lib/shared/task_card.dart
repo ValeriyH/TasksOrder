@@ -16,28 +16,32 @@ DateTime dateTimeOf(LocalDate date) =>
 String shortDate(BuildContext context, LocalDate date) =>
     MaterialLocalizations.of(context).formatMediumDate(dateTimeOf(date));
 
-/// Text styles of the task card (D22).
+/// Text styles of the task card (D22, card v2 of T-1103).
 abstract final class _Text {
   static const title = TextStyle(
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: FontWeight.w700,
-    height: 23 / 17,
+    height: 24 / 18,
   );
   static const due = TextStyle(fontSize: 13, fontWeight: FontWeight.w600);
-  static const chip = TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
+  static const chip = TextStyle(fontSize: 12, fontWeight: FontWeight.w600);
   static const button = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
 }
 
-/// A task in a list (D22): a row of chips, the title, the due line and the
-/// Done button.
+/// A task in a list, the "quiet card" (D22, card v2 of T-1103): the title,
+/// the chips under it, and a bottom row with the due line (only for a due
+/// date, or the day of a done task) and the Done button at the right.
 ///
-/// The chips the task itself knows come first: priority, focus (unless
-/// [showFocus] is off: Today has a Focus section), pin, repeat, the allowed
-/// days of the week; then the
-/// [chips] of the list (planned day, over plan, at risk, reasons); then
-/// "paused" and "from" a date. A done task ([isDone]) is dimmed with its
-/// title struck through, and its button reads "Completed"; a tap on it calls
-/// [onToggleDone] again, which the screen turns into an undo.
+/// The chips the task itself knows (priority, focus unless [showFocus] is
+/// off: Today has a Focus section, pin, repeat, size, allowed days, paused,
+/// "from" a date) and the [chips] of the list (planned day, over plan, at
+/// risk, reasons) are shown together in the order of [ChipSlot], the
+/// priority first; all of them, wrapped onto more lines when needed.
+///
+/// A done task ([isDone]) is dimmed with its title struck through, every
+/// chip quiet and a grey priority dot, and its button reads "Completed"; a
+/// tap on it calls [onToggleDone] again, which the screen turns into an
+/// undo.
 class TaskCard extends StatelessWidget {
   const TaskCard({
     required this.task,
@@ -92,8 +96,8 @@ class TaskCard extends StatelessWidget {
   /// its own "Planned for {date}" chip, so the date is not said twice.
   final bool showPinDate;
 
-  /// Chips of the list the card is in.
-  final List<Widget> chips;
+  /// Chips of the list the card is in; placed by their [TaskChip.slot].
+  final List<TaskChip> chips;
 
   @override
   Widget build(BuildContext context) {
@@ -117,12 +121,66 @@ class TaskCard extends StatelessWidget {
         1 => l10n.completedYesterday,
         _ => l10n.completedOn(shortDate(context, doneOn)),
       },
-      null => l10n.noDueDate,
+      // No due date: no due line (T-1103); the planned day is a chip.
+      null => null,
       _ when overdueDays > 0 => l10n.overdueBy(overdueDays),
       _ when overdueDays == 0 => l10n.dueToday,
       final date => l10n.dueOn(shortDate(context, date)),
     };
     final dueColor = overdue ? c.alert : c.muted;
+
+    final all = <TaskChip>[
+      if (showFocus && task.isFocused)
+        TaskChip(
+          label: l10n.taskFocusLabel,
+          icon: Icons.center_focus_strong_outlined,
+          slot: ChipSlot.focus,
+        ),
+      if (pinned != null)
+        TaskChip(
+          label: showPinDate
+              ? l10n.pinnedTo(shortDate(context, pinned))
+              : l10n.reasonPinned,
+          icon: Icons.push_pin_outlined,
+          slot: ChipSlot.pinned,
+        ),
+      if (rule != null)
+        TaskChip(
+          label: repeatSummary(l10n, rule),
+          icon: Icons.repeat,
+          slot: ChipSlot.repeat,
+        ),
+      // Small and large only: a normal task needs no mark (D21).
+      if (TaskSize.nearest(task.weight) case final size
+          when size != TaskSize.normal)
+        TaskChip(
+          key: const ValueKey('sizeChip'),
+          label: sizeLabel(l10n, size),
+          icon: size == TaskSize.small ? Icons.unfold_less : Icons.unfold_more,
+          slot: ChipSlot.size,
+        ),
+      // Planned only on these days of the week (D23).
+      if (task.allowedWeekdays case final days?)
+        TaskChip(
+          key: const ValueKey('daysChip'),
+          label: l10n.onlyDays(weekdaysText(l10n, days)),
+          icon: Icons.date_range,
+          slot: ChipSlot.days,
+        ),
+      if (waits)
+        TaskChip(
+          label: l10n.availableFrom(shortDate(context, release)),
+          icon: Icons.hourglass_empty,
+          slot: ChipSlot.from,
+        ),
+      if (paused)
+        TaskChip(
+          label: l10n.taskPausedBadge,
+          icon: Icons.pause_circle_outline,
+          slot: ChipSlot.paused,
+        ),
+      ...chips,
+    ];
 
     return AnimatedOpacity(
       duration: AppDims.doneFade,
@@ -130,85 +188,37 @@ class TaskCard extends StatelessWidget {
       child: _CardShell(
         onTap: onTap,
         children: [
-          Wrap(
-            spacing: AppDims.chipSpacing,
-            runSpacing: AppDims.chipSpacing,
-            children: [
-              PriorityChip(priority: task.priority, scale: scale),
-              // Small and large only: a normal task needs no mark (D21).
-              if (TaskSize.nearest(task.weight) case final size
-                  when size != TaskSize.normal)
-                TaskChip(
-                  key: const ValueKey('sizeChip'),
-                  label: sizeLabel(l10n, size),
-                  icon: size == TaskSize.small
-                      ? Icons.unfold_less
-                      : Icons.unfold_more,
-                ),
-              if (showFocus && task.isFocused)
-                TaskChip(
-                  label: l10n.taskFocusLabel,
-                  icon: Icons.center_focus_strong_outlined,
-                  tone: ChipTone.accent,
-                ),
-              if (pinned != null)
-                TaskChip(
-                  label: showPinDate
-                      ? l10n.pinnedTo(shortDate(context, pinned))
-                      : l10n.reasonPinned,
-                  icon: Icons.push_pin_outlined,
-                  tone: ChipTone.accent,
-                ),
-              if (rule != null)
-                TaskChip(label: repeatSummary(l10n, rule), icon: Icons.repeat),
-              // Planned only on these days of the week (D23).
-              if (task.allowedWeekdays case final days?)
-                TaskChip(
-                  key: const ValueKey('daysChip'),
-                  label: l10n.onlyDays(weekdaysText(l10n, days)),
-                  icon: Icons.date_range,
-                ),
-              ...chips,
-              if (paused)
-                TaskChip(
-                  label: l10n.taskPausedBadge,
-                  icon: Icons.pause_circle_outline,
-                ),
-              if (waits)
-                TaskChip(
-                  label: l10n.availableFrom(shortDate(context, release)),
-                  icon: Icons.hourglass_empty,
-                ),
-            ],
-          ),
+          _CardTitle(task.title, isDone: isDone),
           const SizedBox(height: AppDims.cardGap),
-          Text(
-            task.title,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: _Text.title.copyWith(
-              color: isDone ? c.titleDone : c.title,
-              decoration: isDone ? TextDecoration.lineThrough : null,
-              decorationColor: c.titleDone,
+          _ChipRow(
+            priority: PriorityChip(
+              priority: task.priority,
+              scale: scale,
+              isDone: isDone,
             ),
+            chips: all,
+            quiet: isDone,
           ),
           const SizedBox(height: AppDims.cardGap),
           Row(
             children: [
-              Icon(
-                doneOn != null ? Icons.check_circle_outline : Icons.schedule,
-                size: 14,
-                color: dueColor,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  dueText,
-                  overflow: TextOverflow.ellipsis,
-                  style: _Text.due.copyWith(color: dueColor),
+              if (dueText != null) ...[
+                Icon(
+                  doneOn != null ? Icons.check_circle_outline : Icons.schedule,
+                  size: 14,
+                  color: dueColor,
                 ),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    dueText,
+                    overflow: TextOverflow.ellipsis,
+                    style: _Text.due.copyWith(color: dueColor),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ] else
+                const Spacer(),
               Opacity(
                 opacity: (paused && !isDone) || (locked && isDone) ? 0.38 : 1,
                 child: TaskDoneButton(
@@ -221,6 +231,62 @@ class TaskCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The title of a card: two lines at most (T-1103); struck through when
+/// the task is done.
+class _CardTitle extends StatelessWidget {
+  const _CardTitle(this.title, {this.isDone = false});
+
+  final String title;
+  final bool isDone;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = AppColors.of(context);
+    return Text(
+      title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: _Text.title.copyWith(
+        color: isDone ? c.titleDone : c.title,
+        decoration: isDone ? TextDecoration.lineThrough : null,
+        decorationColor: c.titleDone,
+      ),
+    );
+  }
+}
+
+/// The priority, then [chips] in the order of their [ChipSlot] (the list's
+/// own order inside a slot), wrapped onto more lines when needed. [quiet]:
+/// a done task, every chip neutral (T-1103).
+class _ChipRow extends StatelessWidget {
+  const _ChipRow({
+    required this.priority,
+    required this.chips,
+    this.quiet = false,
+  });
+
+  final PriorityChip priority;
+  final List<TaskChip> chips;
+  final bool quiet;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...chips.indexed]
+      ..sort((a, b) {
+        final c = a.$2.slot.index.compareTo(b.$2.slot.index);
+        return c != 0 ? c : a.$1.compareTo(b.$1);
+      });
+    return Wrap(
+      spacing: AppDims.chipSpacing,
+      runSpacing: AppDims.chipSpacing,
+      children: [
+        priority,
+        for (final (_, chip) in sorted) quiet ? chip.quiet() : chip,
+      ],
     );
   }
 }
@@ -242,12 +308,11 @@ class GhostTaskCard extends StatelessWidget {
   final VoidCallback onTap;
 
   /// Chips of the entry (over plan, at risk, reasons).
-  final List<Widget> chips;
+  final List<TaskChip> chips;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final c = AppColors.of(context);
     final rule = task.recurrence;
     return Opacity(
       opacity: 0.6,
@@ -256,25 +321,19 @@ class GhostTaskCard extends StatelessWidget {
         child: _CardShell(
           onTap: onTap,
           children: [
-            Wrap(
-              spacing: AppDims.chipSpacing,
-              runSpacing: AppDims.chipSpacing,
-              children: [
-                PriorityChip(priority: task.priority, scale: scale),
+            _CardTitle(task.title),
+            const SizedBox(height: AppDims.cardGap),
+            _ChipRow(
+              priority: PriorityChip(priority: task.priority, scale: scale),
+              chips: [
                 if (rule != null)
                   TaskChip(
                     label: repeatSummary(l10n, rule),
                     icon: Icons.repeat,
+                    slot: ChipSlot.repeat,
                   ),
                 ...chips,
               ],
-            ),
-            const SizedBox(height: AppDims.cardGap),
-            Text(
-              task.title,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: _Text.title.copyWith(color: c.title),
             ),
           ],
         ),
@@ -378,25 +437,41 @@ class TaskDoneButton extends StatelessWidget {
   }
 }
 
-/// How a [TaskChip] is coloured (D22).
+/// How a [TaskChip] is coloured (card v2 of T-1103): quiet chips are grey
+/// with [AppColors.metaText]; only "At risk" stays loud.
 enum ChipTone {
-  /// Repeat, planned day, paused, from: grey.
+  /// Focus, pin, repeat, planned day, size, days, paused, from, reasons.
   neutral,
 
-  /// Focus, pin: the accent.
-  accent,
-
-  /// Over plan: amber.
+  /// Over plan: the text in [AppColors.metaExtra] on the grey chip.
   extra,
 
   /// At risk: red.
   alert,
 }
 
+/// Where a [TaskChip] stands on a card (T-1103): the important ones first.
+/// The priority chip is always before all of them.
+enum ChipSlot {
+  atRisk,
+  focus,
+  pinned,
+  overPlan,
+  repeat,
+  planned,
+  size,
+  days,
+  from,
+  paused,
+  waitsForRoom,
+  deadline,
+}
+
 /// A small rounded label on a task card.
 class TaskChip extends StatelessWidget {
   const TaskChip({
     required this.label,
+    required this.slot,
     this.icon,
     this.tone = ChipTone.neutral,
     super.key,
@@ -406,13 +481,20 @@ class TaskChip extends StatelessWidget {
   final IconData? icon;
   final ChipTone tone;
 
+  /// Its place among the chips of a card.
+  final ChipSlot slot;
+
+  /// The same chip, neutral: on a done card every chip is quiet (T-1103).
+  TaskChip quiet() => tone == ChipTone.neutral
+      ? this
+      : TaskChip(key: key, label: label, slot: slot, icon: icon);
+
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     final (background, foreground) = switch (tone) {
-      ChipTone.neutral => (c.neutralChipBg, c.neutralChipFg),
-      ChipTone.accent => (c.accentChipBg, c.accentChipFg),
-      ChipTone.extra => (c.extraChipBg, c.extraChipFg),
+      ChipTone.neutral => (c.neutralChipBg, c.metaText),
+      ChipTone.extra => (c.neutralChipBg, c.metaExtra),
       ChipTone.alert => (c.capOverBg, c.capOverFg),
     };
     final icon = this.icon;
@@ -435,34 +517,56 @@ class TaskChip extends StatelessWidget {
   }
 }
 
-/// The priority of a task: a dot and its name in the shade of its colour
-/// (D1, D22).
+/// The priority of a task (D1, card v2 of T-1103): a dot in the colour of
+/// the level and its name. Quiet (grey chip, [AppColors.metaText]) but for
+/// the loud levels, Catastrophic and Critical ([isLoud]), which keep the
+/// tint and the text of their own colour. A done task's chip is quiet with
+/// a grey dot.
 class PriorityChip extends StatelessWidget {
-  const PriorityChip({required this.priority, required this.scale, super.key});
+  const PriorityChip({
+    required this.priority,
+    required this.scale,
+    this.isDone = false,
+    super.key,
+  });
 
   final int priority;
   final int scale;
+  final bool isDone;
+
+  /// Levels 1 (Catastrophic) and 2 (Critical) of the ten-level table
+  /// (ADR-17): the only priorities with a coloured chip (owner, T-1103).
+  static bool isLoud(int priority) => priority <= 2;
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     final shade = priorityShade(context, priority, scale);
+    final loud = isLoud(priority) && !isDone;
+    // The dot: the colour of the level itself in the light theme, its light
+    // shade in the dark one (a dark red does not read on a dark chip).
+    final dot = isDone
+        ? c.priorityDotDone
+        : Theme.of(context).brightness == Brightness.dark
+        ? shade.foreground
+        : priorityColor(priority, scale);
+    final text = loud ? shade.foreground : c.metaText;
     return _ChipShell(
-      background: shade.background,
+      key: const ValueKey('priorityChip'),
+      background: loud ? shade.background : c.neutralChipBg,
       children: [
         Container(
+          key: const ValueKey('priorityDot'),
           width: AppDims.priorityDot,
           height: AppDims.priorityDot,
-          decoration: BoxDecoration(
-            color: shade.foreground,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
             priorityName(context.l10n, priority, scale),
             overflow: TextOverflow.ellipsis,
-            style: _Text.chip.copyWith(color: shade.foreground),
+            style: _Text.chip.copyWith(color: text),
           ),
         ),
       ],
@@ -471,7 +575,11 @@ class PriorityChip extends StatelessWidget {
 }
 
 class _ChipShell extends StatelessWidget {
-  const _ChipShell({required this.background, required this.children});
+  const _ChipShell({
+    required this.background,
+    required this.children,
+    super.key,
+  });
 
   final Color background;
   final List<Widget> children;

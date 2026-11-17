@@ -74,20 +74,57 @@ People collect far more tasks than they can do. Classic to-do apps show the whol
 | D1 | **Priority 1 = highest. A priority is a fixed level of the ten-level table** (changed 2026-11-14, ADR-17): Critical is always 2, High 3, Normal 5, Low 7, Someday 8, whatever the scale. The scale (3, 5 or 10) only chooses which levels the app offers: scale 3 is Critical / Normal / Low, scale 5 adds High and Someday, scale 10 offers all ten. A task keeps its level when the scale changes; a level the scale does not offer is shown as the nearest one it does (the higher on a tie) and stays stored as it is. Shown as the **name only**, e.g. *Critical*, with the colour of the level; the order is visible from the sorting and the colours. Every level is planned the same way inside the daily capacity; "do it today regardless of capacity" is a pin (D17). Label tables below. | Owner 2026-11-14, after the device test: with "the number is the position in the scale" a change 5 → 10 turned Normal (3) into High (3), and 10 → 5 squeezed it again, so a round trip raised every task. Fixed levels make any scale change lossless. The number is not shown because on scale 3 it would read 2, 5, 7. Earlier (2026-11-12/13): "Label (n)" with the position in the scale. |
 
 ### Priority labels (D1)
-| Level | en | uk | Scale 3 | Scale 5 | Scale 10 |
-|---|---|---|---|---|---|
-| 1 | Catastrophic | Катастрофічний | | | ✓ |
-| 2 | Critical | Критичний | ✓ | ✓ | ✓ |
-| 3 | High | Високий | | ✓ | ✓ |
-| 4 | Elevated | Підвищений | | | ✓ |
-| 5 | Normal | Звичайний | ✓ | ✓ | ✓ |
-| 6 | Minor | Понижений | | | ✓ |
-| 7 | Low | Низький | ✓ | ✓ | ✓ |
-| 8 | Someday | Якось | | ✓ | ✓ |
-| 9 | Whenever | Хтозна-коли | | | ✓ |
-| 10 | Never | Ніколи | | | ✓ |
+| Level | en           | uk             | Scale 3 | Scale 5 | Scale 10 |     |
+| ----- | ------------ | -------------- | ------- | ------- | -------- | --- |
+| 1     | Catastrophic | Катастрофічний |         |         | ✓        |     |
+| 2     | Critical     | Критичний      | ✓       | ✓       | ✓        |     |
+| 3     | High         | Високий        |         | ✓       | ✓        |     |
+| 4     | Elevated     | Підвищений     |         |         | ✓        |     |
+| 5     | Normal       | Звичайний      | ✓       | ✓       | ✓        |     |
+| 6     | Minor        | Понижений      |         |         | ✓        |     |
+| 7     | Low          | Низький        | ✓       | ✓       | ✓        |     |
+| 8     | Someday      | Якось          |         | ✓       | ✓        |     |
+| 9     | Whenever     | Хтозна-коли    |         |         | ✓        |     |
+| 10    | Never        | Ніколи         |         |         | ✓        |     |
 
 A new task gets Normal (5) on every scale. Level 8 in Ukrainian was "Якось" on scale 10 and "Колись" on scale 5; since a level has one name everywhere it is "Якось" (owner, 2026-11-14). Colours (changed 2026-11-13, owner: amber for the ordinary level looked like a warning) go by the position of a level in the scale: red for the first, **green for Normal**, blue for the last; between them orange (raised) and teal (lowered), so scale 5 is red, orange, green, teal, blue and scale 10 uses the steps in between. Labels are localisation keys (`priority.s5.3` = the third level of scale 5), so wording can be tuned later without touching code.
+
+#### Priority colours (D1, D22, card v2 of T-1103)
+Computed by the app, not stored: the colour of a level is `PriorityLabels.color(level, scale)`, so the same level can have another colour on another scale (Critical is red on scales 3 and 5, red-orange on scale 10, where red is Catastrophic). The other columns are derived per theme by `PriorityShade` (`lib/app/app_colors.dart`): in the light theme the chip is a tint of the colour at lightness 0.93 with the colour darkened until the text reads at 4.5:1; in the dark theme the chip is the colour at 18 % over the card (`#1A1D24`) with the colour lightened until it reads. On the card (T-1103) the **dot** of a quiet priority is the colour itself in the light theme and the dark text shade in the dark one; only levels 1 and 2 (Catastrophic, Critical) use the chip tint and text as well, every other level sits on the grey chip (`neutralChipBg` `#F3F4F6` / `#262A33`) with `metaText` (`#5F6673` / `#9CA3AF`). A done task's dot is `priorityDotDone` (`#D1D5DB` / `#4B5563`). The scale's five anchors: red `#D32F2F`, orange `#F57C00`, green `#388E3C`, teal `#0097A7`, blue `#1976D2`.
+
+Scale 3:
+
+| Level | Name     | Colour (light dot) | Dark dot  | Light chip | Light text | Dark chip | Dark text |
+| ----- | -------- | ------------------ | --------- | ---------- | ---------- | --------- | --------- |
+| 2     | Critical | `#D32F2F`          | `#E99696` | `#F9E2E2`  | `#A02222`  | `#3B2026` | `#E99696` |
+| 5     | Normal   | `#388E3C`          | `#A4DBA6` | `#E5F5E6`  | `#317C35`  | `#1F3128` | `#A4DBA6` |
+| 7     | Low      | `#1976D2`          | `#8DC0F1` | `#DFEDFB`  | `#1561AD`  | `#1A2D43` | `#8DC0F1` |
+
+Scale 5:
+
+| Level | Name     | Colour (light dot) | Dark dot  | Light chip | Light text | Dark chip | Dark text |
+| ----- | -------- | ------------------ | --------- | ---------- | ---------- | --------- | --------- |
+| 2     | Critical | `#D32F2F`          | `#E99696` | `#F9E2E2`  | `#A02222`  | `#3B2026` | `#E99696` |
+| 3     | High     | `#F57C00`          | `#FFC080` | `#FCEDDE`  | `#A35300`  | `#412E1E` | `#FFC080` |
+| 5     | Normal   | `#388E3C`          | `#A4DBA6` | `#E5F5E6`  | `#317C35`  | `#1F3128` | `#A4DBA6` |
+| 7     | Low      | `#0097A7`          | `#80F3FF` | `#DEF9FC`  | `#007B88`  | `#15333C` | `#80F3FF` |
+| 8     | Someday  | `#1976D2`          | `#8DC0F1` | `#DFEDFB`  | `#1561AD`  | `#1A2D43` | `#8DC0F1` |
+
+Scale 10:
+
+| Level | Name         | Colour (light dot) | Dark dot  | Light chip | Light text | Dark chip | Dark text |
+| ----- | ------------ | ------------------ | --------- | ---------- | ---------- | --------- | --------- |
+| 1     | Catastrophic | `#D32F2F`          | `#E99696` | `#F9E2E2`  | `#A02222`  | `#3B2026` | `#E99696` |
+| 2     | Critical     | `#E2491C`          | `#F1A48E` | `#FBE6DF`  | `#AC3815`  | `#3E2523` | `#F1A48E` |
+| 3     | High         | `#F17006`          | `#FCB983` | `#FCECDE`  | `#A94F04`  | `#412C1F` | `#FCB983` |
+| 4     | Elevated     | `#CFD31C`          | `#EEF08E` | `#FAFBDF`  | `#737510`  | `#3B3E23` | `#EEF08E` |
+| 5     | Normal       | `#54A533`          | `#B1E19E` | `#E9F7E4`  | `#3F7D27`  | `#243527` | `#B1E19E` |
+| 6     | Minor        | `#2D944A`          | `#9DE1B0` | `#E4F7E9`  | `#267D3E`  | `#1D322B` | `#9DE1B0` |
+| 7     | Low          | `#159F7C`          | `#8EF0D7` | `#DFFBF4`  | `#107B60`  | `#193434` | `#8EF0D7` |
+| 8     | Someday      | `#0294AC`          | `#81ECFE` | `#DEF8FC`  | `#027A8E`  | `#16323C` | `#81ECFE` |
+| 9     | Whenever     | `#0D86BF`          | `#88D3F7` | `#DEF3FC`  | `#0B72A2`  | `#183040` | `#88D3F7` |
+| 10    | Never        | `#1976D2`          | `#8DC0F1` | `#DFEDFB`  | `#1561AD`  | `#1A2D43` | `#8DC0F1` |
+
 | D2 | **The plan is derived, never stored.** Only tasks, settings and manual pins are persisted; the plan is a pure function of them. A **cache** of the last plan may be written later only for consumers that cannot compute it (home-screen widget, notification). | No sync bugs between "stored plan" and reality. Any change (new task, done, settings) simply recomputes. Cheap for hundreds of tasks. Confirmed by owner. |
 | D3 | **Today is stable.** Completing a task today does not pull the next task into today. | The user asked for "N per day", not "always N visible". Pulling tasks in would make the day endless. A "do one more" button can be added later. Exception: deadline-forced slots refill (D16). Only completions from today's list use up a slot (D19). |
 | D4 | **Deadlines win over priority, but only when forced.** The planner computes the minimum number of due-dated tasks that must happen today to still meet every deadline (earliest-deadline-first feasibility). | Exactly the "lower priority can push a higher one" behaviour, without making every due date dominate. |

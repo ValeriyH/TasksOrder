@@ -148,7 +148,7 @@ void main() {
         findsOneWidget,
       );
       expect(inTile('d1', find.text('Deadline')), findsOneWidget);
-      expect(inTile('d2', find.text('Extra')), findsOneWidget);
+      expect(inTile('d2', find.text('+ Over plan')), findsOneWidget);
       expect(inTile('d3', find.text('At risk')), findsOneWidget);
       expect(inTile('p', find.text('Pinned to Sat, Nov 14')), findsOneWidget);
       expect(find.text('1 task at risk'), findsOneWidget);

@@ -76,7 +76,9 @@ GoRouter router(Ref ref) {
       // Before '/task/:id', or "new" would be taken for an id.
       GoRoute(
         path: AppRoutes.taskNew,
-        builder: (context, state) => const TaskEditScreen(),
+        // Quick add hands over what was typed (T-1102).
+        builder: (context, state) =>
+            TaskEditScreen(draft: state.extra as TaskDraft?),
       ),
       GoRoute(
         path: '/task/:id',

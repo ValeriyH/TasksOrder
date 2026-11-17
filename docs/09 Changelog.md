@@ -6,6 +6,11 @@ created: 2026-11-14
 
 Versions of the app as in `version:` of `pubspec.yaml` (`name+build`). The build number grows with every APK installed over an older one (ADR-15).
 
+## 0.8.0+15 — 2026-11-17 (M11)
+- **A quieter task card** on Today, Plan and Tasks: the title first, the marks under it (all of them, on more lines when needed), the due line only when there is a due date, the Done button at the right. Marks are grey; a priority shows its colour as a dot. Only Critical and Catastrophic priorities and "At risk" keep a coloured mark; a done card is all grey. "Planned for Mon, Nov 16" reads **On Mon, Nov 16** ("Today" for today), "Extra" reads **+ Over plan**.
+- **A swipe to the right on Tasks pins** a task to the day the plan gives it (it used to complete it; the Done button completes). Nothing happens for a task in Later or one already pinned.
+- **Quick add**: the chip **Today** pins the new task to today; the button in the top right corner opens the full editor with what was typed.
+
 ## 0.7.0+14 — 2026-11-17 (M10)
 - **Days** (D23, ADR-25): a task can be limited to some days of the week in the editor ("Only Thu, Fri", "Only Sat" on the card). It is planned only on those days, by priority like any task; a missed day moves it to the next one by itself, without Focus. A rest day of the set is passed over.
 - With a due date the task gets one of its days before the date; on the last one it goes first ("Deadline"). After the date it is overdue and in Focus, and keeps to its days.

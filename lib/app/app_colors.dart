@@ -22,6 +22,9 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.track,
     required this.neutralChipBg,
     required this.neutralChipFg,
+    required this.metaText,
+    required this.metaExtra,
+    required this.priorityDotDone,
     required this.accentChipBg,
     required this.accentChipFg,
     required this.extraChipBg,
@@ -85,7 +88,17 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color neutralChipBg;
   final Color neutralChipFg;
 
-  /// Focus and pin chips.
+  /// Text and icons of the quiet chips of a task card (card v2, T-1103):
+  /// every chip but a loud priority and "At risk", on [neutralChipBg].
+  final Color metaText;
+
+  /// The text "+ Over plan" of a task card (T-1103), on [neutralChipBg].
+  final Color metaExtra;
+
+  /// The priority dot of a done task (T-1103).
+  final Color priorityDotDone;
+
+  /// Focus and pin chips (before card v2; still in the theme).
   final Color accentChipBg;
   final Color accentChipFg;
 
@@ -158,6 +171,9 @@ class AppColors extends ThemeExtension<AppColors> {
     track: Color(0xFFE5E7EB),
     neutralChipBg: Color(0xFFF3F4F6),
     neutralChipFg: Color(0xFF374151),
+    metaText: Color(0xFF5F6673),
+    metaExtra: Color(0xFF92400E),
+    priorityDotDone: Color(0xFFD1D5DB),
     accentChipBg: Color(0xFFE0E7FF),
     accentChipFg: Color(0xFF3730A3),
     extraChipBg: Color(0xFFFEF3C7),
@@ -200,6 +216,9 @@ class AppColors extends ThemeExtension<AppColors> {
     track: Color(0xFF262A33),
     neutralChipBg: Color(0xFF262A33),
     neutralChipFg: Color(0xFFD1D5DB),
+    metaText: Color(0xFF9CA3AF),
+    metaExtra: Color(0xFFE3BC4E),
+    priorityDotDone: Color(0xFF4B5563),
     accentChipBg: Color(0x29A5B4FC),
     accentChipFg: Color(0xFFC7D2FE),
     extraChipBg: Color(0x29FBBF24),
@@ -258,7 +277,7 @@ abstract final class AppDims {
   static const chipRadius = 12.0;
   static const chipHPadding = 10.0;
   static const chipSpacing = 6.0;
-  static const chipIcon = 12.0;
+  static const chipIcon = 13.0;
   static const priorityDot = 8.0;
 
   static const doneButtonHeight = 40.0;

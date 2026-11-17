@@ -5,6 +5,7 @@ import 'package:tasks_order/application/providers.dart';
 import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/domain/model/task.dart';
+import 'package:tasks_order/features/task_edit/task_edit_screen.dart';
 import 'package:tasks_order/features/today/quick_add_sheet.dart';
 import 'package:tasks_order/shared/task_card.dart';
 
@@ -64,6 +65,8 @@ void main() {
     final task = (await stored(app)).single;
     expect(task.title, 'Buy milk');
     expect(task.priority, PriorityLabels.normal);
+    // The chip "Today" is off by default (T-1102).
+    expect(task.pinnedDate, isNull);
     expect(task.createdAt, AppHarness.now.toUtc());
     expect(find.widgetWithText(TaskCard, 'Buy milk'), findsOneWidget);
     expect(haptics, ['HapticFeedbackType.lightImpact']);
@@ -117,6 +120,115 @@ void main() {
     expect((await stored(app)).single.priority, 2);
   });
 
+  group('pin to today and the full editor (T-1102)', () {
+    testWidgets('the chip "Today" pins the new task to today', (tester) async {
+      final app = await AppHarness.start(
+        tester,
+        // Today is full: only the pin brings the new task there.
+        tasks: [testTask('a', priority: 1)],
+        settings: Settings(priorityScale: 5),
+      );
+      await open(tester);
+
+      await tester.enterText(find.byType(TextField), 'Buy milk');
+      await tester.tap(find.byKey(const ValueKey('quickAddPinToday')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<FilterChip>(find.byKey(const ValueKey('quickAddPinToday')))
+            .selected,
+        isTrue,
+      );
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      final task = (await stored(app))
+          .singleWhere((task) => task.title == 'Buy milk');
+      expect(task.pinnedDate, AppHarness.today);
+      expect(find.widgetWithText(TaskCard, 'Buy milk'), findsOneWidget);
+    });
+
+    testWidgets('the full editor gets what was typed and saves it', (
+      tester,
+    ) async {
+      final app = await AppHarness.start(
+        tester,
+        settings: Settings(priorityScale: 3),
+      );
+      await open(tester);
+      await tester.enterText(find.byType(TextField), 'Fix the tap');
+      await tester.tap(find.text('Normal'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Critical').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('quickAddPinToday')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('quickAddFullEditor')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickAddSheet), findsNothing);
+      expect(find.byType(TaskEditScreen), findsOneWidget);
+      expect(find.text('New task'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TaskEditScreen),
+          matching: find.text('Fix the tap'),
+        ),
+        findsOneWidget,
+      );
+      // Nothing is stored before the editor saves.
+      expect(await stored(app), isEmpty);
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      final task = (await stored(app)).single;
+      expect(task.title, 'Fix the tap');
+      expect(task.priority, 2);
+      expect(task.pinnedDate, AppHarness.today);
+    });
+
+    testWidgets('leaving the full editor stores nothing', (tester) async {
+      final app = await AppHarness.start(tester);
+      await open(tester);
+      await tester.enterText(find.byType(TextField), 'Call mum');
+
+      await tester.tap(find.byKey(const ValueKey('quickAddFullEditor')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskEditScreen), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskEditScreen), findsNothing);
+      expect(await stored(app), isEmpty);
+    });
+
+    testWidgets('the full editor without a title starts empty', (tester) async {
+      await AppHarness.start(tester);
+      await open(tester);
+
+      await tester.tap(find.byKey(const ValueKey('quickAddFullEditor')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TaskEditScreen), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(
+              find
+                  .descendant(
+                    of: find.byType(TaskEditScreen),
+                    matching: find.byType(TextField),
+                  )
+                  .first,
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+    });
+  });
+
   testWidgets('ticking a task gives haptic feedback', (tester) async {
     await AppHarness.start(tester, tasks: [testTask('a')]);
     final haptics = recordHaptics(tester);
@@ -134,5 +246,7 @@ void main() {
     expect(find.text('Назва'), findsOneWidget);
     expect(find.text('Додати'), findsOneWidget);
     expect(find.text('Звичайний'), findsOneWidget);
+    expect(find.text('На сьогодні'), findsOneWidget);
+    expect(find.byTooltip('Повний редактор'), findsOneWidget);
   });
 }

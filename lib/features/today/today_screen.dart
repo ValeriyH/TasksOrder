@@ -129,7 +129,7 @@ class _TodayBody extends ConsumerWidget {
       Task task, {
       required LocalDate? plannedDate,
       bool isDone = false,
-      List<Widget> chips = const [],
+      List<TaskChip> chips = const [],
       bool showPinDate = true,
     }) => TaskCard(
       key: ValueKey(task.id),
@@ -172,6 +172,7 @@ class _TodayBody extends ConsumerWidget {
                   null => l10n.plannedLater,
                 },
                 icon: Icons.calendar_today_outlined,
+                slot: ChipSlot.planned,
               ),
             ],
           ),
