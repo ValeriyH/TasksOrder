@@ -1,159 +1,154 @@
 ---
 tags: [architecture]
 created: 2026-11-12
+updated: 2026-11-20
 ---
 # 02 Architecture
 
 ## Tech stack
 | Concern | Choice | Notes |
 |---------|--------|-------|
-| Framework | Flutter 3.50 (stable), Dart 3.14 | Android target first; `minSdk 24` (Android 7.0); `compileSdk`/`targetSdk` 36. Widgets come from `package:material_ui` (Material split out of the framework in 3.50) |
+| Framework | Flutter 3.50 (stable), Dart 3.14 | Android first; `minSdk 24`, `compileSdk`/`targetSdk` 36. Widgets from `package:material_ui` (Material split out of the framework in 3.50) |
 | State / DI | `flutter_riverpod` + `riverpod_annotation` | Providers compose streams from the data layer; the plan is a derived provider |
-| Persistence | `drift` (SQLite; native library via `sqlite3` 3.x build hooks, no `sqlite3_flutter_libs`) | Type-safe schema, migrations, reactive `watch()` queries, in-memory DB for tests |
-| Models | `freezed` | Immutable entities with `copyWith`, equality. Backup JSON is a data-layer concern (T-502); `json_serializable` deferred, see ADR-8 |
-| Navigation | `go_router` | 4 top-level tabs + task editor route |
-| Codegen | `build_runner` | drift_dev, freezed, riverpod_generator |
-| Dates | own `LocalDate` value object | Avoid timezone bugs: a task is due on a *calendar day*, never a `DateTime` |
-| Localisation | `flutter_localizations` + `intl` (ARB: `lib/l10n/app_en.arb`, `app_uk.arb`) | Ukrainian and English; `localeProvider` overrides the system locale (D13). No hard-coded UI strings. |
-| Theme | Material 3 `ColorScheme.fromSeed`, `themeModeProvider` | system / light / dark (D13); both themes checked on every screen |
-| Device prefs | `shared_preferences` | locale, theme, showReasons, notification time |
-| Notifications | `flutter_local_notifications` 22.x + `timezone` | Morning notification with the day's tasks (T-501, ADR-20). 22.x because 23.x needs `compileSdk 37` |
-| Branding | `flutter_launcher_icons`, `flutter_native_splash` (dev) | Icon and launch screen generated from `assets/icon/` (T-503, ADR-21) |
-| Lint | `flutter_lints` + stricter rules in `analysis_options.yaml` | `strict-casts`, `strict-inference`, `strict-raw-types`; `test/domain/domain_purity_test.dart` enforces the domain import rule |
-| Tests | `test`, `flutter_test`, `integration_test` | Planner: table-driven unit tests |
+| Persistence | `drift` (SQLite via `sqlite3` 3.x build hooks) | Type-safe schema, migrations, reactive queries, in-memory DB for tests |
+| Models | `freezed` | Immutable entities; `Recurrence` is a plain sealed class (refuses a broken rule in release builds) |
+| Navigation | `go_router` | 4 tabs in a `StatefulShellRoute.indexedStack` + the task editor route |
+| Codegen | `build_runner` | drift_dev, freezed, riverpod_generator; `tool/gen.sh` / `tool\gen.ps1` |
+| Dates | own `LocalDate` | A task is due on a calendar day, never a `DateTime` |
+| Localisation | `gen-l10n` from `lib/l10n/app_en.arb`, `app_uk.arb` | English is the template and fallback; a test forbids string literals in widgets |
+| Theme | Material 3 `ColorScheme.fromSeed` + `AppColors` (`ThemeExtension`) | Tokens of the redesign for light and dark (ADR-23) |
+| Device prefs | `shared_preferences` | locale, theme, reason badges, notification time |
+| Notifications | `flutter_local_notifications` 22.x + `timezone` | 22.x because 23.x needs `compileSdk 37` (ADR-20) |
+| Files | `file_picker` | Backup save / open dialogs (ADR-16) |
+| Branding | `flutter_launcher_icons`, `flutter_native_splash` (dev) | Generated from `assets/icon/` (ADR-21) |
+| Lint | `flutter_lints` + `strict-casts`, `strict-inference`, `strict-raw-types` | `test/domain/domain_purity_test.dart` enforces the domain import rule |
+| Tests | `flutter_test`, `integration_test` | Planner: table-driven unit tests |
 
 ## Platforms
 | Platform | Role |
 |----------|------|
-| Windows desktop | Main development target from M0 (fast run, hot reload, native SQLite like Android). Needs VS Build Tools 2022 (C++) and Windows Developer Mode (symlinks for plugins). |
-| Web (Chrome) | Second target: quick demos, candidate client for future sync. drift uses SQLite wasm + a worker (`web/sqlite3.wasm`, `web/drift_worker.js`, refreshed by `dart run tool/web_assets.dart` after a `drift`/`sqlite3` upgrade, T-206). Data lives in the browser's storage for the site: IndexedDB on GitHub Pages and under `flutter run -d chrome` (no COOP/COEP headers, so no OPFS). **Clearing the site data in the browser deletes all tasks**, and another browser or profile starts empty, until backup (T-502) or sync exists. |
-| Android | Product target. Device testing from M3 on the 7.1 test phone (`minSdk 24`). |
+| Android | Product target. Emulator `TasksOrder_API36` (Pixel 6, Android 16) for walkthroughs; the owner's phone gets releases in batches |
+| Windows desktop | Fast development target (hot reload, native SQLite). Needs VS Build Tools 2022 (C++, ATL for the notifications plugin) and Developer Mode (symlinks) |
+| Web (Chrome) | Demos; GitHub Pages: https://valeriyh.github.io/TasksOrder/. drift on SQLite wasm + a worker (`web/sqlite3.wasm`, `web/drift_worker.js`, refreshed by `dart run tool/web_assets.dart` after a drift / sqlite3 upgrade). Data lives in IndexedDB of the site: clearing site data deletes the tasks |
 
 ## Layers
 ```
-presentation  (features/*: screens, widgets, controllers)      Flutter + Riverpod
-      |  reads providers, dispatches intents
-application   (providers: repositories, planProvider, clock)   Riverpod
+presentation  (features/*, shared/: screens, widgets)            Flutter + Riverpod
+      |  reads providers, calls actions
+application   (providers, TaskActions, derived payloads)        Riverpod
       |  calls
-domain        (entities, settings, Planner, LocalDate)         pure Dart, NO flutter imports
+domain        (entities, Planner, LocalDate, repository APIs)   pure Dart, NO flutter imports
       ^  implemented by
-data          (drift Database, DAOs, repository impls, mappers) drift
+data          (drift database, repositories, backup codec)      drift, shared_preferences
 ```
-Rules:
-- `lib/domain` must not import `package:flutter` or `package:drift`. It is the product core and is tested with plain `dart test`.
-- Repositories expose `Stream<List<Task>>`, `Stream<Settings>`; the UI never touches drift rows.
-- **Storage is an adapter, not a dependency.** Two independent adapters sit behind domain interfaces: the *local store* (always present, offline-first; drift today: native SQLite on Android/Windows, SQLite wasm in the browser, opened via `drift_flutter`) and, later, a *remote data source* used by a `SyncEngine`. The remote side is backend-agnostic (SQL, NoSQL, even a Google Sheet): it only needs to store rows keyed by UUID with `updatedAt`/`deletedAt`. Replacing either adapter must not touch domain, providers or UI.
-- `planProvider` = `Planner.plan(tasks, settings, overrides, today)` recomputed whenever any input stream emits. See [[04 Planner Algorithm]].
-- A `todayProvider` emits a new `LocalDate` when the local time crosses `settings.dayStartHour` (default midnight, D15) so the plan rolls over without restart. "Today" for a `DateTime` = calendar date of `(now - dayStartHour)`. It is a self-invalidating provider with one timer for the next day start (T-205); the app shell also invalidates it on resume, because timers do not run while the app is suspended.
+- `lib/domain` imports neither `package:flutter` nor `package:drift`.
+- Repositories expose streams (`Stream<List<Task>>`, `Stream<Settings>`); the UI never touches drift rows.
+- Storage is an adapter: the local store today, a remote data source behind a `SyncEngine` later (D12); replacing either must not touch domain, providers or UI.
+- `planProvider` = `Planner.plan(tasks, settings, overrides, today, completedTodayCount)`, recomputed synchronously on every input change (ADR-13). See [[04 Planner Algorithm]].
+- `todayProvider` emits a new `LocalDate` when local time crosses `dayStartHour` (D15): one timer for the next day start, also invalidated on resume.
+- Consumers that cannot compute the plan get derived payloads: `morningScheduleProvider` (notifications, ADR-20) and `homeWidgetPayloadProvider` (widget, ADR-22); `TasksOrderApp` hands every new value to the platform.
 
 ## Project structure
 ```
-tasks_order/
-  lib/
-    main.dart
-    l10n/           # app_en.arb, app_uk.arb (generated AppLocalizations)
-    app/            # MaterialApp, theme, router, bottom navigation
-    domain/
-      model/        # task.dart, recurrence.dart (T-701), settings.dart, device_settings.dart, day_override.dart, plan.dart, local_date.dart
-      planner/      # planner.dart (+ helpers: capacity_resolver.dart, deadline_forcing.dart)
-      notification/ # morning_digest.dart: the morning notifications computed from the plan (T-501)
-      widget/       # widget_days.dart: the days of the home-screen widget (T-601)
-      repository/   # abstract TaskRepository, SettingsRepository, DayOverrideRepository, DeviceSettingsRepository, BackupRepository, NotificationScheduler, HomeScreenWidget
-    data/
-      db/           # database.dart (drift tables, migrations), converters.dart
-      repository/   # drift implementations + mappers, SharedPreferences device settings
-      backup/       # backup_codec.dart (JSON), picker_backup_file_store.dart
-      notifications/ # local_notification_scheduler.dart (flutter_local_notifications, Android only)
-      home_widget/  # channel_home_screen_widget.dart (method channel to MainActivity.kt)
-    application/
-      device_settings_providers.dart   # sharedPreferences, deviceSettings, locale, themeMode
-      providers.dart   # clock, database, repositories, tasks/settings/overrides streams, today, planProvider
-      notifications.dart   # notificationScheduler, morningSchedule (derived from the plan)
-      home_widget.dart     # homeScreenWidget, homeWidgetPayload (derived from the plan)
-      backup.dart      # BackupService
-    features/
-      today/        # today_screen.dart, widgets
-      plan/         # plan_screen.dart (upcoming days)
-      tasks/        # tasks_screen.dart (all, filters, done)
-      trash/        # trash_screen.dart
-      task_edit/    # task_edit_screen.dart
-      settings/     # settings_screen.dart, capacity_editor.dart
-    shared/         # common widgets: priority_chip, reason_badge, date_pickers
-  test/
-    domain/         # planner_test.dart (table-driven), local_date_test.dart
-    data/           # repository tests on in-memory drift DB
-    features/       # widget tests
-  integration_test/ # app_test.dart: the happy path on a device (T-504)
-  docs/             # this Obsidian vault
+lib/
+  main.dart
+  l10n/          app_en.arb, app_uk.arb (generated/ is not committed)
+  app/           app.dart, app_shell.dart, router.dart, theme.dart, app_colors.dart (tokens, AppDims, PriorityShade)
+  domain/
+    model/       task, recurrence, series, settings, device_settings, day_override, plan, local_date, priority_labels, task_size, backup
+    planner/     planner.dart, capacity_resolver.dart
+    notification/ morning_digest.dart
+    widget/      widget_days.dart
+    repository/  interfaces: Task, Settings, DayOverride, DeviceSettings, Backup repositories; NotificationScheduler; HomeScreenWidget
+  data/
+    db/          database.dart (tables, migrations), converters.dart
+    repository/  drift implementations, SharedPreferences device settings
+    backup/      backup_codec.dart, picker_backup_file_store.dart
+    notifications/ local_notification_scheduler.dart
+    home_widget/ channel_home_screen_widget.dart
+  application/   providers.dart, device_settings_providers.dart, task_actions.dart, notifications.dart, home_widget.dart, backup.dart
+  features/      today/ (+ quick_add_sheet), plan/ (+ day_override_dialog), tasks/, task_edit/ (+ repeat_sheet, days_sheet), trash/, settings/
+  shared/        task_card.dart (TaskCard, GhostTaskCard, TaskNotes, chips), task_actions_ui.dart (menus, snack bars), plan_badges.dart, priority_*.dart, screen_header.dart, …
+android/app/src/main/kotlin/…/  MainActivity.kt (method channel), TodayWidgetProvider.kt (widget)
+test/            domain/, data/ (in-memory drift, schema migrations), application/, features/ (app_harness.dart), shared/
+integration_test/ app_test.dart
+drift_schemas/   schema snapshots v1 … v6
+tool/            gen.sh/.ps1, run_windows.cmd, run_web.cmd, start_emulator.cmd, web_assets.dart
 ```
 
 ## Key flows
-### Add task
-TaskEditScreen → `TaskRepository.upsert(task, now)` → drift emits new task list → `planProvider` recomputes → Today/Plan screens rebuild.
-
-### Complete task
-Checkbox → `TaskRepository.complete(id, now, onPlan: ...)` → task leaves the active pool → plan recomputes. `onPlan` = the task is in `plan.days.first.entries` at that moment; the UI knows it, the stored task remembers it as `completedOnPlan` (D19).
-- From today's list (`onPlan: true`): the slot is not refilled today (D3). The planner receives `completedTodayCount` (tasks completed today with `completedOnPlan`) and reduces today's capacity by that amount.
-- From anywhere else: Focus strip, Plan, Tasks (`onPlan: false`): today's list does not change; the slot the task held on a later day is planned again.
-- A recurring task (D20, ADR-18): the same transaction inserts the next instance of the series (`Task.successor`), unless the series already has another active instance. Undo (`uncomplete`) removes that instance again when nobody touched it.
-
-### Recurring task (D20)
-Editor → "Repeat" → the task gets `recurrence`, `seriesId` and `occurrenceDate`. From then on: the planner adds the future repeats of the horizon to the plan as ghosts (`PlanEntry.occurrenceDate != null`), the Plan shows them without a checkbox, and completing or skipping the instance stores the next one. The day rollover still writes nothing: the next instance exists from the moment the previous one was closed, and its `notBefore` keeps it out of the plan until its time.
-
-### Focus
-Toggle "Focus" on a task (editor, list swipe action) → `TaskRepository.setFocus(id, true, now)` → the task stays where the planner put it and also appears in `plan.focus`. Removing the mark changes nothing in the plan (D17).
-
-### Today screen composition
-Header (D22): the full date ("Friday, 13 November"), the title and the progress of today's list: a bar and "{done} of {total}", where done are the completions from today's list (`Planner.countCompletedToday`, D19) and total is that plus the tasks left on it — the numbers of the overload banner and of the Plan's today. The Focus section is not part of it.
-1. Section **Focus** — `plan.visibleFocus`: focused and overdue tasks that are not on today's list, sorted by priority, "+N more" below (`plan.hiddenFocusCount`), a "planned for <day>" chip from `plannedDate`; overdue entries show "overdue by N days" in the alert colour, and their menu has *move due date / remove due date*. After them the tasks done today that were not on today's list and were focused or overdue (done from Focus), dimmed. Counter: the number of tasks in Focus (visible and hidden, done ones not counted; owner), so 4 reads "4" over three cards and "+1 more". Hidden when empty.
-2. Section **Planned** — `plan.days.first.entries` with their chips (at risk, and with the reasons on: deadline, over plan), then the tasks done today from today's list (`completedOnPlan`), dimmed, in the order they were done. Counter: done / total, as the progress. Deadline-forced entries refill after completion, priority entries do not (D16).
-   - Banners above the sections: "N tasks will not make their deadline" when `plan.hasAtRisk` (opens the list of `plan.atRiskTaskIds`, D16), and "More than planned: N tasks, capacity C" when the day is overloaded.
-3. Empty state when nothing is left on today's list: "All done for today" after completions, else "Nothing planned for today".
-
-A tap on a card opens the task menu; "Done" completes in place and "Completed" undoes (`toggleDone`), so there is no Undo snack bar (D22). A task done today stays until the day rolls over; its card shows "Completed today" in place of the due line (`TaskCard.doneOn`, also "Completed yesterday" and a date in the Done list).
-
-### Day rollover
-`todayProvider` emits a new `LocalDate` → plan recomputes from the new today; unfinished planned tasks return to the pool; tasks whose due date is now in the past are planned as tasks without a date and appear in Focus with an overdue badge (D18). Nothing is written to the database at rollover.
+- **Add / edit:** editor or quick add → `TaskActions` → `TaskRepository.upsert(task, now)` → stream emits → plan recomputes → screens rebuild.
+- **Complete:** Done button → `TaskRepository.complete(id, now, onPlan:, plannedDate:, today:)`. `onPlan` = the task is on today's list (D19, stored as `completedOnPlan`); `plannedDate` = the day of the entry shown (stored as `completedPlanDate`, D22). A recurring task gets its successor in the same transaction (ADR-18). "Completed" undoes (`uncomplete`; only the last completion of a series).
+- **Recurring:** the editor's Repeat sheet sets `recurrence`, `seriesId`, `occurrenceDate`; the planner adds ghosts for the horizon; complete or skip stores the next instance. Nothing is written at rollover.
+- **Day rollover:** `todayProvider` emits → plan recomputes; unfinished tasks return to the pool, past due dates make tasks overdue (D18). No writes.
+- **Today screen:** header with date and progress (done from today's list / that + left); **Focus** (`plan.visibleFocus`, "+N more", then tasks done from Focus, dimmed); **Planned** (today's entries with chips, then done ones, dimmed); banners for at-risk (D16) and overload; empty state as a card. A tap opens the task menu.
 
 ## Error handling and edge cases
-- Priority level the current scale does not offer (after a scale change) → shown as the nearest level of the scale, stored unchanged (ADR-17).
-- Empty capacity everywhere → every task is "Later"; Today shows an explanatory empty state.
-- Hundreds of tasks → planner is O(days × tasks log tasks) and takes about 2 ms for 500 tasks × 90 days, so `planProvider` recomputes on every change without a debounce (ADR-13).
+- A priority level the scale does not offer is shown as the nearest one and stored unchanged (ADR-17).
+- No capacity anywhere → every task is Later; Today explains.
+- 500 tasks × 90 days plan in about 2 ms, so there is no debounce (ADR-13); with 20 daily series the pool is sorted only when needed (M8).
 
-## Testing strategy
-1. **Planner** — table-driven tests from [[04 Planner Algorithm]] (`test/domain/planner_test.dart`). Each scenario: inputs → expected day/task map + flags. Must run under 1 s total.
-2. **Repositories** — drift in-memory DB (`newTestDatabase()` in `test/data/test_database.dart`, a `NativeDatabase.memory()`), verify streams emit on change.
-3. **Widgets** — Today screen renders the Focus strip (3 visible + counter), reasons and the overloaded banner; editor validates priority. Golden/widget tests run in both `uk` and `en` and both themes for the Today screen.
-4. **Integration** — one happy path on a device or emulator (`integration_test/app_test.dart`, T-504): quick add on Today, rename in the editor, complete, find it under Tasks → Done. Real platform code, but an in-memory database and empty preferences, so an installed app keeps its data. Run with `flutter test integration_test -d <device>`; CI runs only `test/` (no device). On a device the database answers in real time, so the test waits with `pumpUntil` instead of relying on `pumpAndSettle`.
+## Testing
+1. **Planner** — the table of [[04 Planner Algorithm]] in `test/domain/planner*_test.dart`; every UI bug in the planner becomes a row first.
+2. **Data** — drift in memory (`newTestDatabase()`), streams, schema migrations with `SchemaVerifier` (`test/data/database_schema_test.dart`), backup codec.
+3. **Widgets** — screens through `AppHarness` (fake clock, in-memory DB), both languages and themes where it matters; contrast of the colour tokens (`app_colors_test.dart`).
+4. **Integration** — `integration_test/app_test.dart`: quick add, edit, complete, find under Done. `flutter test integration_test -d <device>`; CI runs only `test/`.
+5. **Walkthrough** — release APK on the emulator over the previous release at each milestone end (bugs that tests missed were found there).
 
-## Non-goals (for now) and how the design keeps them possible
-- **Backend, accounts, sync, family group** — not built. Kept possible by D12: UUID ids, `updatedAt`, soft delete, repository interfaces, planning settings separated from device settings. A future `SyncEngine` would observe the same repositories and push/pull rows; the UI would not change.
-- iOS and macOS builds (kept possible, not tested)
-- Time-of-day scheduling (the unit is a day, not an hour)
+## Gotchas
+Toolchain and build:
+- Build Windows from one drive-letter casing only: `d:\` vs `D:\` wipe `windows/flutter/ephemeral` for each other (`tool/run_windows.cmd` normalises it).
+- `kotlin.incremental=false` (ADR-9): project on D:, pub cache on C:.
+- Flutter 3.50: Material widgets come from `package:material_ui`; `build_runner` 2.17 has no `--delete-conflicting-outputs`.
+- After `flutter test`, a release build can fail on `integration_test` in `GeneratedPluginRegistrant.java`: delete that git-ignored file; `flutter clean` would also wipe the generated l10n.
+- Release builds: the notifications plugin needs Gson keep rules and `keep.xml` for an icon named only from Dart; an occasional first Gradle failure goes away on a rerun.
+- PowerShell `Set-Content -Encoding utf8` writes a BOM; Python scripts that write text files need `newline=''` (the repo wants LF).
+- `file_picker` dialogs cannot be driven over adb: backup / restore is covered by tests.
 
-## Architecture decisions log
-- ADR-1 (2026-11-12): derived plan, not persisted — see D2 in [[01 Brainstorm]].
-- ADR-2 (2026-11-12): single app package with a `domain` folder instead of a separate Dart package. Can be extracted into `packages/core` later if the planner is reused (CLI, web).
-- ADR-3 (2026-11-12): calendar dates stored as ISO `yyyy-MM-dd` text in SQLite; instants (`createdAt`, `completedAt`) as UTC epoch milliseconds.
-- ADR-4 (2026-11-12): sync-ready rows (UUID, `updatedAt`, `deletedAt`) from schema v1; no sync code until the local app proves useful. See D12 in [[01 Brainstorm]].
-- ADR-5 (2026-11-13): the Today queue is a planner output (`Plan.todayQueue`), not a UI filter, so widgets/notifications get it for free. Supersedes the "Critical tier" idea from 2026-11-12.
-- ADR-6 (2026-11-13): localisation via ARB from the first screen; no string literal in widgets. Ukrainian and English are both first-class; English is the source language of the ARB files and the docs.
-- ADR-7 (2026-11-13): no "dropped" status; removal is a soft delete that doubles as Trash and sync tombstone (D14).
-- ADR-8 (2026-11-13): `json_serializable` removed from M0 dependencies. Version 6.15.x fails on freezed 4.0.3 output ("Could not resolve annotation for `int get hashCode`"), and older versions conflict with `build_runner` 2.17. Domain entities do not need JSON; backup (T-502) will either re-add it once fixed upstream or use hand-written mappers in `data/`.
-- ADR-9 (2026-11-13): `kotlin.incremental=false` in `android/gradle.properties`, because the project (D:) and the pub cache (C:) are on different drives and Kotlin incremental caches fail to close.
-- ADR-11 (2026-11-13): priority presentation data lives in the domain without Flutter types. `PriorityLabels.color` returns a plain ARGB `int` (the UI wraps it in `Color`), and `PriorityLabels.key` returns a dotted logical key (`priority.s10.4`). ARB message names must be Dart identifiers, so the UI maps each key to its `AppLocalizations` getter (T-303); a test over `PriorityLabels.allKeys` keeps that mapping complete.
-- ADR-12 (2026-11-13): Focus replaces the Today queue (D17–D19 in [[01 Brainstorm]]); supersedes ADR-5 in part. The planner no longer splits a queue off the pool: every active task is planned, an overdue one as a task without a date. Focus is still a planner output (`Plan.focus`, built after the day loop from `isFocused` or overdue, with the day each task landed on), so widgets and notifications get it for free; the strip is that list minus today's entries. `Task.completedOnPlan` replaces the role of the kept Today flag in `completedTodayCount`. Implemented by T-111.
-- ADR-13 (2026-11-13): `planProvider` is a synchronous combination of its inputs with no 50 ms debounce (T-204). The planner needs about 2 ms (T-110) and Riverpod already recomputes a provider once per flush, however many inputs changed; a timer would only delay the answer to a checkbox tap and put fake time into tests. It returns `AsyncValue<Plan>`: loading until tasks, settings, overrides and today have all arrived, then data on every change with no loading state in between. Active and done tasks come from one stream (`allTasksProvider`), so a completion reaches the planner as a single change: the task leaves the pool and `completedTodayCount` grows in the same recompute, and the freed slot cannot be refilled for a moment. To revisit if the done history grows large enough to make that stream slow (then: a query for today's on-plan completions only).
-- ADR-14 (2026-11-13): app shell (T-301). Navigation is `go_router` with a `StatefulShellRoute.indexedStack` for the four tabs and the task editor as a top-level route pushed above the shell; locations are constants in `AppRoutes`, the router lives in `routerProvider`. The web build keeps the default hash URLs (`#/today`), because GitHub Pages cannot rewrite paths to `index.html`. Texts: Flutter `gen-l10n` from `lib/l10n/app_*.arb` into `lib/l10n/generated/` (not committed, like the other generated code), English is the template and the fallback for a device language the app does not have; widgets read them through `context.l10n`, and a test forbids string literals in widgets. Material and Cupertino texts come from the delegates of `material_ui`, not `flutter_localizations`. Themes: one seed colour, Material 3 light and dark from `ColorScheme.fromSeed`. Language and theme are device settings read synchronously (`sharedPreferencesProvider` is overridden in `main`), so the first frame is already right.
-- ADR-15 (2026-11-14): release signing. The release APK is signed with a key that is not in the repository: `android/key.properties` (git-ignored) points to the keystore and holds its passwords, and the Gradle script uses it when the file exists. Without the file the release build is signed with the debug key, so CI and a fresh clone keep building; such an APK cannot update an installation signed with the release key. Android accepts an update only from the same key, and the app has no backup yet (T-502), so losing the keystore or its password means reinstalling and losing the tasks: both files need a copy in a safe place. Version numbers come from `version:` in `pubspec.yaml` (`name+build`); the build number must grow with every APK that is installed over an older one.
-- ADR-16 (2026-11-14): backup and restore (T-502). A backup is one JSON file with all tasks (the Trash too), the capacity overrides and the planning settings; device settings stay out (D12). It is written through the system "save as" dialog to a place the user picks, so it survives a reinstall; with it, a lost signing key (ADR-15) costs a reinstall and a restore, not the tasks. Restore replaces everything in one transaction, after a confirmation; there is no merge (that is the job of sync, D12). The mappers are hand-written in `lib/data/backup/backup_codec.dart` (ADR-8) and check the rules of the domain objects themselves, because assertions do not run in a release build. The file carries `version`; a higher one than the app knows is refused, a change of the format raises it and keeps reading the old ones. File dialogs come from the `file_picker` package behind the `BackupFileStore` interface.
-- ADR-17 (2026-11-14): fixed priority levels (D1, owner after the device test). `Task.priority` is a level of the ten-level table, 1..10, whatever the scale: Critical 2, High 3, Normal 5, Low 7, Someday 8. `Settings.priorityScale` only chooses the levels the app offers (`PriorityLabels.levels`: 3 → 2, 5, 7; 5 → 2, 3, 5, 7, 8; 10 → 1..10). A level the scale does not offer stays stored and is shown as the nearest one (`PriorityLabels.nearest`, the higher on a tie); the editor keeps it unless the user picks another. So a scale change touches no task and asks nothing, and any round trip is lossless; the T-406 remap and its question are gone. The UI shows the name only, without the number. The urgency boost steps through the levels of the scale in use (`PriorityLabels.raise`). Schema 2 and backup format 2 store levels; the migration from schema 1 and the reading of a format 1 file turn the old position `p` into `levels(scale)[p - 1]` with the scale stored next to it, so every task keeps its name (Normal 3 on scale 5 → 5). Rejected: keeping positions and remapping on every change (lossy, the bug found on the emulator); showing the level number (scale 3 would read 2, 5, 7).
-- ADR-18 (2026-11-14): recurring tasks (D20 in [[01 Brainstorm]]; built in M7, T-701 … T-709). The rule lives on the task (`Task.recurrence`, a JSON text column), there is no table of series and no template: the active instance is the template, and its successor is a copy made by `Task.successor` when the instance is completed or skipped, inside the same transaction. `seriesId` (the id of the first task) ties the history together, `occurrenceDate` is the date of this instance in the series, so a one-off move of a pin or a due date does not shift the schedule. The successor's id is a UUID v5 of its predecessor's id: two devices that close the same instance offline create the same row (D12), and undo finds the successor without a search. Future repeats are not rows: the planner expands them for the horizon as ghosts, so nothing is written at the day rollover and D2 holds. `Task.notBefore`, reserved since schema 1, becomes a release date the planner honours. Schema 3 adds `recurrence`, `series_id`, `occurrence_date` and an index; backup format 3 adds the same fields. Rejected: resetting the same row to active (the done record that `completedTodayCount` needs would be lost, D3/D19); a `recurrences` table with a template (a second repository, "edit this one or all", cross-table references for sync); storing all repeats of the horizon (a top-up write at every rollover and on a horizon change, copies to keep equal, clutter in Tasks and in the backup).
-- ADR-19 (2026-11-14): task size (D21 in [[01 Brainstorm]]; built in M8, T-801 … T-806, 0.6.0). `Task.weight` is an integer number of half-slots (1 small, 2 normal, 4 large; default 2), so the planner keeps integer arithmetic and the sizes can change later without a migration; `TaskSize` in the domain only names the known weights for the UI, and an unknown weight reads as the nearest size. Settings do not change: `weeklyCapacity`, day overrides and `maxOverflowPerDay` stay in normal tasks and the planner doubles them. The planner counts weight where it counted tasks: the priority fill is first fit in pool order, `completedTodayCount` becomes the weight completed from today's list, forcing sums weights. `effWeight = min(weight, 2 × max(weeklyCapacity))` (2 when every weekday is a rest day) is computed at planning time, never stored. A top-level large task (level 1–2) first in the queue may take a day too small for it with overflow. Schema 5 (planned as 4; M9 took 4, T-907) adds `tasks.weight INTEGER NOT NULL DEFAULT 2`; backup format 5 adds `weight`. Rejected: hours (an estimate for every task and a capacity in hours); sizes as a setting; a task spread over several days, with or without a "may be split" flag; overflow for every task of a high priority (D1 would stop holding and capacity would lose its meaning); a "fits no day" flag (the cap by the biggest day of the week removes the case).
-- ADR-20 (2026-11-14): morning notification (T-501). The text of the notification is the list of the day, so it cannot be a repeating notification with a fixed text, and a background job that computes the plan at night would need a second entry point and a plugin for it. Instead the app schedules the next seven mornings as single notifications, each with the tasks the plan puts on that day, and schedules them again on every change of the plan, the language or the time (`morningScheduleProvider`, derived like the plan, D2; `TasksOrderApp` hands each new value to the `NotificationScheduler`). The days after today are therefore a forecast that the next start of the app corrects; a day with nothing planned gets no notification. The time is a device setting (`DeviceSettings.notificationTime`, minutes after midnight, null = off). A notification's id is its plan date (`yyyymmdd`), and rescheduling cancels only the pending ones, so the one shown this morning stays. The instant is passed to the plugin in UTC, built from local calendar fields, so no time zone database is needed and DST does not shift it. Alarms are inexact (`inexactAllowWhileIdle`; on the emulator they came 2 to 4.5 minutes late, within the window Android allows), so the app needs no "alarms and reminders" permission; on Android 13+ the switch in Settings asks for the notification permission and stays off when it is refused. Android needs core library desugaring, `RECEIVE_BOOT_COMPLETED` with the plugin's receivers (notifications survive a reboot), Gson rules in `android/app/proguard-rules.pro` and a `keep.xml` for the status bar icon `ic_notification`, which only Dart code names. Checked on the emulator with the release APK: the scheduled alarm comes back after a cold boot without the app being opened, and a notification missed while the device was off is shown after the boot. On web and Windows the setting is hidden. Rejected: `workmanager` or an alarm callback that computes the plan in the background (a second isolate with the database and the planner, a new plugin); a repeating notification with a generic text ("See your plan"), which says nothing the icon does not; exact alarms (a special permission for a few minutes of accuracy).
-- ADR-21 (2026-11-14): branding (T-503). The icon is a list of three rows with bars getting shorter and a check in the first row, white on the seed colour of the theme `#3F51B5`; the sources are PNGs in `assets/icon/` (full icon, adaptive foreground that also serves as the Android 13 monochrome icon, splash glyph for light and dark), and `flutter_launcher_icons` and `flutter_native_splash` generate the Android, web and Windows files from the configuration in `pubspec.yaml` (run them again after changing a source). The launch screen uses the surface colours of the light and dark themes, also on Android 12+. The app name is "TasksOrder" in both languages (owner), so the Android label is not localised. The system navigation bar follows the theme of the app, not of the device: the app is edge-to-edge on every Android version, and an `AnnotatedRegion` in `MaterialApp.builder` makes the bar transparent with icons that suit the theme (`systemBarsStyle`). Dates already follow the locale through `MaterialLocalizations`.
-- ADR-22 (2026-11-15): home-screen widget (T-601). The widget cannot compute the plan, so the app leaves it a cache (D2 allows one for such consumers): the next seven plan days with texts already in the app's language (header "Today · left/total", up to eight lines, the last one "+N more", or the text of an empty day), plus `dayStartHour` and a text for a cache that ran out (format in [[03 Data Model]]). It is derived like the plan (`homeWidgetPayloadProvider`, a JSON string, so an unchanged plan is not sent again) and `TasksOrderApp` sends every new value over the method channel `tasks_order/home_widget` to `MainActivity`, which stores it in the app's own SharedPreferences file `today_widget` and redraws the placed widgets. `TodayWidgetProvider` (Kotlin, `RemoteViews`) picks the entry of the current plan day by itself (before the day start hour it is still yesterday, D15), so it turns to the next day without the app: an inexact alarm a minute after the next day start (no permission needed) and the system's 30-minute update cover that. A tap opens the app. The widget follows the light or dark mode of the device, not the theme chosen in the app. No package: the native side is two short classes, and `home_widget` (checked: verified publisher, 160 points, no advisories) would only replace the channel; it stays the way to go if the widget ever gets interactive check boxes. Rejected: a scrollable list (`RemoteViewsService`, more code for a list that fits); a cache of today only (the widget would show yesterday until the app runs).
-- ADR-23 (2026-11-15): redesign (D22 in [[01 Brainstorm]]; planned, T-901 … T-906, before M8). The owner's design package is kept in `docs/design/redesign-2026-11/` (spec, mockup sources, screenshots). Its colours become a `ThemeExtension` (`TasksOrderColors`, light and dark) in `lib/app/`, next to the Material `ColorScheme`, which is tuned from the same tokens (surface, primary, containers), so the screens the redesign does not draw (editor, Settings, Trash, sheets, dialogs) follow it without their own code. Priority chips do not take the package's five fixed colours: the shade of a chip (background and text, per theme) is computed from `PriorityLabels.color`, so all three scales keep their levels and colours (D1), and a test checks a contrast of at least 4.5:1 for every level of every scale in both themes. One shared `TaskCard` (and a ghost variant) in `lib/shared/` replaces `TaskTile` and `GhostTaskTile` on every list, so a chip or a state is drawn in one place. A task done today stays on Today because the screen also shows the tasks completed on the planning day. One change in the data, asked for by the owner (T-907): a done task stays at the end of the day the plan had it on until that day is past, and the plan is not stored, so the completion stores that day (`Task.completedPlanDate`, schema 4, backup format 4; the callers pass the day of the entry they show, as they pass `onPlan` for D19); the planner itself is untouched and the slot is planned again. M8 moves to schema 5 and backup format 5. and the Tasks screen keeps the ids completed during the visit of a filter as state of the screen, dropped when the filter or the tab changes. No new package and no font asset (Roboto comes with Android and is loaded on the web; Windows keeps Segoe UI). Rejected: the package's `TaskPriority` enum with five colours (the app has three scales); copying the package's reference widgets as they are (not compiled, written without the project's model). **Card v2** (2026-11-17, M11 T-1103, the owner's `CARD_SPEC.md` in the package): the title first, the chips under it in a `Wrap` placed by `ChipSlot`, quiet chips (`neutralChipBg` with the new `metaText`, "+ Over plan" in `metaExtra`), the due line only for a due date. The priority chip is quiet with a dot of `PriorityLabels.color` (its light shade in the dark theme) except levels 1 and 2 of the ten-level table (Catastrophic, Critical), which keep their own `PriorityShade`; the package's five fixed dot colours are not taken, for the same reason as above. A done card is all quiet with `priorityDotDone`.
-- ADR-24 (2026-11-16): a rule from completion has no ghosts (T-712, amends D20 in [[01 Brainstorm]]; owner). Ghosts of such a rule assumed that every repeat is done on its day, but each early or late completion moves the rest, so they took places of the coming days on dates that were not real, and the dates of skips and completions ahead kept going wrong (T-710, T-712). Now `Planner._ghosts` leaves such a rule out: only the stored instance is planned, and the next one is made by the completion or the skip, as before. `Task.successor(skipped:)`: a completion counts from today; a skip from `max(today, pin ?? occurrenceDate)`, so "not this time" ahead of the day does not give the same date back. The successor is pinned on the next date when the instance was pinned, else released on it (`notBefore`); a due date is not carried over. The pause of T-710 stays. No schema or backup change: stored instances keep their dates, the new rule applies from the next completion or skip. Rejected: keep the ghosts and fix the skip date only (the first wording of T-712): the plan would still show guesses as load.
-- ADR-25 (2026-11-16): allowed days (D23 in [[01 Brainstorm]]; built in M10, T-1001 … T-1006, 0.7.0). `Task.allowedWeekdays` is an optional set of weekdays (0..6, Monday = 0, as `LocalDate.weekday`); null = any day, a stored set is never empty and never all seven. It is a property of the task, like `notBefore`, not a kind of repeat: the task stays one row, and "missed, so next week" is not a write, it falls out of the derived plan (D2). The planner treats the set as one more "may this task be placed on `d`" test next to the release date and the order of a series: the priority fill, the top-level overflow and the forced picks skip a task on a day outside its set. A pin is placed as it is (the manual mode); only a pin in the past, which means "today" for other tasks, means the nearest allowed day. Forcing gets one more family of checks, built like the "heavy task counts only the days it fits" check of D21: for every distinct set among the due tasks, the weight of the tasks that can only use days of that set is compared with the free room of those days, so a task is forced on its last allowed day and not left for a day it cannot use. Ghosts and the successor of a repeating task carry the set. `effWeight` of a task with a set is capped by the biggest weekday of the set, not of the week, so a large task fits one of its own days (found while building forcing, T-1003). Schema 6 adds `tasks.allowed_weekdays TEXT` (a JSON array, nullable); backup format 6 adds `allowedWeekdays`. UI: a "Days" row in the editor with the weekday chips of the repeat sheet and quiet one-line hints (pin outside the set, only rest days chosen, no allowed day before the due date); a chip on the card; no banner anywhere. Rejected: a weekday repeat that is cleared after completion (a series for a single job, and the stored instance still slides to the next working day); a table of places with opening days; a "missed" state or a Focus entry for a missed day (nothing was missed that the next allowed day does not fix); a boost for such a task on its day (starvation is a question for all low tasks, parking lot).
-- ADR-10 (2026-11-13): develop on Windows desktop and web in addition to Android; Android device testing starts at M3. Logic is platform-independent and verified by `flutter test`; platform differences are confined to the local-store adapter.
+Code:
+- drift: `insertOnConflictUpdate` with a row class skips nulls (use `toCompanion(false)`); `dateTime()` stores seconds, so instants are integer ms; a `Set` column compares by identity in row equality; `drift/native.dart` must stay out of `lib/` (web build); in a migration do not mix the two `CASE` forms.
+- Riverpod under `fake_async` needs `async.elapse(Duration.zero)`; a drift call awaited in a widget test needs `tester.runAsync`.
+- gen-l10n folds `=1` and `one` into one branch: "every day" needs its own key. ARB message names must be Dart identifiers (ADR-11).
+- `Dismissible` used only as a trigger returns false from `confirmDismiss`; two FABs in a tab stack need their own `heroTag`; `excludeSemantics` needs `onTap` on the `Semantics` or the button cannot be pressed by a screen reader.
+- A `ListView` with its own `padding` does not add the safe area: add `MediaQuery.paddingOf(context).bottom` (lists without an app bar also need the top, `TabBody`).
+- freezed constructors with method-calling assertions cannot be `const`.
+
+Emulator (`tool\start_emulator.cmd [--wait]` or F5 "TasksOrder (Android)"):
+- `uiautomator dump` reads Flutter semantics: drive by labels, not guessed coordinates; a card's chips and title come as one label; match exact labels (a hint starting with a segment name catches a prefix match). Screenshots are scaled: multiply by the ratio to the real resolution.
+- `adb shell input text` types Latin only; Enter in a multi-line field is `keyevent 66`.
+- `adb root` + `settings put global auto_time 0` move the clock (put it back after); `adb root` also allows reading the app's files (`files/tasks_order.sqlite`, `shared_prefs/today_widget.xml`) with the system `sqlite3`; `adb unroot` after.
+- `adb reboot` closes the emulator: `adb emu kill` and a new start give a cold boot. Inexact alarms can come at the end of their window (4.5 min).
+- Installing the integration test's debug APK replaces a release-signed app and its data; the integration test on the emulator wipes app data (on Windows it keeps it).
+- A debug build left by a closed debug session can show a white screen until restarted.
+
+## Non-goals (for now)
+- Backend, accounts, sync, family group — kept possible by D12 (UUIDs, `updatedAt`, soft delete, repository interfaces, planning vs device settings).
+- iOS and macOS builds (possible, not tested).
+- Time-of-day scheduling: the unit is a day.
+
+## Architecture decisions
+Superseded ones (ADR-5, ADR-8 in part) are in [[Superseded decisions]].
+- **ADR-1** derived plan, not persisted (D2).
+- **ADR-2** one app package with a `domain` folder; can become `packages/core` if the planner is reused.
+- **ADR-3** calendar dates as ISO `yyyy-MM-dd` text; instants as UTC epoch milliseconds.
+- **ADR-4** sync-ready rows (UUID, `updatedAt`, `deletedAt`) since schema 1; no sync code (D12).
+- **ADR-6** localisation via ARB from the first screen; English is the source language of ARB files and docs.
+- **ADR-7** no "dropped" status; delete is a soft delete = Trash = sync tombstone (D14).
+- **ADR-8** no `json_serializable`; backup mappers are hand-written in `data/backup` (ADR-16).
+- **ADR-9** `kotlin.incremental=false` (different drives for project and pub cache).
+- **ADR-10** develop on Windows and web besides Android; logic is platform-independent and verified by `flutter test`.
+- **ADR-11** priority presentation in the domain without Flutter types: `PriorityLabels.color` is an ARGB int, `PriorityLabels.key` a logical key mapped to `AppLocalizations` getters (a test keeps the mapping complete).
+- **ADR-12** Focus is a planner output (`Plan.focus`: focused or overdue, with the day each landed on); every active task is planned; `completedOnPlan` feeds `completedTodayCount` (D17–D19).
+- **ADR-13** `planProvider` is synchronous, no debounce; `AsyncValue<Plan>` loading until all inputs arrive. Active and done tasks come from one stream, so a completion is one change (the slot cannot refill for a frame). Revisit if the done history makes that stream slow.
+- **ADR-14** app shell: `go_router` with `StatefulShellRoute.indexedStack`, editor as a top-level route, locations in `AppRoutes`; web keeps hash URLs (GitHub Pages); language and theme read synchronously from preferences so the first frame is right.
+- **ADR-15** release signing with a key outside the repo (`android/key.properties`, git-ignored); without it the release is debug-signed (CI, fresh clones) and cannot update a release install. Keep copies of the keystore and passwords. Version = `version:` in `pubspec.yaml`; the build number grows with every APK installed over an older one.
+- **ADR-16** backup = one JSON file with all tasks (Trash too), day overrides and planning settings, via the system save / open dialogs; restore replaces everything in one transaction after a confirmation, no merge. The codec checks the domain rules (assertions are off in release). A newer `version` is refused; older ones are read. Format in [[03 Data Model]].
+- **ADR-17** fixed priority levels 1..10; the scale only chooses the offered levels (`PriorityLabels.levels`), `nearest` for display, `raise` for the boost. Schema 2 / backup 2 converted old positions to levels.
+- **ADR-18** recurring tasks: the rule lives on the task (JSON column); no series table or template; the successor is a copy made in the completing transaction, its id a UUID v5 of `next/<id>` (same on every device, found by undo); `seriesId` and `occurrenceDate` keep history and schedule; future repeats are ghosts; `notBefore` is a release date. Schema 3 / backup 3.
+- **ADR-19** task size: `Task.weight` in half-slots (1, 2, 4; default 2), integer arithmetic, sizes changeable without migration; capacity settings stay in normal tasks and the planner doubles them; `effWeight = min(weight, 2 × max(weeklyCapacity))` at planning time. Schema 5 / backup 5.
+- **ADR-20** morning notification: the next seven mornings scheduled as single notifications from the plan on every change of plan, language or time; id = plan date; inexact alarms (no special permission), instant built from local fields in UTC (no tz database); survives reboot (`RECEIVE_BOOT_COMPLETED`). Hidden on web and Windows. No background job.
+- **ADR-21** branding: icon (three shortening bars with a check, white on `#3F51B5`) and splash generated from `assets/icon/`; name "TasksOrder" in both languages; edge-to-edge with the navigation bar following the app theme (`systemBarsStyle`).
+- **ADR-22** home-screen widget: the app sends a cache of the next seven plan days (texts in the app language, up to 8 lines with priority dot colours, `dayStartHour`, a stale text) over the method channel `tasks_order/home_widget`; `TodayWidgetProvider` (Kotlin, `RemoteViews`) stores it in SharedPreferences `today_widget`, picks the current plan day itself and redraws at the next day start (inexact alarm) and every 30 min. A tap opens the app; follows the device light / dark mode. No `home_widget` package (keep it in mind for interactive check boxes). Format in [[03 Data Model]].
+- **ADR-23** redesign: `AppColors` tokens (light / dark) with the Material scheme tuned from them; priority chip shades derived from `PriorityLabels.color` with a 4.5:1 contrast test, not the package's five colours; one shared `TaskCard` / `GhostTaskCard`; a done task keeps its plan day (`completedPlanDate`, schema 4 / backup 4). Card v2 (T-1103, `CARD_SPEC.md`): title first, chips in a `Wrap` by `ChipSlot`, quiet chips, loud only levels 1–2 and At risk; notes block (T-1105).
+- **ADR-24** a rule from completion has no ghosts; its next instance comes from the completion (today + every) or the skip (`max(today, pin ?? occurrenceDate)` + every), pinned if the instance was pinned, else released on that date.
+- **ADR-25** allowed days: `Task.allowedWeekdays` (0..6, Monday = 0; null = any, never empty or all seven) is a property, not a repeat; one more "may be placed on d" test in fill, overflow and forced picks; a pin is placed as is, a past pin goes to the nearest allowed day; forcing checks each distinct set; `effWeight` is capped by the biggest weekday of the set. Schema 6 / backup 6.

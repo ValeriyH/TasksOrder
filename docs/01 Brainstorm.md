@@ -1,186 +1,117 @@
 ---
 tags: [brainstorm, product]
 created: 2026-11-12
+updated: 2026-11-20
 ---
 # 01 Brainstorm
+
+The product: what it is for, what it does today and the decisions it rests on. Decisions keep their numbers (D1–D23); replaced ones are in [[Superseded decisions]], the story of how each came about in [[History]].
 
 ## Problem
 People collect far more tasks than they can do. Classic to-do apps show the whole pile, which creates guilt and decision fatigue. The user wants to **dump everything in** without thinking, and let the app say: *"today, do these N things"*.
 
 ## Core idea
-1. **Capture without friction.** Every task gets a priority (scale 1..3, 1..5 or 1..10, configurable) and optionally a due date. Nothing else is mandatory.
+1. **Capture without friction.** Every task gets a priority and optionally a due date. Nothing else is mandatory.
 2. **Declare capacity, not plans.** The user sets how many tasks they want per weekday (e.g. Mon–Fri: 1, Sat: 3, Sun: 0) and can override single days (holiday, sick day).
 3. **The app plans.** It fills today and the following days by priority, respecting capacity. Deadlines can override priority: a low-priority task with a close due date can push a high-priority task later, or temporarily raise a day above its capacity.
 4. **The plan is live.** Adding, completing or editing a task recomputes the plan instantly. The user never "re-plans" manually.
 
-## User stories (MVP)
-- As a user I can add a task in under 5 seconds: title, priority, optional due date.
-- As a user I open the app and see **Today**: the tasks picked for today and why (priority / deadline / pinned / overflow).
-- As a user I tick a planned task done and the next one does not jump in (today stays stable); tomorrow is filled from the pool.
-- As a user I can mark any task "Focus"; it stays in the plan on its own day, and is also kept in sight in the Focus strip on top of Today, three at a time (D17).
-- As a user I use the app in Ukrainian or English, light or dark.
-- As a user I can look ahead (**Plan**) and see which day each task lands on.
-- As a user I can set capacity per weekday and the priority scale in **Settings**.
-- As a user I can see all tasks (**Tasks**), sorted by priority, including ones that do not fit the planning horizon.
-- As a user I am warned when deadlines cannot be met with the current capacity.
-- As a user I never lose an overdue task: it is planned by its priority like a task without a date, and stays in Focus with an "overdue" badge until I do it or move its date (D18).
-- As a user I can do a task from a later day ahead of time without today's list changing (D19).
-- As a user I can make a task repeat (every N days / weeks / months / years, or on weekdays) and see its future repeats in the Plan, so the load of the coming weeks is honest (D20, v0.4).
-- As a user I can say that a task is small or large, so two small ones share a day and a large one gets a day with enough room (D21, v0.6).
+## User stories
+- Add a task in under 5 seconds: title, priority, optional due date (quick add on Today; the full editor for the rest).
+- Open the app and see **Today**: the tasks picked for today and why (priority / deadline / pinned / over plan).
+- Tick a planned task done and the next one does not jump in (today stays stable); tomorrow is filled from the pool.
+- Mark any task **Focus**: it stays planned on its day and is also kept in sight on top of Today, three at a time.
+- Never lose an overdue task: it is planned by priority and stays in Focus until done or its date is moved.
+- Do a task from a later day ahead of time without today's list changing.
+- Look ahead (**Plan**) and see which day each task lands on, with the load of each day.
+- See all tasks (**Tasks**) with filters, including the ones that do not fit the horizon (Later) and the done ones.
+- Be warned when deadlines cannot be met with the current capacity.
+- Make a task repeat and see its future repeats in the Plan, so the load of the coming weeks is honest.
+- Say that a task is small or large, so two small ones share a day and a large one gets a day with room.
+- Limit a task to some days of the week ("only Sat").
+- Use the app in Ukrainian or English, light or dark; see today's tasks in a home-screen widget and a morning notification.
 
-## Feature list
+## Features (0.8.1)
+- **Tasks:** title, notes, priority, size, due date, Focus, pin ("Do on this day"), Not before, allowed days, repeat; active / done; soft delete to the Trash (30 days).
+- **Planner:** priority fill (first fit by size), deadline forcing, urgency boost, bounded overflow, at-risk flags, pins, release dates, ghosts of repeats, allowed days, Focus view.
+- **Screens:** Today (progress, Focus, Planned, quick add), Plan (days with capacity pills and free slots, day overrides), Tasks (Active, Focus, With due date, Recurring, Later, Done), editor, task menu (skip, postpone, pin, move or clear an overdue date, edit), Trash, Settings.
+- **Card:** title, chips (priority dot, focus, pin, over plan, repeat, planned day, size, days…), expandable notes, due line, Done / Completed button.
+- **Settings:** priority scale (3 / 5 / 10), capacity per weekday, overflow +1/+2/+3, horizon, day start hour, language, theme, reason badges, morning notification time; backup / restore to a JSON file.
+- **Android extras:** home-screen widget, morning notification.
+- Local storage only (SQLite; IndexedDB on the web), no account, no network.
 
-### MVP (v0.1)
-- Tasks: title, notes, priority, due date, Focus flag, pin date, status (active / done), soft delete
-- Settings: priority scale (3 / 5 / 10), capacity per weekday, overflow (+1/+2/+3), planning horizon, day start hour, language, theme
-- Planner: priority fill + deadline forcing + urgency boost + overflow + at-risk flags + Focus view
-- Screens: Today, Plan (upcoming days), Tasks (all), Add/Edit task, Settings, Done list
-- Ukrainian and English UI, light and dark theme
-- Local storage only (SQLite), no account, no network
+## Decisions
+**D1 — Priority is a fixed level of a ten-level table; 1 = highest.** Critical is always 2, High 3, Normal 5, Low 7, Someday 8, whatever the scale. The scale (3, 5, 10) only chooses which levels the app offers; a task keeps its level when the scale changes, and a level the scale does not offer is shown as the nearest one (the higher on a tie). Shown as the name only, with the colour of the level. Every level is planned the same way inside the capacity; "do it today regardless" is a pin. A new task is Normal. _Why:_ positions in the scale made every scale change lossy (ADR-17); the number would read 2, 5, 7 on scale 3.
 
-### v0.2
-- Move a task to another day straight from the Plan screen (the pin date itself is in the editor from v0.1); day capacity overrides (calendar); Trash with restore
-- Overdue / at-risk resolution actions (move due date, drop, raise capacity)
-- Daily morning notification with today's list
-- Backup / restore as JSON
+| Level | en | uk | Scale 3 | Scale 5 | Scale 10 |
+|---|---|---|---|---|---|
+| 1 | Catastrophic | Катастрофічний | | | ✓ |
+| 2 | Critical | Критичний | ✓ | ✓ | ✓ |
+| 3 | High | Високий | | ✓ | ✓ |
+| 4 | Elevated | Підвищений | | | ✓ |
+| 5 | Normal | Звичайний | ✓ | ✓ | ✓ |
+| 6 | Minor | Понижений | | | ✓ |
+| 7 | Low | Низький | ✓ | ✓ | ✓ |
+| 8 | Someday | Якось | | ✓ | ✓ |
+| 9 | Whenever | Хтозна-коли | | | ✓ |
+| 10 | Never | Ніколи | | | ✓ |
 
-### v0.4
-- Recurring tasks (D20): every N days / weeks / months / years or on weekdays; by schedule or from completion; future repeats shown in the Plan
+Colours are computed, not stored: `PriorityLabels.color(level, scale)` goes by the position of the level in the scale over five anchors, red `#D32F2F` (first), orange `#F57C00`, green `#388E3C` (Normal), teal `#0097A7`, blue `#1976D2` (last), so the same level can differ between scales (Critical is red on 3 and 5, red-orange on 10). Chip shades per theme come from `PriorityShade` (`lib/app/app_colors.dart`) with at least 4.5:1 contrast (tested). On the card only levels 1–2 have a coloured chip; the others show a dot of the level's colour on a grey chip; a done card is all grey.
 
-### v0.5
-- Redesign (D22): task cards with a Done button, done tasks stay in sight until the day ends, a tap opens the task menu, "Active" in place of "All" in Tasks; light and dark
+**D2 — The plan is derived, never stored.** Only tasks, settings, day overrides and pins are persisted; the plan is a pure function of them. A cache is written only for consumers that cannot compute it (widget, notifications). _Why:_ no drift between a stored plan and reality; recomputing is cheap.
 
-### v0.6
-- Task size (D21): small / normal / large = ½ / 1 / 2 slots of the daily capacity; a large task waits for a day that can hold it
+**D3 — Today is stable.** Completing a task from today's list does not pull the next task into today. Exception: deadline-forced slots refill (D16). _Why:_ the user asked for "N per day", not an endless day.
 
-### v0.7
-- Allowed days (D23): a task limited to some days of the week ("only Sat", "only Thu and Fri"); planned only on those days, moves to the next one by itself when missed
+**D4 — Deadlines win over priority only when forced.** The planner computes the minimum number of due-dated tasks that must happen today to meet every deadline (earliest-deadline-first feasibility).
 
-### Later ideas (parking lot)
-- A share of the slots per priority level, so low levels are not starved for ever (owner 2026-11-16, preliminary idea, "speculative push"): there is always something more important, so a low task loses attention; e.g. of a run of slots High gets 10, Normal 5, Low 1. For all tasks, not only the ones with allowed days (D23). To brainstorm
-- "Not before" date set by hand (snooze); the planner honours the field from D20 on, the editor field came with T-714
-- Projects / tags, subtasks; a simple way to keep the parts of a job that was split by hand together (D21 leaves the splitting to the user)
-- Stats: completed per week, streaks
-- Home-screen widget
-- Search over all tasks, done ones included (the Done list only grows; owner 2026-11-15)
-- Fewer tabs: Today as the focus of the day, Plan as the schedule that also takes over the list of Tasks with its filters and Trash (owner 2026-11-15, to think over)
-- "Skip this time" for a ghost, a future repeat in the Plan (only the stored instance can be skipped now)
-- A tap on a free slot in the Plan adds a task pinned to that day (from the D22 mockups)
-- The home-screen widget in the style of D22
-- Sync between devices (would require accounts; keep out until the local app is solid)
-## Key decisions
-| # | Decision | Rationale |
-|---|----------|-----------|
-| D1 | **Priority 1 = highest. A priority is a fixed level of the ten-level table** (changed 2026-11-14, ADR-17): Critical is always 2, High 3, Normal 5, Low 7, Someday 8, whatever the scale. The scale (3, 5 or 10) only chooses which levels the app offers: scale 3 is Critical / Normal / Low, scale 5 adds High and Someday, scale 10 offers all ten. A task keeps its level when the scale changes; a level the scale does not offer is shown as the nearest one it does (the higher on a tie) and stays stored as it is. Shown as the **name only**, e.g. *Critical*, with the colour of the level; the order is visible from the sorting and the colours. Every level is planned the same way inside the daily capacity; "do it today regardless of capacity" is a pin (D17). Label tables below. | Owner 2026-11-14, after the device test: with "the number is the position in the scale" a change 5 → 10 turned Normal (3) into High (3), and 10 → 5 squeezed it again, so a round trip raised every task. Fixed levels make any scale change lossless. The number is not shown because on scale 3 it would read 2, 5, 7. Earlier (2026-11-12/13): "Label (n)" with the position in the scale. |
+**D5 — Overflow is bounded.** A day can exceed its capacity by at most `maxOverflowPerDay` (+1 default, up to +3), only because of deadlines (and a top-level large task, D21). Beyond that, tasks spill and are flagged **at risk**.
 
-### Priority labels (D1)
-| Level | en           | uk             | Scale 3 | Scale 5 | Scale 10 |     |
-| ----- | ------------ | -------------- | ------- | ------- | -------- | --- |
-| 1     | Catastrophic | Катастрофічний |         |         | ✓        |     |
-| 2     | Critical     | Критичний      | ✓       | ✓       | ✓        |     |
-| 3     | High         | Високий        |         | ✓       | ✓        |     |
-| 4     | Elevated     | Підвищений     |         |         | ✓        |     |
-| 5     | Normal       | Звичайний      | ✓       | ✓       | ✓        |     |
-| 6     | Minor        | Понижений      |         |         | ✓        |     |
-| 7     | Low          | Низький        | ✓       | ✓       | ✓        |     |
-| 8     | Someday      | Якось          |         | ✓       | ✓        |     |
-| 9     | Whenever     | Хтозна-коли    |         |         | ✓        |     |
-| 10    | Never        | Ніколи         |         |         | ✓        |     |
+**D6 — Rest days stay empty.** No overflow on a day with capacity 0; deadlines falling there are forced earlier. Pins are honoured.
 
-A new task gets Normal (5) on every scale. Level 8 in Ukrainian was "Якось" on scale 10 and "Колись" on scale 5; since a level has one name everywhere it is "Якось" (owner, 2026-11-14). Colours (changed 2026-11-13, owner: amber for the ordinary level looked like a warning) go by the position of a level in the scale: red for the first, **green for Normal**, blue for the last; between them orange (raised) and teal (lowered), so scale 5 is red, orange, green, teal, blue and scale 10 uses the steps in between. Labels are localisation keys (`priority.s5.3` = the third level of scale 5), so wording can be tuned later without touching code.
+**D7 — At the day boundary unfinished planned tasks return to the pool** and the plan is recomputed from the new today. (Overdue handling: D18.)
 
-#### Priority colours (D1, D22, card v2 of T-1103)
-Computed by the app, not stored: the colour of a level is `PriorityLabels.color(level, scale)`, so the same level can have another colour on another scale (Critical is red on scales 3 and 5, red-orange on scale 10, where red is Catastrophic). The other columns are derived per theme by `PriorityShade` (`lib/app/app_colors.dart`): in the light theme the chip is a tint of the colour at lightness 0.93 with the colour darkened until the text reads at 4.5:1; in the dark theme the chip is the colour at 18 % over the card (`#1A1D24`) with the colour lightened until it reads. On the card (T-1103) the **dot** of a quiet priority is the colour itself in the light theme and the dark text shade in the dark one; only levels 1 and 2 (Catastrophic, Critical) use the chip tint and text as well, every other level sits on the grey chip (`neutralChipBg` `#F3F4F6` / `#262A33`) with `metaText` (`#5F6673` / `#9CA3AF`). A done task's dot is `priorityDotDone` (`#D1D5DB` / `#4B5563`). The scale's five anchors: red `#D32F2F`, orange `#F57C00`, green `#388E3C`, teal `#0097A7`, blue `#1976D2`.
+**D8 — Local-first, Android first, no backend.** Flutter keeps iOS possible.
 
-Scale 3:
+**D9 — Flutter + Riverpod + drift (SQLite); the planner is pure Dart** with no Flutter imports, unit-tested in milliseconds.
 
-| Level | Name     | Colour (light dot) | Dark dot  | Light chip | Light text | Dark chip | Dark text |
-| ----- | -------- | ------------------ | --------- | ---------- | ---------- | --------- | --------- |
-| 2     | Critical | `#D32F2F`          | `#E99696` | `#F9E2E2`  | `#A02222`  | `#3B2026` | `#E99696` |
-| 5     | Normal   | `#388E3C`          | `#A4DBA6` | `#E5F5E6`  | `#317C35`  | `#1F3128` | `#A4DBA6` |
-| 7     | Low      | `#1976D2`          | `#8DC0F1` | `#DFEDFB`  | `#1561AD`  | `#1A2D43` | `#8DC0F1` |
+**D10 — Deadlines are spread, not crammed.** (a) Hard: EDF forcing pulls tasks earlier when the capacity before a due date is short (4 tasks due in 2 days, capacity 1 → 2 today, 1 tomorrow, 1 on the day). (b) Soft: **urgency boost** — due within 7 days → one level higher, within 2 days → two levels (levels of the scale in use); thresholds are settings. _Why:_ otherwise all due tasks land on the due day.
 
-Scale 5:
+**D12 — Sync-ready, sync-free.** Every row has a UUID, `updatedAt` (UTC) and a nullable `deletedAt`; planning settings are separate from device settings; repositories are interfaces a future sync engine can sit behind. No accounts or network.
 
-| Level | Name     | Colour (light dot) | Dark dot  | Light chip | Light text | Dark chip | Dark text |
-| ----- | -------- | ------------------ | --------- | ---------- | ---------- | --------- | --------- |
-| 2     | Critical | `#D32F2F`          | `#E99696` | `#F9E2E2`  | `#A02222`  | `#3B2026` | `#E99696` |
-| 3     | High     | `#F57C00`          | `#FFC080` | `#FCEDDE`  | `#A35300`  | `#412E1E` | `#FFC080` |
-| 5     | Normal   | `#388E3C`          | `#A4DBA6` | `#E5F5E6`  | `#317C35`  | `#1F3128` | `#A4DBA6` |
-| 7     | Low      | `#0097A7`          | `#80F3FF` | `#DEF9FC`  | `#007B88`  | `#15333C` | `#80F3FF` |
-| 8     | Someday  | `#1976D2`          | `#8DC0F1` | `#DFEDFB`  | `#1561AD`  | `#1A2D43` | `#8DC0F1` |
+**D13 — Ukrainian and English, light and dark, from the first screen.** ARB strings; language and theme default to the device and can be chosen in Settings (an unknown device language falls back to English).
 
-Scale 10:
+**D14 — Two statuses: active and done.** Delete is a soft delete: the Trash, restorable for 30 days, then purged; the same rows are sync tombstones.
 
-| Level | Name         | Colour (light dot) | Dark dot  | Light chip | Light text | Dark chip | Dark text |
-| ----- | ------------ | ------------------ | --------- | ---------- | ---------- | --------- | --------- |
-| 1     | Catastrophic | `#D32F2F`          | `#E99696` | `#F9E2E2`  | `#A02222`  | `#3B2026` | `#E99696` |
-| 2     | Critical     | `#E2491C`          | `#F1A48E` | `#FBE6DF`  | `#AC3815`  | `#3E2523` | `#F1A48E` |
-| 3     | High         | `#F17006`          | `#FCB983` | `#FCECDE`  | `#A94F04`  | `#412C1F` | `#FCB983` |
-| 4     | Elevated     | `#CFD31C`          | `#EEF08E` | `#FAFBDF`  | `#737510`  | `#3B3E23` | `#EEF08E` |
-| 5     | Normal       | `#54A533`          | `#B1E19E` | `#E9F7E4`  | `#3F7D27`  | `#243527` | `#B1E19E` |
-| 6     | Minor        | `#2D944A`          | `#9DE1B0` | `#E4F7E9`  | `#267D3E`  | `#1D322B` | `#9DE1B0` |
-| 7     | Low          | `#159F7C`          | `#8EF0D7` | `#DFFBF4`  | `#107B60`  | `#193434` | `#8EF0D7` |
-| 8     | Someday      | `#0294AC`          | `#81ECFE` | `#DEF8FC`  | `#027A8E`  | `#16323C` | `#81ECFE` |
-| 9     | Whenever     | `#0D86BF`          | `#88D3F7` | `#DEF3FC`  | `#0B72A2`  | `#183040` | `#88D3F7` |
-| 10    | Never        | `#1976D2`          | `#8DC0F1` | `#DFEDFB`  | `#1561AD`  | `#1A2D43` | `#8DC0F1` |
+**D15 — Configurable day boundary.** `dayStartHour` (default midnight); at 04:00 a task finished at 01:00 counts for the day before.
 
-| D2 | **The plan is derived, never stored.** Only tasks, settings and manual pins are persisted; the plan is a pure function of them. A **cache** of the last plan may be written later only for consumers that cannot compute it (home-screen widget, notification). | No sync bugs between "stored plan" and reality. Any change (new task, done, settings) simply recomputes. Cheap for hundreds of tasks. Confirmed by owner. |
-| D3 | **Today is stable.** Completing a task today does not pull the next task into today. | The user asked for "N per day", not "always N visible". Pulling tasks in would make the day endless. A "do one more" button can be added later. Exception: deadline-forced slots refill (D16). Only completions from today's list use up a slot (D19). |
-| D4 | **Deadlines win over priority, but only when forced.** The planner computes the minimum number of due-dated tasks that must happen today to still meet every deadline (earliest-deadline-first feasibility). | Exactly the "lower priority can push a higher one" behaviour, without making every due date dominate. |
-| D5 | **Overflow is bounded.** A day can exceed its capacity by at most `maxOverflowPerDay` (default 1), only because of deadlines. Beyond that, tasks spill and are flagged **at risk**. | The user asked for "2 instead of 1" but not for an unbounded pile. At-risk flags turn an impossible situation into something actionable. |
-| D6 | **Zero-capacity days stay empty.** No overflow lands on a rest day; deadlines falling on such days are forced earlier. | Rest days were requested explicitly. |
-| D7 | _Overdue part superseded by D18 (2026-11-13); the first sentence still holds._ **Not-done planned tasks return to the pool; overdue tasks go to the Today queue.** At the day boundary the plan is recomputed from the new "today". A task whose due date has passed is no longer planned into slots: it is **automatically part of the Today queue** (D11) with an *overdue* badge, outside capacity, until it is done or its due date is moved or cleared. | Owner 2026-11-13: in other apps an overdue task either gets lost in the pile or blocks the plan. In the Today queue it is always visible (top 3 or "+N more"), never eats a planned slot and never produces daily at-risk noise. No stored state: the rule is derived from `dueDate < today`, consistent with D2. |
-| D8 | **Local-first, Android only, no backend.** | Fastest path to a usable app. Flutter keeps iOS possible later. |
-| D9 | **Flutter + Riverpod + drift (SQLite).** Planner lives in a pure Dart layer with no Flutter imports. | The planner is the product; it must be unit-testable in milliseconds. Drift gives reactive streams so UI recomputes automatically. |
-| D10 | **Deadlines are spread, not crammed.** Two mechanisms: (a) *hard* — EDF feasibility forcing guarantees every deadline is met and automatically pulls tasks earlier when capacity before the due date is insufficient (4 tasks due in 2 days with capacity 1/day → 2 today, 1 tomorrow, 1 on the due day); (b) *soft* — **urgency boost**: a task due within 7 days is treated one priority level higher, within 2 days two levels higher (levels of the scale in use: Normal → High → Critical on scale 5, ADR-17), so due-dated tasks start competing for slots early instead of all landing on the due day. Thresholds configurable. | Owner's concern: "deadline arrives and all 4 are active at once". (a) prevents the impossible case, (b) prevents the unpleasant case. Details in [[04 Planner Algorithm]]. |
-| D11 | _Superseded by D17 (2026-11-13)._ **"Today" flag = a user-pinned queue outside the daily capacity.** Any task, whatever its priority, can be flagged *Today*. Flagged tasks form the **Today queue**: shown in their own section at the top of the Today screen, at most `todayVisibleLimit` (3) visible at a time, the rest wait in the queue ("+2 more"). Unlike the planned slots, the Today queue **refills**: close one of five flagged tasks and the next one appears, still three visible. Flagged tasks do not consume capacity, are not placed on any day by the planner and are ignored by deadline math. The flag persists across midnight until the task is done or unflagged. **Overdue tasks join the queue automatically** (D7). Queue order: **priority first**, then due date (so overdue ones lead within a priority), then when it was flagged. | Owner 2026-11-12: priority alone should not force a task onto the board; a Critical task may wait for its slot, a Normal task may need to happen today. The visible limit keeps the board calm; the refill rule exists because flagged tasks are a conscious commitment, not an automatic plan. |
-| D13 | **Bilingual (Ukrainian, English) and light/dark from the first screen.** Strings live in ARB files. Both language and theme are user-selectable in Settings; the **default is the device setting** (language: system locale, falling back to English if it is neither uk nor en; theme: system light/dark). | Owner requirement. Retrofitting localisation is tedious; starting with it costs nothing. |
-| D14 | **Two statuses only: active and done. Deleting is a soft delete (trash).** There is no separate "dropped/archived" status. Deleted tasks disappear from every list, can be restored from a *Trash* screen for 30 days, then are purged. | Owner asked what an archive would be for if deletes are soft anyway. Nothing: one mechanism is enough. Trash = the soft-deleted rows, which also serve as sync tombstones (D12). |
-| D15 | **Configurable day boundary.** `dayStartHour` (default 0 = midnight) shifts when "today" rolls over; 04:00 means a task finished at 01:00 still counts as yesterday's. | Owner requested it configurable. |
-| D16 | **Deadline slots refill, and an unachievable plan is shown as such.** Tasks that *must* happen today because of a deadline refill: at most `capacity + maxOverflowPerDay` are visible, and closing one pulls in the next (capacity 2, overflow 1, five tasks due today → three shown; close one → the fourth appears). Slots filled by plain priority still do not refill (D3). Whatever cannot fit before its due date is **at risk**; when a plan has at-risk tasks the Today screen highlights it ("N tasks will not make their deadline") and lists them, so the user can decide which ones matter: do extra, move a date, or drop. | Owner 2026-11-13: with five tasks due today and capacity 2, three of them will be late whatever happens. The app must say so up front instead of silently showing two, and must keep offering the next one if the user keeps going. |
-| D12 | **Sync-ready from day one, sync-free for now.** Every row has a UUID, `updatedAt` (UTC) and a nullable `deletedAt` (soft delete, tombstone). Planning settings (scale, capacity) are kept separate from device settings (theme). Repositories are interfaces; a future sync engine sits behind the same interfaces. No user ids, accounts or network in MVP. | Owner's future wishes: multi-device sync, then a "family group" where partners see each other's load and queue tasks for each other. These three fields are what any CRDT/last-write-wins sync needs; adding them later means a painful migration, adding them now costs nothing. |
-| D17 | **Focus replaces the Today flag: a view, not a queue.** Any task can be marked *Focus* (`isFocused`). A focused task **stays in the pool** and is planned like every other task (priority, deadline forcing, boost, capacity). Focus is an alternative view over the same tasks: the **Focus strip** on top of the Today screen lists focused and overdue (D18) tasks that are *not* already on today's list, at most `focusVisibleLimit` (3) at a time with "+N more", ordered by priority, then due date (so overdue ones lead within a priority), then when the task was focused. A focus task that is on today's list is shown only there. Everywhere (Today, Plan, Tasks) such a task carries the focus mark; in the strip it also shows the day it is planned for. Focus changes no capacity or deadline math. "Do it on this day whatever the capacity" is a **pin**; the pin date is in the task editor from v0.1. | Owner 2026-11-13: the Today queue lived for days and became a second backlog, so "Today" was the wrong name; flagged tasks vanished from the plan and lost their deadline protection. Keeping them in the plan is honest, and the strip still keeps them in sight. The command "do it today above the limit" is lost on purpose; a pin covers it. |
-| D18 | **Overdue tasks are plain pool tasks that stay in Focus.** Once `dueDate < today` the planner ignores the due date: no forcing, no boost, never *at risk*; the task competes by priority only, like a task without a date. It is automatically in Focus with an "overdue by N days" badge until it is done or its due date is moved or cleared. Derived from the date, nothing stored (D2). | Owner 2026-11-13: a missed deadline has nothing left to protect, so it must neither block the plan nor produce daily at-risk noise; Focus keeps it visible. One pool, no separate queue. Accepted consequence: a low-priority task can drop back in the plan the day after its deadline. |
-| D19 | **Only completions from today's list use up today's capacity.** Ticking a task that was on today's list leaves its slot empty (D3). Ticking any other task (from the Focus strip, Plan or Tasks) leaves today's list as it is; the slot it held on a later day is planned again. The task stores `completedOnPlan`, set at completion, because the plan itself is not stored (D2). There is no "earned free day": a day is kept free with a day override. | Owner 2026-11-13: "if it is Tuesday and I closed Thursday's task, why move anything?". Before, every non-flagged completion lowered today's capacity, so doing work ahead pushed a task out of today. |
-| D20 | **Recurring tasks: one stored instance per series, the rest is derived.** A task can carry a repeat rule: *every N days / weeks / months / years*, or *on weekdays* (a set of Mon..Sun). An interval rule counts either **by schedule**, from a fixed anchor date ("monthly on the 30th" stays on the 30th, or on the last day of a shorter month), or **from completion** ("30 days after I did it"); weekdays always follow the schedule. The database holds **one active instance** of a series. When it is completed or skipped, the next one is created in the same write as a copy (title, notes, priority, rule). The later repeats inside the planning horizon are computed by the planner as **ghosts**: they take slots and are shown in the Plan, but they are not stored and cannot be ticked. The date of a repeat goes where the task keeps its date: a **pin** if the task is pinned (exactly that day), else the **due date** (do it by that day), else **not before** (available from that day, then by priority). With both a pin and a due date the pin leads, as everywhere in the planner, and the due date keeps its distance from it. A repeat is never planned before the date of the previous one. Missed repeats do not pile up: the instance stays (overdue → Focus, D18) and the next one is the first date after today. A series ends only by hand: remove the rule or delete the series. Details in [[03 Data Model]] and [[04 Planner Algorithm]]. | Owner 2026-11-14: recurring tasks were missed in the earlier brainstorms. Resetting the same row to active would lose the done record that D3/D19 count. Storing a horizon of rows needs a top-up at every day rollover and an "edit this one or all" question. Ghosts follow D2 and still show the real load of the horizon. Example: utilities as "every 1 month" without a pin or a due date appear on their day and are planned by priority; with a pin they sit on that day. Weekday repeats use up capacity like any task: "that is life". Amended 2026-11-16 (T-712, ADR-24): a rule from completion has no ghosts, its next instance appears only on completion or skip. |
-| D21 | **Task size: small, normal, large = ½, 1, 2 slots; a task is done within one day.** The capacity of a day stays "normal tasks per day"; a small task takes half a slot (two of them fit where one normal task does), a large one takes two. The set of sizes is fixed, not a setting. The task stores its **weight in half-slots** (1, 2, 4; a new task gets 2), not the number of a size, so a later change of the sizes touches no task (the lesson of ADR-17). **A task is never spread over days**: what does not fit one day is split by hand into several tasks. **First fit by priority**: a day takes the tasks in pool order and skips one that does not fit what is left, so a large task waits for the first day that can hold it and lighter tasks go ahead on the days it could not use anyway. **A large task never weighs more than the biggest day of the weekly capacity** (day overrides do not count): with 1 on every day it weighs 1, so there is no task without a day. **Exception for the top levels**: a large task of level 1 or 2 (Catastrophic, Critical; its own priority, not the boosted one) that is first in the queue and does not fit the capacity of a day takes that day with overflow, inside the same limit as deadlines (`capacity + maxOverflowPerDay`), one such task a day; never on a rest day (D6). Every other level waits for a big day; a pin or a day override is the way to say otherwise. Completions from today's list use up today's capacity by their weight (D3, D19); the repeats of a series carry its weight (D20). Details in [[03 Data Model]] and [[04 Planner Algorithm]]. | Owner 2026-11-14: paying the utilities and re-roofing the house do not take the same time. Named sizes because estimating hours for every task is a chore. No spreading over days: some jobs cannot be interrupted, the planner cannot know which, and a "may be split" flag is one more rule to collide with the others; the fewer rules, the fewer conflicts. Waiting for a big day is what the owner wants from a heavy task (not on a working day); a Critical one that waits is uncomfortable, hence the exception. It is narrow on purpose: D1 still holds for everything that fits, so capacity keeps its meaning. Configurable sizes rejected: too many rules already. |
-| D22 | **Redesign: task cards with a Done button, done tasks stay in sight; the logic does not change.** The owner's mockups of Today, Plan and Tasks in light and dark (made with another agent, without the project's details) are a reference, not a contract: planning, capacity, focus and recurrence work as before, and the numbers on screen are the ones the app computes now (the progress on Today is today's plan: planned plus done today, D19; the Focus strip is not part of it). Whatever the mockups do not show (ghosts, the pause of a series, the release date, at-risk, overdue, the Done list, Trash, the editor, Settings) takes the new style. A task is a **card**: a row of chips (priority, focus, pin, repeat, planned day, over plan), the title, the due line, and a **Done** button in place of the check box; a tap on **Completed** undoes. Priority colours stay the app's own (D1); the chip shades are derived from them per theme and must be readable in both. **A tap opens the task menu** on Today, Plan and Tasks (the menu has Edit); there is no long press. A ghost has no menu: a tap opens the task. **Done tasks stay in sight**: on Today and on today of the Plan a task done today moves to the end of its section, dimmed, with "Completed today" in place of its due line, until the day ends, so the Undo snack bar of a completion goes. On the Plan a task done ahead stays at the end of the day it was planned for until that day is past, and its slot takes the next task (owner; the completion stores that day, T-907). In Tasks a task done in an active filter stays in the list until the user leaves that filter or the tab; the counters change at once. Filters of Tasks: **Active** (was All), Focus, With due date, Recurring, Later, **Done** (last, no counter). | Owner 2026-11-15: a new look; the logic is settled and stays. An undo on the card is easier than a snack bar that hides after a few seconds, and keeping a done task in its list until the user moves on lets them tick and untick without hurry. "All" did not show done tasks while a "Done" filter sat next to it, so it was "Active" in all but name; a real "All" would bury the active tasks under a history that only grows (a search over all tasks is the better tool, parking lot). Not taken from the mockups: due times (a task has a date only), a bundled Roboto font (Android has it, Windows keeps Segoe UI), a tap on a free slot that adds a task to that day (parking lot), new colours for the priorities. |
-| D23 | **Allowed days: a task can be limited to some days of the week** (2026-11-16; built in M10, 0.7.0). The task carries an optional set of weekdays ("only Thu and Fri", "only Sat"); empty = any day. In everything else it is an ordinary task: it competes by priority on its days and tasks of a higher priority go ahead of it. The planner places it only on a day of the set; a missed day needs no action and is not an event: the plan is recomputed and the task lands on the next allowed day (no series, no ghosts, nothing in Focus). With a due date, forcing counts only the allowed days before it, so the task is forced on its **last allowed day** before the date ("change the tyres: Saturdays, due Nov 30" is planned quietly by priority on the first Saturdays and forced on Sat 28); once the date has passed it is overdue as any task (Focus, D18) and is planned for the next allowed day. A **pin is the manual mode and wins**: a pin on a day outside the set is honoured as it is, with no warning on the lists (a quiet hint in the editor only); a pin left in the past moves to the nearest allowed day instead of today. A day of the set that is a rest day or has capacity 0 is skipped (D6). The task can be ticked on any day (a free hour on a weekday). A repeating task carries the set to its next repeats and ghosts. | Owner 2026-11-16. Two needs with one answer: a thing that can only be done on some days (an office that takes papers on Thu and Fri), and putting chores off to the weekend (a curtain rail, winter tyres) without a date. The existing tools miss it: a pin or "not before" + due date describe one week and after a miss the task lands on Monday; a weekday repeat makes a series out of a single job. Banners and warnings on Today were rejected: they scatter attention; an important task is pinned. Starvation of a low task on its only day is accepted as for any low task (a general answer for all tasks is in the parking lot: a share of the slots per priority level). Rejected: a place with opening days shared by several tasks (a new entity and screen; possible later on top of the same planner rule); explicit date lists or several windows. |
+**D16 — Deadline slots refill; an unachievable plan is shown as such.** Tasks that must happen today because of a deadline refill up to `capacity + overflow`; what cannot make its date is at risk, and Today says "N tasks will not make their deadline" with the list.
 
-## Open questions for the owner
-All answered as of 2026-11-13:
-- Priority direction: 1 = highest, shown as labels, scale 5 by default (D1).
-- Plan is derived; cache only for widgets/notifications if ever needed (D2).
-- Deadlines win and are spread: EDF forcing + urgency boost (D10). Boost thresholds stay 7 / 2 days until real use shows otherwise.
-- "Today" flag with a refilling queue, 3 visible (D11). Replaces the earlier "Critical tier" idea.
-- Overflow is a setting: +1 (default), +2 or +3 (D5).
-- Rest days stay empty (D6). Planned slots never auto-refill (D3).
-- Day boundary configurable, default midnight (D15).
-- No archive: delete = trash with restore (D14).
-- Local-only now, sync-ready rows (D12). Bilingual + themes (D13).
+**D17 — Focus is a view, not a queue.** A focused task stays in the pool and is planned like any other. The Focus section on Today lists focused and overdue tasks that are not on today's list, three visible with "+N more", by priority, due date, focus time; it shows the day each is planned for. Focus changes no capacity or deadline math; "do it on this day whatever the capacity" is a pin.
 
-## Future: sync and family group (not scheduled)
-Hooks the MVP keeps open, see D12:
-- Tasks get `ownerId` and `assigneeId` when accounts arrive; the local user is the default owner.
-- A partner can **propose** a task into my queue: new status `proposed`, I accept (→ active with my priority) or decline.
-- Load visibility: the partner sees my plan summary (n/capacity per day), not task contents, unless shared.
-- Sync engine: last-write-wins on `updatedAt` per row is enough for a two-person family; tombstones via `deletedAt`.
+**D18 — Overdue tasks are plain pool tasks that stay in Focus.** Once `dueDate < today` the due date is ignored by the planner (no forcing, boost or at-risk); the task competes by priority and carries "overdue by N days" in Focus until done or its date is moved. Derived from the date.
+
+**D19 — Only completions from today's list use up today's capacity.** Ticking any other task leaves today's list as it is; its later slot is planned again. The completion stores `completedOnPlan` (the plan is not stored). A free day is a day override, not an earned reward.
+
+**D20 — Recurring tasks: one stored instance per series, the rest derived.** Rules: every N days / weeks / months / years, by schedule (from an anchor; the 31st falls back to the month's last day) or from completion; or on weekdays. When the instance is completed or skipped, the next one is created in the same write; later repeats inside the horizon are **ghosts** computed by the planner (they take slots, cannot be ticked). The date of a repeat goes where the task keeps its date: pin, else due date, else Not before. Missed repeats do not pile up. A series ends only by hand. A rule from completion has no ghosts (ADR-24). _Why:_ resetting one row would lose the done record D3/D19 need; storing the horizon needs writes at every rollover.
+
+**D21 — Task size: small, normal, large = ½, 1, 2 slots; a task is done within one day.** Capacity stays "normal tasks per day"; the task stores its weight in half-slots (1, 2, 4). First fit by priority: a large task waits for the first day that can hold it while lighter tasks go ahead. A task never weighs more than the biggest weekday. A large task of level 1–2 first in the queue may take a too-small day with overflow (one a day, never a rest day). Bigger jobs are split by hand. _Why:_ paying bills and re-roofing are not the same; hours would be a chore; spreading over days collides with other rules.
+
+**D22 — Task cards with a Done button; done tasks stay in sight.** A task is a card (title, chips, due line, Done / Completed); a tap opens the task menu on every list (a ghost opens the task). A task done today stays dimmed at the end of its section until the day ends; on the Plan a task done ahead stays on its planned day until that day is past; in Tasks a done task stays until the filter changes. No Undo snack bar. Tasks filters: Active, Focus, With due date, Recurring, Later, Done. The owner's mockups are a reference, not a contract (no due times, the app's own priority colours). The quiet card v2 (`CARD_SPEC.md`) puts the title first.
+
+**D23 — Allowed days.** A task can carry a set of weekdays ("only Thu and Fri"); it is placed only on those days, competes by priority there, and after a missed day simply lands on the next allowed one (nothing stored, nothing in Focus). With a due date it is forced on its last allowed day before the date; overdue → Focus as usual. A pin wins (a past pin moves to the nearest allowed day). It can be ticked on any day; repeats carry the set. No banners. _Why:_ offices with opening days and weekend chores; pins and weekday repeats describe one week or make a series out of one job.
 
 ## Glossary
-- **Capacity** — number of tasks the user wants on a given day.
-- **Pool** — all active tasks not yet placed.
-- **Focus** — a mark that keeps a task in sight; the task stays in the plan (D17). Replaces the Today flag.
-- **Focus strip** — top of the Today screen: focused and overdue tasks that are not on today's list, 3 visible + "+N more", sorted by priority (D17).
-- **Overdue** — `dueDate < today`; planned as a task without a date and automatically in Focus (D18).
-- **Critical** — just the label of priority 1 on the default scale; planned like any other level.
-- **Urgency boost** — temporary priority raise for tasks whose due date is close (D10).
-- **Forced** — a task placed on a day because of deadline feasibility, not priority.
-- **Overflow** — tasks on a day above its capacity (deadline-driven, bounded by `maxOverflowPerDay`).
+- **Capacity** — how many normal tasks the user wants on a day; a day override replaces it for one date.
+- **Slot / weight** — one normal task of capacity; weights are in half-slots (small 1, normal 2, large 4).
+- **Pool** — active tasks not yet placed.
+- **Focus** — a mark that keeps a task in sight; the task stays planned (D17).
+- **Overdue** — `dueDate < today`; planned as a task without a date, automatically in Focus (D18).
+- **Urgency boost** — a temporary raise by one or two levels for a task whose due date is close (D10).
+- **Forced** — placed on a day because of deadline feasibility, not priority.
+- **Over plan / overflow** — tasks on a day above its capacity, bounded by `maxOverflowPerDay`.
 - **At risk** — a task whose due date cannot be met with current capacity + overflow.
-- **Pinned** — task manually fixed to a date by the user.
-- **Horizon** — how many days ahead the planner fills (default 90). Tasks that do not fit are "Later".
-- **Series** — a recurring task over time: its done instances, the one active instance and the repeats still to come (D20).
-- **Instance** — a stored task of a series; at most one is active.
-- **Ghost** — a future repeat computed by the planner for the horizon: it takes a slot and is shown in the Plan, but it is not stored (D20).
-- **Not before** — the first day the planner may place a task on; set by the app for the next instance of a series.
+- **Pinned** — fixed to a date by the user ("Do on this day").
+- **Not before** — the first day the planner may place a task on (snooze; also set for the next instance of a series).
+- **Allowed days** — the weekdays a task may be planned on (D23).
+- **Horizon** — how many days ahead the planner fills (default 90); tasks that do not fit are **Later**.
+- **Series / instance / ghost** — a recurring task over time / one stored task of it (at most one active) / a future repeat computed by the planner, not stored (D20).

@@ -10,12 +10,13 @@ Flutter · Riverpod · drift (SQLite) · freezed · go_router. UI in Ukrainian a
 ## Documentation
 Product and technical docs live in [`docs/`](docs/Home.md) (an Obsidian vault):
 
-- [01 Brainstorm](docs/01%20Brainstorm.md): requirements and decisions D1–D21
+- [01 Brainstorm](docs/01%20Brainstorm.md): the product, features and decisions D1–D23
 - [02 Architecture](docs/02%20Architecture.md): layers, project structure, testing strategy
 - [03 Data Model](docs/03%20Data%20Model.md)
 - [04 Planner Algorithm](docs/04%20Planner%20Algorithm.md): the planner contract and its test table
 - [05 Roadmap](docs/05%20Roadmap.md) and [06 Task Backlog](docs/06%20Task%20Backlog.md)
 - [08 User Guide](docs/08%20User%20Guide.md) ([українською](docs/08%20User%20Guide%20uk.md)) and [09 Changelog](docs/09%20Changelog.md)
+- [archive](docs/archive/History.md): what each milestone built, superseded decisions
 
 ## Getting started
 Requirements: Flutter stable (3.50+), JDK 17, Android SDK (platform 36). For the Windows target: Visual Studio Build Tools 2022 with "Desktop development with C++" and Windows Developer Mode (plugins need symlinks). Web runs in Chrome.

@@ -1,7 +1,7 @@
 ---
 tags: [data-model]
 created: 2026-11-12
-updated: 2026-11-14
+updated: 2026-11-20
 ---
 # 03 Data Model
 
@@ -32,7 +32,7 @@ updated: 2026-11-14
 | `completedPlanDate` | `LocalDate?` | set at completion: the day the plan had the task on at that moment (T-907, D22, schema 4); null for a task the plan had not placed (Later) and for completions stored before schema 4. The Plan keeps the done task at the end of that day until the day is past (`Planner.keptOnDay`); the day's slot is planned again. Not a capacity input: D19 still counts only `completedOnPlan`. Cleared by uncomplete |
 | `deletedAt` | `DateTime?` (UTC) | soft delete = Trash (D14) and sync tombstone (D12); deleted rows are filtered out of every query except Trash; purged after 30 days |
 
-Invariants: `1 <= priority <= scale`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` and `completedPlanDate` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`). With D21: `weight >= 1`; the successor of a recurring task copies it. With D23: `allowedWeekdays` is `null` or holds 1..6 values within 0..6; the successor copies it.
+Invariants: `1 <= priority <= 10`; `completedAt != null` iff `status == done`; `focusedAt != null` iff `isFocused`; `completedOnPlan` and `completedPlanDate` only when `status == done`; `deletedAt == null` for every task the UI shows outside Trash. With D20: `recurrence != null` implies `seriesId != null` and `occurrenceDate != null`; a series has at most one instance that is active, not deleted and carries a rule (kept by the repository, not by `Task`). With D21: `weight >= 1`; the successor of a recurring task copies it. With D23: `allowedWeekdays` is `null` or holds 1..6 values within 0..6; the successor copies it.
 
 ### Recurrence (value object, D20, T-701)
 Two kinds, a sealed class in `lib/domain/model/recurrence.dart` (`IntervalRecurrence`, `WeekdaysRecurrence`; not `freezed`, so the factories refuse a broken rule with `ArgumentError` also in a release build, where assertions are off):
@@ -227,19 +227,20 @@ abstract interface class TaskRepository {
   Stream<List<Task>> watchTrash();               // latest deletion first
   Future<Task?> getById(String id);              // also finds a task in the Trash
   Future<void> upsert(Task task, DateTime now);
-  Future<void> complete(String id, DateTime now, {required bool onPlan}); // D19
-  Future<void> uncomplete(String id, DateTime now);
+  // Marks done and, for a recurring task, inserts the successor in the same transaction (D20).
+  // onPlan: on today's list (D19); plannedDate: the day of the entry shown (D22); today: plan day (D15).
+  Future<void> complete(String id, DateTime now,
+      {required bool onPlan, LocalDate? plannedDate, LocalDate? today});
+  Future<void> skip(String id, DateTime now, {LocalDate? today}); // instance to Trash + successor
+  // Only the last completion of a series comes back (T-713); asOrdinary drops the rule
+  // when the successor was changed since.
+  Future<UncompleteCheck> uncomplete(String id, DateTime now, {bool asOrdinary = false});
   Future<void> setFocus(String id, bool value, DateTime now);
   Future<void> delete(String id, DateTime now);  // soft delete: sets deletedAt (Trash)
   Future<void> restore(String id, DateTime now); // clears deletedAt
   Future<void> deleteForever(String id);         // "Delete forever" in the Trash
   Future<int> purgeDeleted(Duration olderThan, DateTime now); // housekeeping, 30 days
-  // Planned with T-705 (D20):
-  // - complete() and the new skip() also take `required LocalDate today` and insert the
-  //   successor of a recurring task in the same transaction;
-  // - skip(id, now, today: ...) moves the instance to the Trash and inserts the successor;
-  // - uncomplete() removes an untouched successor; restore() drops the rule when the
-  //   series has another active instance.
+  // restore() drops the rule when the series already has another active instance.
 }
 abstract interface class SettingsRepository {
   Stream<Settings> watch();                      // defaults when nothing is stored
@@ -256,12 +257,12 @@ abstract interface class DeviceSettingsRepository { // SharedPreferences, never 
 }
 ```
 
-## Backup format (version 2)
+## Backup format (version 6)
 One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `BackupCodec` (ADR-16 in [[02 Architecture]]):
 ```json
 {
   "app": "TasksOrder",
-  "version": 2,
+  "version": 6,
   "exportedAt": "2026-11-14T00:28:44.345Z",
   "settings": { "priorityScale": 5, "weeklyCapacity": [1,1,1,1,1,3,0], "maxOverflowPerDay": 1,
                 "planningHorizonDays": 90, "urgencySoonDays": 7, "urgencyNearDays": 2,
@@ -271,16 +272,12 @@ One JSON file, `tasksorder-backup-<yyyy-MM-dd>.json`, written and read by `Backu
   "dayOverrides": [ { "date": "2026-12-25", "capacity": 0, "note": "holiday" } ]
 }
 ```
-- Task fields are those of the `Task` table above; a field without a value (`notes`, `dueDate`, `focusedAt`, `pinnedDate`, `notBefore`, `completedAt`, `deletedAt`) is left out. `status` is `active` or `done`.
-- Instants are ISO-8601 UTC text, calendar days `yyyy-MM-dd`.
+- Task fields are those of the `Task` table above; a field without a value is left out (`notes`, `dueDate`, `focusedAt`, `pinnedDate`, `notBefore`, `completedAt`, `deletedAt`, `recurrence`, `seriesId`, `occurrenceDate`, `completedPlanDate`, `allowedWeekdays`), and so is `weight` when it is 2. `status` is `active` or `done`; `recurrence` is the JSON object shown under Recurrence.
+- Instants are ISO-8601 UTC text, calendar days `yyyy-MM-dd`. `priority` is the level 1..10.
 - `tasks` holds the Trash too (`deletedAt`); `dayOverrides` only the ones in force. Device settings are not in the file.
-- `priority` is the level 1..10 (ADR-17). In version 1 it was the position in the file's `priorityScale`; such a file is still read, each priority turned into the level at that position, as the schema migration does.
-- Reading checks the invariants of `Task` and `Settings`; a file that breaks them, or with `version` above 2, is refused and nothing changes. A priority outside 1..10 (or outside the scale of a version 1 file) is moved to the nearest end. Unknown fields are ignored.
+- Reading checks the invariants of `Task`, `Recurrence` and `Settings` (a rule comes with `seriesId` and `occurrenceDate`; no series has two active instances with a rule outside the Trash; `completedPlanDate` only on a done task; `weight >= 1`; `allowedWeekdays` non-empty, within 0..6, no repeats, all seven read as none). A file that breaks them, or with a `version` above 6, is refused and nothing changes. A priority outside 1..10 is moved to the nearest end. Unknown fields are ignored.
 - Restore replaces everything after a confirmation (`BackupRepository.replaceAll`, one transaction). Tasks keep their timestamps.
-- **Version 3 (T-706, D20):** a task may also carry `recurrence` (the JSON object shown under Recurrence), `seriesId` and `occurrenceDate`; all three are left out for an ordinary task. Reading checks the rule (`every ≥ 1`, a known `unit`, `anchor` exactly when `afterDone` is false, `days` non-empty within 0..6), that a rule comes with `seriesId` and `occurrenceDate`, and that no series has two active instances with a rule outside the Trash. Files of version 1 and 2 are read as before. The version goes up because an older app ignores unknown fields and would silently drop the rules; with 3 it refuses the file.
-- **Version 4 (T-907, D22):** a done task may carry `completedPlanDate`; it is left out when there is none, and a file of version 1–3 reads with none. On an active task it is refused. The version goes up for the same reason as with 3.
-- **Version 5 (T-804, D21):** a task may carry `weight` (half-slots, ≥ 1); it is left out for a normal task (2), and a file of version 1–4 reads with 2 everywhere. A weight below 1 is refused. The version goes up for the same reason as with 3.
-- **Version 6 (T-1004, D23):** a task may carry `allowedWeekdays` (an array of weekdays 0..6, Monday = 0); it is left out for a task without the limit, and a file of version 1–5 reads with none. An empty array, a value outside 0..6 or a repeated value is refused; all seven days read as no limit. The version goes up for the same reason as with 3.
+- Older files are read: 1 (priority = position in the file's scale, converted as schema 1 → 2 does), 2, 3 (+ recurrence, T-706), 4 (+ `completedPlanDate`, T-907), 5 (+ `weight`, T-804). Each new field raised the version because an older app ignores unknown fields and would silently drop it; with a higher version it refuses the file.
 
 ```dart
 abstract interface class BackupRepository {

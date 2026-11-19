@@ -1,7 +1,7 @@
 ---
 tags: [algorithm, planner]
 created: 2026-11-12
-updated: 2026-11-14
+updated: 2026-11-20
 ---
 # 04 Planner Algorithm
 
@@ -294,7 +294,6 @@ Result:
 
 Without the boost (thresholds 0 / 0) only Thu and Fri swap: **F** on Thu by priority, **E** on Fri (same priority as B, but it has a due date). Forcing alone already spreads the deadlines here; the boost only decides who goes first among the tasks that are not forced. It matters more when there is spare capacity (example 2).
 
-_Corrected 2026-11-13 (T-108): the first version of this table kept E in tier 2 on Thu/Fri, which contradicts the `effPriority` formula; the formula is the rule. Changed 2026-11-13 (T-111): K is focused instead of Today-flagged, so it is planned (Sat) instead of sitting outside the plan._
 
 ## Worked example 2 — urgency boost with spare capacity (D10b)
 Capacity 2/day Mon–Fri. Today Mon. Tasks: A, F (High), B, G, H (Normal) without due; L (Low) due Thu.
