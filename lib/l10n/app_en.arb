@@ -604,9 +604,9 @@
   "@actionAdd": {
     "description": "Button of the quick-add sheet: create the task"
   },
-  "quickAddPinToday": "Today",
+  "quickAddPinToday": "Pin to today",
   "@quickAddPinToday": {
-    "description": "Chip of the quick-add sheet: pin the new task to today (T-1102)"
+    "description": "Tooltip of the pin button of the quick-add sheet: pin the new task to today (T-1102)"
   },
   "quickAddFullEditor": "Full editor",
   "@quickAddFullEditor": {

@@ -135,8 +135,8 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<FilterChip>(find.byKey(const ValueKey('quickAddPinToday')))
-            .selected,
+            .widget<IconButton>(find.byKey(const ValueKey('quickAddPinToday')))
+            .isSelected,
         isTrue,
       );
       await tester.tap(find.text('Add'));
@@ -229,6 +229,23 @@ void main() {
     });
   });
 
+  testWidgets('another tab closes the sheet', (tester) async {
+    await AppHarness.start(tester);
+    await open(tester);
+    await tester.enterText(find.byType(TextField), 'Buy milk');
+
+    await tester.tap(find.byType(NavigationDestination).at(2));
+    await tester.pumpAndSettle();
+
+    // Not just hidden with the tab: gone, with its keyboard.
+    expect(find.byType(QuickAddSheet, skipOffstage: false), findsNothing);
+    expect(tester.testTextInput.isVisible, isFalse);
+
+    await tester.tap(find.byType(NavigationDestination).at(0));
+    await tester.pumpAndSettle();
+    expect(find.byType(QuickAddSheet), findsNothing);
+  });
+
   testWidgets('ticking a task gives haptic feedback', (tester) async {
     await AppHarness.start(tester, tasks: [testTask('a')]);
     final haptics = recordHaptics(tester);
@@ -246,7 +263,7 @@ void main() {
     expect(find.text('Назва'), findsOneWidget);
     expect(find.text('Додати'), findsOneWidget);
     expect(find.text('Звичайний'), findsOneWidget);
-    expect(find.text('На сьогодні'), findsOneWidget);
+    expect(find.byTooltip('Закріпити на сьогодні'), findsOneWidget);
     expect(find.byTooltip('Повний редактор'), findsOneWidget);
   });
 }

@@ -42,6 +42,19 @@ class _QuickAddSheetState extends ConsumerState<QuickAddSheet> {
   bool _saving = false;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The sheet lives in the navigator of the Today tab: another tab only
+    // hides it, with its keyboard. Close it instead, as if dismissed.
+    if (!TickerMode.valuesOf(context).enabled) {
+      final route = ModalRoute.of(context);
+      if (route != null && route.isActive) {
+        Navigator.of(context).removeRoute(route);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _title.dispose();
     super.dispose();
@@ -124,24 +137,28 @@ class _QuickAddSheetState extends ConsumerState<QuickAddSheet> {
           const SizedBox(height: 16),
           Row(
             children: [
+              IconButton.outlined(
+                key: const ValueKey('quickAddPinToday'),
+                isSelected: _pinToday,
+                icon: const Icon(Icons.push_pin_outlined),
+                selectedIcon: const Icon(Icons.push_pin),
+                tooltip: l10n.quickAddPinToday,
+                // A square as tall as the priority field next to it.
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(56),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                onPressed: () => setState(() => _pinToday = !_pinToday),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: PriorityDropdown(
                   scale: scale,
                   value: priority,
                   onChanged: (value) => setState(() => _priority = value),
                 ),
-              ),
-              const SizedBox(width: 12),
-              FilterChip(
-                key: const ValueKey('quickAddPinToday'),
-                avatar: Icon(
-                  _pinToday ? Icons.push_pin : Icons.push_pin_outlined,
-                  size: 18,
-                ),
-                showCheckmark: false,
-                label: Text(l10n.quickAddPinToday),
-                selected: _pinToday,
-                onSelected: (value) => setState(() => _pinToday = value),
               ),
             ],
           ),
