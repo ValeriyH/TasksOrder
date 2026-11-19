@@ -688,6 +688,96 @@ void main() {
     });
   });
 
+  group('notes on the card (T-1103)', () {
+    Task withNotes(String? notes) => testTask('a').copyWith(notes: notes);
+
+    testWidgets('no notes, or only blanks: no block', (tester) async {
+      await pump(tester, card(testTask('a')));
+      expect(find.byType(TaskNotes), findsNothing);
+
+      await pump(tester, card(withNotes('  \n ')));
+      expect(find.byType(TaskNotes), findsNothing);
+    });
+
+    testWidgets('closed: the first line, between the chips and the button', (
+      tester,
+    ) async {
+      await pump(tester, card(withNotes('Gas, power\nSecond line')));
+
+      expect(find.text('Gas, power'), findsOneWidget);
+      expect(find.textContaining('Second line'), findsNothing);
+      final notes = tester.getRect(find.byType(TaskNotes));
+      expect(
+        notes.top,
+        greaterThan(tester.getBottomLeft(find.byType(PriorityChip)).dy),
+      );
+      expect(
+        notes.bottom,
+        lessThan(tester.getTopLeft(find.byType(TaskDoneButton)).dy),
+      );
+      expect(notes.height, greaterThanOrEqualTo(44));
+    });
+
+    testWidgets('a tap opens the whole text and does not open the menu', (
+      tester,
+    ) async {
+      var menu = 0;
+      await pump(
+        tester,
+        card(withNotes('Gas, power\nSecond line'), onTap: () => menu++),
+      );
+
+      await tester.tap(find.text('Gas, power'));
+      await tester.pumpAndSettle();
+      expect(find.text('Notes'), findsOneWidget);
+      final text = tester.widget<SelectableText>(find.byType(SelectableText));
+      expect(text.data, 'Gas, power\nSecond line');
+
+      // The padding left of the text belongs to the block too.
+      final block = tester.getRect(find.byType(TaskNotes));
+      await tester.tapAt(block.bottomLeft + const Offset(10, -10));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Notes'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SelectableText), findsNothing);
+      expect(find.text('Gas, power'), findsOneWidget);
+      expect(menu, 0);
+    });
+
+    testWidgets('the screen reader hears show and hide', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pump(tester, card(withNotes('Gas')));
+
+      expect(find.bySemanticsLabel('Show notes: Task a'), findsOneWidget);
+      await tester.tap(find.text('Gas'));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Hide notes: Task a'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('a ghost shows the notes and keeps its tap for the block', (
+      tester,
+    ) async {
+      var opened = 0;
+      await pump(
+        tester,
+        GhostTaskCard(task: withNotes('Gas'), scale: 5, onTap: () => opened++),
+      );
+
+      expect(find.byType(TaskNotes), findsOneWidget);
+      await tester.tap(find.text('Gas'));
+      await tester.pumpAndSettle();
+      expect(find.text('Notes'), findsOneWidget);
+      expect(opened, 0);
+    });
+
+    testWidgets('a done task keeps the block', (tester) async {
+      await pump(tester, card(withNotes('Gas'), isDone: true));
+      expect(find.byType(TaskNotes), findsOneWidget);
+    });
+  });
+
   testWidgets('dark theme: no shadow on the card', (tester) async {
     await pump(tester, card(testTask('a')), brightness: Brightness.dark);
 

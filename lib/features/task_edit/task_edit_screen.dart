@@ -302,7 +302,12 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          // A padding of its own turns off the list's safe area, so the
+          // system navigation would cover the last row (Repeat) without it.
+          padding: EdgeInsets.only(
+            top: 16,
+            bottom: 16 + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -348,52 +353,10 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            _DateTile(
-              icon: Icons.event_outlined,
-              label: l10n.taskDueDateLabel,
-              value: _dueDate == null
-                  ? null
-                  : dates.formatFullDate(_dateTime(_dueDate!)),
-              onTap: () => unawaited(
-                _pickDate(
-                  current: _dueDate,
-                  today: today,
-                  onPicked: (date) => _dueDate = date,
-                ),
-              ),
-              onClear: () => setState(() => _dueDate = null),
-            ),
-            _DateTile(
-              key: const ValueKey('notBefore'),
-              icon: Icons.hourglass_empty,
-              label: l10n.taskNotBeforeLabel,
-              value: _notBefore == null
-                  ? null
-                  : dates.formatFullDate(_dateTime(_notBefore!)),
-              hint: l10n.taskNotBeforeHint,
-              error: _dueBeforeNotBefore ? l10n.taskDueBeforeNotBefore : null,
-              onTap: () => unawaited(
-                _pickDate(
-                  current: _notBefore,
-                  today: today,
-                  onPicked: (date) => _notBefore = date,
-                ),
-              ),
-              onClear: () => setState(() => _notBefore = null),
-            ),
-            _DaysTile(
-              days: _allowedDays,
-              warning: switch (_allowedDays) {
-                final days? => _daysWarning(l10n, days, settings, today),
-                null => null,
-              },
-              onTap: () => unawaited(_pickDays()),
-              onClear: () => setState(() => _allowedDays = null),
-            ),
             SwitchListTile(
               secondary: const Icon(Icons.center_focus_strong_outlined),
               title: Text(l10n.taskFocusLabel),
-              subtitle: Text(l10n.taskFocusHint),
+              subtitle: Text(l10n.taskFocusHint, style: _hintStyle(context)),
               value: _focused,
               onChanged: (value) => setState(() => _focused = value),
             ),
@@ -418,6 +381,48 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
                       child: Text(l10n.dateToday),
                     ),
             ),
+            _DateTile(
+              key: const ValueKey('notBefore'),
+              icon: Icons.hourglass_empty,
+              label: l10n.taskNotBeforeLabel,
+              value: _notBefore == null
+                  ? null
+                  : dates.formatFullDate(_dateTime(_notBefore!)),
+              hint: l10n.taskNotBeforeHint,
+              error: _dueBeforeNotBefore ? l10n.taskDueBeforeNotBefore : null,
+              onTap: () => unawaited(
+                _pickDate(
+                  current: _notBefore,
+                  today: today,
+                  onPicked: (date) => _notBefore = date,
+                ),
+              ),
+              onClear: () => setState(() => _notBefore = null),
+            ),
+            _DateTile(
+              icon: Icons.event_outlined,
+              label: l10n.taskDueDateLabel,
+              value: _dueDate == null
+                  ? null
+                  : dates.formatFullDate(_dateTime(_dueDate!)),
+              onTap: () => unawaited(
+                _pickDate(
+                  current: _dueDate,
+                  today: today,
+                  onPicked: (date) => _dueDate = date,
+                ),
+              ),
+              onClear: () => setState(() => _dueDate = null),
+            ),
+            _DaysTile(
+              days: _allowedDays,
+              warning: switch (_allowedDays) {
+                final days? => _daysWarning(l10n, days, settings, today),
+                null => null,
+              },
+              onTap: () => unawaited(_pickDays()),
+              onClear: () => setState(() => _allowedDays = null),
+            ),
             _RepeatTile(
               rule: _recurrence,
               hint: _pinnedDate != null
@@ -432,6 +437,15 @@ class _TaskEditScreenState extends ConsumerState<TaskEditScreen> {
       ),
     );
   }
+}
+
+/// The quiet line under a field that says what it does: the size of the
+/// hint under Size, so every field explains itself in the same small text.
+TextStyle? _hintStyle(BuildContext context) {
+  final theme = Theme.of(context);
+  return theme.textTheme.bodySmall?.copyWith(
+    color: theme.colorScheme.onSurfaceVariant,
+  );
 }
 
 /// A row that shows a date, opens the date picker on tap and has a button to
@@ -483,8 +497,10 @@ class _DateTile extends StatelessWidget {
                   TextSpan(
                     text: note,
                     style: error == null
-                        ? null
-                        : TextStyle(color: Theme.of(context).colorScheme.error),
+                        ? _hintStyle(context)
+                        : _hintStyle(context)?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                   ),
                 ],
               ),
@@ -531,11 +547,19 @@ class _DaysTile extends StatelessWidget {
       key: const ValueKey('days'),
       leading: const Icon(Icons.date_range),
       title: Text(l10n.taskDaysLabel),
-      subtitle: Text(
-        days == null
-            ? l10n.taskDaysAny
-            : '${weekdaysText(l10n, days)}\n${warning ?? l10n.taskDaysHint}',
-      ),
+      subtitle: days == null
+          ? Text(l10n.taskDaysAny)
+          : Text.rich(
+              TextSpan(
+                text: '${weekdaysText(l10n, days)}\n',
+                children: [
+                  TextSpan(
+                    text: warning ?? l10n.taskDaysHint,
+                    style: _hintStyle(context),
+                  ),
+                ],
+              ),
+            ),
       isThreeLine: days != null,
       onTap: onTap,
       trailing: days == null
@@ -570,9 +594,14 @@ class _RepeatTile extends StatelessWidget {
       key: const ValueKey('repeat'),
       leading: const Icon(Icons.repeat),
       title: Text(l10n.repeatTitle),
-      subtitle: Text(
-        rule == null ? l10n.repeatNever : '${repeatSummary(l10n, rule)}\n$hint',
-      ),
+      subtitle: rule == null
+          ? Text(l10n.repeatNever)
+          : Text.rich(
+              TextSpan(
+                text: '${repeatSummary(l10n, rule)}\n',
+                children: [TextSpan(text: hint, style: _hintStyle(context))],
+              ),
+            ),
       isThreeLine: rule != null,
       onTap: onTap,
     );
@@ -610,12 +639,7 @@ class _SizePicker extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          l10n.taskSizeHint,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
+        Text(l10n.taskSizeHint, style: _hintStyle(context)),
       ],
     );
   }

@@ -97,17 +97,17 @@ Not a store of the plan: a copy the Android widget reads because it cannot compu
 
 ```json
 {
-  "format": 1,
+  "format": 2,
   "dayStartHour": 0,
   "stale": "Open TasksOrder to update the plan",
   "days": [
-    {"date": "2026-11-15", "header": "Today · 2/3", "lines": ["Call mom", "Pay bills"], "empty": null},
-    {"date": "2026-11-16", "header": "Today", "lines": [], "empty": "Rest day"}
+    {"date": "2026-11-15", "header": "Today · 2/3", "lines": ["Call mom", "Pay bills"], "dots": [4292030255, 4281896508], "empty": null},
+    {"date": "2026-11-16", "header": "Today", "lines": [], "dots": [], "empty": "Rest day"}
   ]
 }
 ```
 
-Seven days from today. Texts are in the app's language. `lines` holds at most 8 entries, the last one "+N more" when there are more tasks; `empty` is set only when `lines` is empty ("All done for today", "Rest day" or "Nothing planned for today"). The widget shows the entry whose `date` is the current plan day and `stale` when there is none. A change of the format raises `format`.
+Seven days from today. Texts are in the app's language. `lines` holds at most 8 entries, the last one "+N more" when there are more tasks; `dots` (format 2, T-1107) has one entry per line, the ARGB colour of the task's priority on the scale of the settings (`PriorityLabels.color`), and `null` for "+N more" (the widget draws a grey dot for it, and for a cache of format 1); `empty` is set only when `lines` is empty ("All done for today", "Rest day" or "Nothing planned for today"). The widget shows the entry whose `date` is the current plan day and `stale` when there is none. A change of the format raises `format`.
 
 ### DayOverride
 | Field | Type | Notes |

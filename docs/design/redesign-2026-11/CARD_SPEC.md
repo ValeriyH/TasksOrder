@@ -26,6 +26,7 @@
 | 12 | — | Чипи **завжди показуються всі**, без «+N» і без обрізання. Переносяться на новий рядок (`Wrap`) |
 | 13 | Порядок: пріоритет, фокус, закріплено, повтор, план, понад план | Порядок: **пріоритет, фокус, закріплено, понад план, повтор, план** (важливе — першим) |
 | 14 | Виконана задача: чип пріоритету лишався кольоровим | Виконана задача: чип пріоритету **нейтральний** (і для «Критичний»), крапка сіра (`priorityDotDone`) |
+| 15 | Нотатки на картці не показувались | **Блок нотаток**, що розгортається: згорнутий показує перший рядок, розгорнутий — увесь текст (див. «Нотатки»). Також на картці-привиді в «Плані» |
 
 Без змін: контейнер картки (radius 18, padding `fromLTRB(16, 14, 14, 12)`, фон, тінь), кнопка «Готово» / «Виконано», стан «виконано» (opacity 0.62, перекреслена назва, переміщення вниз групи), правила, які чипи показуються на якому екрані.
 
@@ -38,8 +39,22 @@
 │ (● Високий) (📌 Закріплено) (+ Понад план)   │  чипи, Wrap, spacing 6, runSpacing 6
 │ (↻ Щомісяця)                                 │
 │                                              │  ↕ 10
+│ ┌──────────────────────────────────────────┐ │  блок нотаток (опційно)
+│ │ 📝 Газ, світло, вода. Передати показ…  ⌄ │ │  згорнутий: 1 рядок + стрілка
+│ └──────────────────────────────────────────┘ │
+│                                              │  ↕ 10
 │ 🕑 Прострочено на 2 дні           [✓ Готово]  │  термін (опційно) + кнопка
 └──────────────────────────────────────────────┘
+```
+
+Нотатки розгорнуті:
+
+```
+│ ┌──────────────────────────────────────────┐ │
+│ │ 📝 Нотатки                             ⌃ │ │
+│ │    Розділи: підсумки кварталу, ризики…   │ │  повний текст, переноси зберігаються
+│ │    Надіслати Олені до 17:30…             │ │
+│ └──────────────────────────────────────────┘ │
 ```
 
 Без дедлайну:
@@ -72,6 +87,33 @@
 
 Виконана задача: усі чипи нейтральні, крапка пріоритету `priorityDotDone`.
 
+## Нотатки
+
+Показуються лише якщо в задачі є непорожні нотатки (`notes.trim().isNotEmpty`). Розташування: між рядком чипів і нижнім рядком, відступи 10 зверху й знизу (загальний gap картки).
+
+**Контейнер:** на всю ширину картки, radius 12, фон `notesBg`, `clipBehavior: Clip.antiAlias`. Розгортання анімоване (`AnimatedSize`, 200 мс, `Curves.easeOut`).
+
+**Рядок-перемикач** (увесь рядок натискається):
+- minHeight 44, padding `fromLTRB(12, 0, 8, 0)`, gap 8.
+- Зліва іконка `Icons.description_outlined` 15, колір `metaText`.
+- **Згорнуто:** перший рядок нотаток (до першого `\n`), 13 / w500, `metaText`, `maxLines: 1`, `ellipsis`.
+- **Розгорнуто:** заголовок «Нотатки», 13 / w600, `metaText`.
+- Справа стрілка `Icons.expand_more` 16 у полі 28×28, колір `metaText`. Розгорнуто: поворот на 180° (`AnimatedRotation`, 200 мс).
+
+**Текст нотаток** (лише розгорнуто):
+- 14 / w400, height 21/14, колір `notesText`.
+- padding `fromLTRB(35, 0, 14, 14)` — текст вирівняний під першою літерою заголовка, а не під іконкою.
+- Переноси рядків зберігаються. Без обмеження кількості рядків.
+- Текст можна виділяти (`SelectableText`). Посилання не підсвічуються: `Linkify` — нова залежність, поки не додана (0.8.1).
+
+**Поведінка:**
+- Стан згорнуто/розгорнуто — локальний для картки (не зберігається в БД). За замовчуванням згорнуто.
+- Натискання на блок нотаток **не відкриває** редагування задачі (не передає `onTap` картки).
+- Виконана задача: блок лишається і працює так само, просто приглушений разом з карткою (opacity 0.62).
+- Картка-привид (наступний повтор у «Плані»): блок такий самий, приглушений разом з привидом (opacity 0.6); натискання на нотатки не відкриває задачу.
+- Відступи навколо тексту теж належать блоку: натискання в них не доходить до картки.
+- Семантика: `Semantics(button: true, expanded: isOpen, label: 'Показати нотатки: {title}' / 'Сховати нотатки: {title}')`.
+
 ## Нижній рядок
 
 - `Row`: з терміном — [іконка + термін у `Expanded`] [12] [кнопка]; без терміну — `Spacer()` [кнопка].
@@ -93,6 +135,8 @@
 | `priorityDot.low` | #2563EB | #60A5FA |
 | `priorityDot.someday` | #9CA3AF | #6B7280 |
 | `priorityDotDone` | #D1D5DB | #4B5563 |
+| `notesBg` | #F6F7F9 | #20242C |
+| `notesText` | #374151 | #D1D5DB |
 
 Фон нейтрального чипа — наявний `neutralChipBg` (світла #F3F4F6, темна #262A33).
 Контраст `metaText` на `neutralChipBg` за оцінкою ≈ 5:1 в обох темах (мінімум 4.5:1). Текст чипів не роби світлішим.
@@ -103,6 +147,8 @@ final Color metaText;
 final Color metaExtra;
 final Map<TaskPriority, Color> priorityDot;
 final Color priorityDotDone;
+final Color notesBg;
+final Color notesText;
 
 // light
 metaText: Color(0xFF5F6673),
@@ -115,6 +161,8 @@ priorityDot: {
   TaskPriority.someday: Color(0xFF9CA3AF),
 },
 priorityDotDone: Color(0xFFD1D5DB),
+notesBg: Color(0xFFF6F7F9),
+notesText: Color(0xFF374151),
 
 // dark
 metaText: Color(0xFF9CA3AF),
@@ -127,6 +175,8 @@ priorityDot: {
   TaskPriority.someday: Color(0xFF6B7280),
 },
 priorityDotDone: Color(0xFF4B5563),
+notesBg: Color(0xFF20242C),
+notesText: Color(0xFFD1D5DB),
 ```
 
 ## Довідкова реалізація (замінює `PriorityChip`, `MetaChip`, `TaskCard` з v1)
@@ -203,6 +253,78 @@ class MetaChipV2 extends StatelessWidget {
   }
 }
 
+class TaskNotes extends StatefulWidget {
+  const TaskNotes({super.key, required this.notes, required this.taskTitle, required this.label});
+  final String notes;
+  final String taskTitle;
+  final String label; // «Нотатки»
+
+  @override
+  State<TaskNotes> createState() => _TaskNotesState();
+}
+
+class _TaskNotesState extends State<TaskNotes> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<TasksOrderColors>()!;
+    final firstLine = widget.notes.split('\n').first;
+    return Material(
+      color: c.notesBg,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        alignment: Alignment.topCenter,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Semantics(
+            button: true,
+            expanded: _open,
+            label: '${_open ? 'Сховати нотатки' : 'Показати нотатки'}: ${widget.taskTitle}',
+            excludeSemantics: true,
+            child: InkWell(
+              onTap: () => setState(() => _open = !_open),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
+                  child: Row(children: [
+                    Icon(Icons.description_outlined, size: 15, color: c.metaText),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _open ? widget.label : firstLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, fontWeight: _open ? FontWeight.w600 : FontWeight.w500, color: c.metaText),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: _open ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: SizedBox(width: 28, height: 28, child: Icon(Icons.expand_more, size: 16, color: c.metaText)),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+          if (_open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(35, 0, 14, 14),
+              child: SelectableText(
+                widget.notes,
+                style: TextStyle(fontSize: 14, height: 21 / 14, color: c.notesText),
+              ),
+            ),
+        ]),
+      ),
+    );
+  }
+}
+
 class TaskCardV2 extends StatelessWidget {
   const TaskCardV2({
     super.key,
@@ -215,6 +337,8 @@ class TaskCardV2 extends StatelessWidget {
     required this.doneButton, // _DoneButton з v1 без змін
     this.dueLabel, // null => рядок терміну не показується
     this.dueIsAlert = false,
+    this.notes, // null/порожньо => блок нотаток не показується
+    this.notesLabel = 'Нотатки',
     this.onTap,
   });
 
@@ -227,6 +351,8 @@ class TaskCardV2 extends StatelessWidget {
   final Widget doneButton;
   final String? dueLabel;
   final bool dueIsAlert;
+  final String? notes;
+  final String notesLabel;
   final VoidCallback? onTap;
 
   @override
@@ -264,6 +390,10 @@ class TaskCardV2 extends StatelessWidget {
                   PriorityChipV2(priority: priority, label: priorityLabel, isDone: isDone),
                   ...metaChips,
                 ]),
+                if (notes != null && notes!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  TaskNotes(notes: notes!.trim(), taskTitle: title, label: notesLabel),
+                ],
                 const SizedBox(height: 10),
                 Row(children: [
                   if (dueLabel != null) ...[
@@ -290,13 +420,30 @@ class TaskCardV2 extends StatelessWidget {
 
 ## Локалізація
 
-| Ключ (пропозиція) | uk | en |
+| Ключ | uk | en |
 |---|---|---|
-| `extraChip` | + Понад план | + Over plan |
-| `plannedOnShort` | На {date} | On {date} |
-| `plannedOnToday` | На сьогодні | Today |
+| `reasonOverflow` (у пропозиції `extraChip`) | + Понад план | + Over plan |
+| `plannedFor` (у пропозиції `plannedOnShort`) | На {date} | On {date} |
+| `plannedToday` (у пропозиції `plannedOnToday`) | На сьогодні | Today |
+| `notesTitle` | Нотатки | Notes |
+| `showNotesA11y` | Показати нотатки: {title} | Show notes: {title} |
+| `hideNotesA11y` | Сховати нотатки: {title} | Hide notes: {title} |
 
-Рядок `noDueDate` («Без терміну») з v1 у картці більше не використовується.
+Рядок `noDueDate` («Без терміну») з v1 у картці більше не використовується (видалений).
+`notesTitle` окремий від `taskNotesLabel` редактора, хоч текст той самий.
+
+## Реалізація в застосунку (0.8.1)
+
+- `TaskNotes` у `lib/shared/task_card.dart`; кольори `AppColors.notesBg`, `notesText` (значення зі спеки), `AppDims.notesRadius` 12 і `notesAnim` 200 мс.
+- Контраст перевіряє `test/app/app_colors_test.dart`: `notesText` і `metaText` на `notesBg` ≥ 4.5:1 в обох темах.
+
+## Редактор задачі (доповнення, 0.8.1)
+
+Не картка, але той самий тюнінг. Редактор нової й наявної задачі однаковий.
+
+**Порядок полів згори донизу:** Назва, Нотатки, Пріоритет, Розмір, Фокус, Зробити цього дня, Не раніше, Кінцевий термін, Дні, Повторювати.
+
+**Підказки** (рядок, що пояснює, що робить поле) мають один стиль, такий як під «Розміром»: `bodySmall`, колір `onSurfaceVariant`. Це підказки «Фокус», «Не раніше», «Дні» і «Повторювати». Значення поля (дата, «Не задано», дні, правило повтору) лишається звичайного розміру підзаголовка. Помилка замість підказки (кінцевий термін раніше за «Не раніше») того ж розміру, колір `error`.
 
 ## Перевірка
 
@@ -305,3 +452,7 @@ class TaskCardV2 extends StatelessWidget {
 - [ ] Задача з 4+ позначками показує всі, рядок чипів переноситься.
 - [ ] Без дедлайну рядка терміну немає, кнопка стоїть справа.
 - [ ] У виконаної критичної задачі чип нейтральний.
+- [ ] Блок нотаток з'являється лише за наявності нотаток; згорнутий показує перший рядок з «…».
+- [ ] Розгортання плавне, текст зберігає переноси, натискання на нотатки не відкриває редагування.
+- [ ] Привид у «Плані» з нотатками показує той самий блок.
+- [ ] Редактор: поля в порядку зі спеки, підказки «Фокус» і «Не раніше» такі ж дрібні, як під «Розміром».

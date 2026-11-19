@@ -1,5 +1,6 @@
 import 'package:tasks_order/domain/model/local_date.dart';
 import 'package:tasks_order/domain/model/plan.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/task.dart';
 
 /// One day of the home-screen widget (T-601): what the Today screen would
@@ -8,6 +9,7 @@ final class WidgetDay {
   const WidgetDay({
     required this.date,
     required this.titles,
+    this.colors = const [],
     this.doneCount = 0,
     this.isRestDay = false,
   });
@@ -16,6 +18,10 @@ final class WidgetDay {
 
   /// Titles of the tasks still planned for [date], in plan order.
   final List<String> titles;
+
+  /// The priority colour (`PriorityLabels.color`, ARGB) of each of [titles],
+  /// for the dot before the title.
+  final List<int> colors;
 
   /// Tasks of the day's list already completed; only today has any.
   final int doneCount;
@@ -30,12 +36,20 @@ final class WidgetDay {
       other.doneCount == doneCount &&
       other.isRestDay == isRestDay &&
       other.titles.length == titles.length &&
+      other.colors.length == colors.length &&
       Iterable<int>.generate(titles.length)
-          .every((i) => other.titles[i] == titles[i]);
+          .every((i) => other.titles[i] == titles[i]) &&
+      Iterable<int>.generate(colors.length)
+          .every((i) => other.colors[i] == colors[i]);
 
   @override
-  int get hashCode =>
-      Object.hash(date, doneCount, isRestDay, Object.hashAll(titles));
+  int get hashCode => Object.hash(
+    date,
+    doneCount,
+    isRestDay,
+    Object.hashAll(titles),
+    Object.hashAll(colors),
+  );
 
   @override
   String toString() => 'WidgetDay($date, $titles, done $doneCount)';
@@ -49,25 +63,33 @@ final class WidgetDay {
 /// today are a forecast, as for the morning notification (ADR-20).
 ///
 /// [doneToday] is the number of completions from today's list
-/// (`Planner.countCompletedToday`).
+/// (`Planner.countCompletedToday`); [scale] is the priority scale of the
+/// settings, for the colours of the dots.
 List<WidgetDay> widgetDays({
   required Plan plan,
   required Map<String, Task> tasksById,
   required int doneToday,
+  required int scale,
   int days = 7,
 }) => [
   for (final day in plan.days.take(days))
-    _widgetDay(day, tasksById, day.date == plan.today ? doneToday : 0),
+    _widgetDay(day, tasksById, day.date == plan.today ? doneToday : 0, scale),
 ];
 
-WidgetDay _widgetDay(PlannedDay day, Map<String, Task> tasksById, int done) {
-  final titles = [
-    for (final entry in day.entries)
-      if (tasksById[entry.taskId] case final task?) task.title,
-  ];
+WidgetDay _widgetDay(
+  PlannedDay day,
+  Map<String, Task> tasksById,
+  int done,
+  int scale,
+) {
+  final tasks = [for (final entry in day.entries) ?tasksById[entry.taskId]];
+  final titles = [for (final task in tasks) task.title];
   return WidgetDay(
     date: day.date,
     titles: titles,
+    colors: [
+      for (final task in tasks) PriorityLabels.color(task.priority, scale),
+    ],
     doneCount: done,
     // Today's capacity is already reduced by the completions (D19).
     isRestDay: titles.isEmpty && done == 0 && day.capacity == 0,

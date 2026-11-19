@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -105,6 +106,72 @@ void main() {
     of: find.byType(PriorityDropdown),
     matching: find.text(name),
   );
+
+  group('layout', () {
+    testWidgets('the fields go in their order, top to bottom', (tester) async {
+      await pumpApp(tester);
+      await openNew(tester);
+
+      double top(Finder finder) => tester.getTopLeft(finder).dy;
+      final tops = [
+        top(field('Title')),
+        top(field('Notes')),
+        top(find.byType(PriorityDropdown)),
+        top(find.byKey(const ValueKey('size'))),
+        top(find.text('Focus')),
+        top(find.text('Do on this day')),
+        top(find.text('Not before')),
+        top(find.text('Due date')),
+        top(find.text('Days')),
+        top(find.text('Repeat')),
+      ];
+      expect(tops, [...tops]..sort());
+      expect(tops.toSet(), hasLength(tops.length));
+    });
+
+    testWidgets('the last row clears the system navigation', (tester) async {
+      tester.view.padding = const FakeViewPadding(bottom: 144);
+      addTearDown(tester.view.resetPadding);
+      await pumpApp(tester);
+      await openNew(tester);
+
+      // Small window: the list has to scroll to its end.
+      await tester.binding.setSurfaceSize(const Size(400, 700));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView), const Offset(0, -2000));
+      await tester.pumpAndSettle();
+
+      final inset = 144 / tester.view.devicePixelRatio;
+      final repeat = tester.getRect(find.byKey(const ValueKey('repeat')));
+      expect(repeat.bottom, lessThanOrEqualTo(700 - inset));
+    });
+
+    testWidgets('every hint is as small as the hint under Size', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await openNew(tester);
+
+      double size(String hint) {
+        final text = tester.renderObject<RenderParagraph>(
+          find.textContaining(hint, findRichText: true).last,
+        );
+        late double found;
+        text.text.visitChildren((span) {
+          if (span case TextSpan(:final text?) when text.contains(hint)) {
+            found = span.style?.fontSize ?? double.nan;
+            return false;
+          }
+          return true;
+        });
+        return found;
+      }
+
+      final sizeHint = size('Small: two share one slot');
+      expect(size('Keep in sight on the Today screen'), sizeHint);
+      expect(size('Kept off the plan until this day'), sizeHint);
+    });
+  });
 
   group('new task', () {
     testWidgets('title and the default priority are enough', (tester) async {

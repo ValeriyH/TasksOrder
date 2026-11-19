@@ -62,6 +62,8 @@ void main() {
         'neutral chip': (c.neutralChipFg, c.neutralChipBg),
         'quiet chip (T-1103)': (c.metaText, c.neutralChipBg),
         'quiet over plan chip (T-1103)': (c.metaExtra, c.neutralChipBg),
+        'notes (T-1103)': (c.notesText, c.notesBg),
+        'notes header (T-1103)': (c.metaText, c.notesBg),
         'accent chip': (c.accentChipFg, c.accentChipBg),
         'over plan chip': (c.extraChipFg, c.extraChipBg),
         'completed button': (c.doneButtonFg, c.doneButtonBg),

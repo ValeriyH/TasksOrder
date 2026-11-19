@@ -38,12 +38,50 @@ void main() {
       ]),
       tasksById: tasks,
       doneToday: 0,
+      scale: 5,
     );
 
+    final normal = PriorityLabels.color(PriorityLabels.normal, 5);
     expect(result, [
-      WidgetDay(date: today, titles: const ['Task a', 'Task b']),
-      WidgetDay(date: today.addDays(1), titles: const ['Task c']),
+      WidgetDay(
+        date: today,
+        titles: const ['Task a', 'Task b'],
+        colors: [normal, normal],
+      ),
+      WidgetDay(
+        date: today.addDays(1),
+        titles: const ['Task c'],
+        colors: [normal],
+      ),
     ]);
+  });
+
+  test('each title has the colour of its priority on the scale', () {
+    final critical = Task.create(
+      id: 'x',
+      title: 'Critical',
+      priority: 2,
+      now: DateTime(2026, 11, 1, 9),
+    );
+    for (final scale in [3, 5, 10]) {
+      final result = widgetDays(
+        plan: plan([
+          day(0, 2, ['x', 'a']),
+        ]),
+        tasksById: {...tasks, 'x': critical},
+        doneToday: 0,
+        scale: scale,
+      );
+
+      expect(result.first.colors, [
+        PriorityLabels.color(2, scale),
+        PriorityLabels.color(PriorityLabels.normal, scale),
+      ], reason: 'scale $scale');
+    }
+    expect(
+      PriorityLabels.color(2, 5),
+      isNot(PriorityLabels.color(PriorityLabels.normal, 5)),
+    );
   });
 
   test('the completions count for today only', () {
@@ -54,6 +92,7 @@ void main() {
       ]),
       tasksById: tasks,
       doneToday: 2,
+      scale: 5,
     );
 
     expect(result.map((d) => d.doneCount), [2, 0]);
@@ -69,6 +108,7 @@ void main() {
       ]),
       tasksById: tasks,
       doneToday: 2,
+      scale: 5,
     );
 
     expect(result.map((d) => d.isRestDay), [false, true, false]);
@@ -79,6 +119,7 @@ void main() {
       plan: plan([for (var i = 0; i < 10; i++) day(i, 1, [])]),
       tasksById: tasks,
       doneToday: 0,
+      scale: 5,
     );
 
     expect(result, hasLength(7));

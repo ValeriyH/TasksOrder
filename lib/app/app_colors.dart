@@ -25,6 +25,8 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.metaText,
     required this.metaExtra,
     required this.priorityDotDone,
+    required this.notesBg,
+    required this.notesText,
     required this.accentChipBg,
     required this.accentChipFg,
     required this.extraChipBg,
@@ -97,6 +99,10 @@ class AppColors extends ThemeExtension<AppColors> {
 
   /// The priority dot of a done task (T-1103).
   final Color priorityDotDone;
+
+  /// The notes block of a task card (T-1103), and the text of its notes.
+  final Color notesBg;
+  final Color notesText;
 
   /// Focus and pin chips (before card v2; still in the theme).
   final Color accentChipBg;
@@ -174,6 +180,8 @@ class AppColors extends ThemeExtension<AppColors> {
     metaText: Color(0xFF5F6673),
     metaExtra: Color(0xFF92400E),
     priorityDotDone: Color(0xFFD1D5DB),
+    notesBg: Color(0xFFF6F7F9),
+    notesText: Color(0xFF374151),
     accentChipBg: Color(0xFFE0E7FF),
     accentChipFg: Color(0xFF3730A3),
     extraChipBg: Color(0xFFFEF3C7),
@@ -219,6 +227,8 @@ class AppColors extends ThemeExtension<AppColors> {
     metaText: Color(0xFF9CA3AF),
     metaExtra: Color(0xFFE3BC4E),
     priorityDotDone: Color(0xFF4B5563),
+    notesBg: Color(0xFF20242C),
+    notesText: Color(0xFFD1D5DB),
     accentChipBg: Color(0x29A5B4FC),
     accentChipFg: Color(0xFFC7D2FE),
     extraChipBg: Color(0x29FBBF24),
@@ -279,6 +289,9 @@ abstract final class AppDims {
   static const chipSpacing = 6.0;
   static const chipIcon = 13.0;
   static const priorityDot = 8.0;
+
+  static const notesRadius = 12.0;
+  static const notesAnim = Duration(milliseconds: 200);
 
   static const doneButtonHeight = 40.0;
   static const doneButtonMinWidth = 116.0;

@@ -51,7 +51,8 @@ void main() {
 
   String repeatRow(WidgetTester tester) {
     final tile = tester.widget<ListTile>(find.byKey(const ValueKey('repeat')));
-    return (tile.subtitle! as Text).data!;
+    final text = tile.subtitle! as Text;
+    return text.data ?? text.textSpan!.toPlainText();
   }
 
   Task recurring(String id, Recurrence rule, {LocalDate? due}) =>

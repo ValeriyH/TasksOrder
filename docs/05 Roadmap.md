@@ -20,7 +20,7 @@ Each milestone ends with a demo on a real device and a short retro: what new nee
 | **M10 — Allowed days (v0.7)** | A task that can only be done on some days of the week is planned only there, and moves on by itself when the day is missed | `Task.allowedWeekdays`, the planner's day test in the fill, the overflow and forcing (forcing counts only the allowed days), a pin in the past goes to the nearest allowed day, a "Days" row in the editor, a chip on the card, schema 6, backup format 6 (D23, ADR-25) | T-1001 … T-1006 |
 | **M11 — Tuning (v0.8)** | Small changes from daily use, the logic unchanged | The right swipe on Tasks pins a task to its planned day, quick add can pin to today and open the full editor, the "quiet card" v2 (title first, neutral chips with a priority dot) | T-1101 … T-1104 |
 
-M10 was designed on 2026-11-16 (brainstorm with the owner) and built on 2026-11-16 … 17 (0.7.0). M11 was planned and built on 2026-11-17 (0.8.0).
+M10 was designed on 2026-11-16 (brainstorm with the owner) and built on 2026-11-16 … 17 (0.7.0). M11 was planned and built on 2026-11-17 (0.8.0); its follow-ups T-1105 … T-1107 on 2026-11-20 (0.8.1).
 
 M7 was designed on 2026-11-14 and does not depend on the open tasks of M5 or on the widget (T-601); the owner picks the order. M8 was designed the same day and comes after M7 (owner): both change the same parts of the planner. M9 was designed on 2026-11-15 and is **done before M8** (owner): M8 adds a size to the task card and a load to the day headers, so it is built in the new look from the start. The numbers stay in the order the milestones were planned; M9 is v0.5 and M8 moves to v0.6.
 

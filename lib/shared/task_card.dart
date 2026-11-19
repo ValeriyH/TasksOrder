@@ -26,10 +26,17 @@ abstract final class _Text {
   static const due = TextStyle(fontSize: 13, fontWeight: FontWeight.w600);
   static const chip = TextStyle(fontSize: 12, fontWeight: FontWeight.w600);
   static const button = TextStyle(fontSize: 14, fontWeight: FontWeight.w700);
+  static const notesLine = TextStyle(fontSize: 13, fontWeight: FontWeight.w500);
+  static const notesTitle = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+  );
+  static const notes = TextStyle(fontSize: 14, height: 21 / 14);
 }
 
 /// A task in a list, the "quiet card" (D22, card v2 of T-1103): the title,
-/// the chips under it, and a bottom row with the due line (only for a due
+/// the chips under it, the notes of the task (a block that opens, only when
+/// there are notes), and a bottom row with the due line (only for a due
 /// date, or the day of a done task) and the Done button at the right.
 ///
 /// The chips the task itself knows (priority, focus unless [showFocus] is
@@ -128,6 +135,7 @@ class TaskCard extends StatelessWidget {
       final date => l10n.dueOn(shortDate(context, date)),
     };
     final dueColor = overdue ? c.alert : c.muted;
+    final notes = task.notes?.trim() ?? '';
 
     final all = <TaskChip>[
       if (showFocus && task.isFocused)
@@ -199,6 +207,10 @@ class TaskCard extends StatelessWidget {
             chips: all,
             quiet: isDone,
           ),
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: AppDims.cardGap),
+            TaskNotes(notes: notes, taskTitle: task.title),
+          ],
           const SizedBox(height: AppDims.cardGap),
           Row(
             children: [
@@ -259,6 +271,120 @@ class _CardTitle extends StatelessWidget {
   }
 }
 
+/// The notes of a task on its card (T-1103): closed, a line with the first
+/// line of the notes; open, the header "Notes" and the whole text, which can
+/// be selected. Open or closed is the card's own state, closed at first, and
+/// not stored. A tap on the block never reaches the card, so it does not
+/// open the task menu.
+class TaskNotes extends StatefulWidget {
+  const TaskNotes({required this.notes, required this.taskTitle, super.key});
+
+  /// The notes, trimmed and not empty.
+  final String notes;
+
+  /// The task's title, for the screen reader.
+  final String taskTitle;
+
+  @override
+  State<TaskNotes> createState() => _TaskNotesState();
+}
+
+class _TaskNotesState extends State<TaskNotes> {
+  var _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final c = AppColors.of(context);
+    final header = _open ? l10n.notesTitle : widget.notes.split('\n').first;
+    // Taps that miss the toggle and the text (the padding around the text)
+    // stop here instead of opening the task menu of the card.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {},
+      child: Material(
+        key: const ValueKey('taskNotes'),
+        color: c.notesBg,
+        borderRadius: BorderRadius.circular(AppDims.notesRadius),
+        clipBehavior: Clip.antiAlias,
+        child: AnimatedSize(
+          duration: AppDims.notesAnim,
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Semantics(
+                button: true,
+                expanded: _open,
+                label: _open
+                    ? l10n.hideNotesA11y(widget.taskTitle)
+                    : l10n.showNotesA11y(widget.taskTitle),
+                excludeSemantics: true,
+                onTap: _toggle,
+                child: InkWell(
+                  onTap: _toggle,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: AppDims.minTapTarget,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.description_outlined,
+                            size: 15,
+                            color: c.metaText,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              header,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  (_open ? _Text.notesTitle : _Text.notesLine)
+                                      .copyWith(color: c.metaText),
+                            ),
+                          ),
+                          AnimatedRotation(
+                            turns: _open ? 0.5 : 0,
+                            duration: AppDims.notesAnim,
+                            child: SizedBox.square(
+                              dimension: 28,
+                              child: Icon(
+                                Icons.expand_more,
+                                size: 16,
+                                color: c.metaText,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (_open)
+                Padding(
+                  // The text starts under the first letter of the header.
+                  padding: const EdgeInsets.fromLTRB(35, 0, 14, 14),
+                  child: SelectableText(
+                    widget.notes,
+                    style: _Text.notes.copyWith(color: c.notesText),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _toggle() => setState(() => _open = !_open);
+}
+
 /// The priority, then [chips] in the order of their [ChipSlot] (the list's
 /// own order inside a slot), wrapped onto more lines when needed. [quiet]:
 /// a done task, every chip neutral (T-1103).
@@ -292,7 +418,8 @@ class _ChipRow extends StatelessWidget {
 }
 
 /// A coming repeat of a recurring task in the Plan (a ghost, T-704/T-708):
-/// dimmed, no Done button; a tap opens the task the ghost repeats.
+/// dimmed, no Done button, the notes of the task as on a [TaskCard]; a tap
+/// opens the task the ghost repeats.
 class GhostTaskCard extends StatelessWidget {
   const GhostTaskCard({
     required this.task,
@@ -314,6 +441,7 @@ class GhostTaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final rule = task.recurrence;
+    final notes = task.notes?.trim() ?? '';
     return Opacity(
       opacity: 0.6,
       child: Tooltip(
@@ -335,6 +463,10 @@ class GhostTaskCard extends StatelessWidget {
                 ...chips,
               ],
             ),
+            if (notes.isNotEmpty) ...[
+              const SizedBox(height: AppDims.cardGap),
+              TaskNotes(notes: notes, taskTitle: task.title),
+            ],
           ],
         ),
       ),

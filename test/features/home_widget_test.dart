@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:tasks_order/domain/model/priority_labels.dart';
 import 'package:tasks_order/domain/model/settings.dart';
 import 'package:tasks_order/shared/task_card.dart';
 
@@ -27,7 +28,7 @@ void main() {
     final app = await AppHarness.start(tester, tasks: tasks);
 
     final payload = last(app);
-    expect(payload['format'], 1);
+    expect(payload['format'], 2);
     expect(payload['dayStartHour'], 0);
     expect(payload['stale'], 'Open TasksOrder to update the plan');
     final week = days(app);
@@ -36,6 +37,7 @@ void main() {
       'date': '2026-11-13',
       'header': 'Today · 1/1',
       'lines': ['Task a'],
+      'dots': [PriorityLabels.color(PriorityLabels.normal, 5)],
       'empty': null,
     });
     expect(week[1]['lines'], ['Task b', 'Task c', 'Task d']);
@@ -43,6 +45,7 @@ void main() {
       'date': '2026-11-15',
       'header': 'Today',
       'lines': <String>[],
+      'dots': <int>[],
       'empty': 'Rest day',
     });
   });
@@ -59,6 +62,7 @@ void main() {
       'date': '2026-11-13',
       'header': 'Today · 0/1',
       'lines': <String>[],
+      'dots': <int>[],
       'empty': 'All done for today',
     });
   });
@@ -85,6 +89,11 @@ void main() {
     expect(lines, hasLength(8));
     expect(lines.first, 'Task t0');
     expect(lines.last, '+5 more');
+    // Seven tasks with their colour, no dot colour for "+5 more".
+    final dots = days(app)[0]['dots'] as List<dynamic>;
+    expect(dots, hasLength(8));
+    expect(dots.take(7), everyElement(isA<int>()));
+    expect(dots.last, isNull);
   });
 
   testWidgets('the texts follow the language of the app', (tester) async {

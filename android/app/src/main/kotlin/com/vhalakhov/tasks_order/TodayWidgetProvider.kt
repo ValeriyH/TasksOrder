@@ -7,6 +7,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
@@ -42,6 +46,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
         private const val PREFS = "today_widget"
         private const val KEY_CACHE = "cache"
         private const val ACTION_DAY_START = "com.vhalakhov.tasks_order.WIDGET_DAY_START"
+
+        /** The dot before a title: a filled circle, a little larger than "•". */
+        private const val DOT = "\u25CF"
+        private const val DOT_SCALE = 1.3f
 
         /** Stores the cache from the app and redraws the placed widgets. */
         fun save(context: Context, payload: String) {
@@ -99,8 +107,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_header, day.optString("header"))
                 val lines = day.optJSONArray("lines")
                 if (lines != null && lines.length() > 0) {
-                    val text = (0 until lines.length()).joinToString("\n") { "•  " + lines.getString(it) }
-                    showText(views, text, secondary = false)
+                    showText(views, linesText(context, lines, day.optJSONArray("dots")), secondary = false)
                 } else {
                     showText(views, day.optString("empty"), secondary = true)
                 }
@@ -118,7 +125,31 @@ class TodayWidgetProvider : AppWidgetProvider() {
             return views
         }
 
-        private fun showText(views: RemoteViews, text: String, secondary: Boolean) {
+        /**
+         * The lines of the day, each after a dot in the colour of its task's
+         * priority (`dots`, ARGB; format 2). A line without a colour ("+N
+         * more", or a cache of format 1) gets a grey dot.
+         */
+        private fun linesText(
+            context: Context,
+            lines: org.json.JSONArray,
+            dots: org.json.JSONArray?,
+        ): CharSequence {
+            val grey = context.getColor(R.color.widget_secondary)
+            val text = SpannableStringBuilder()
+            for (i in 0 until lines.length()) {
+                if (i > 0) text.append('\n')
+                val color = if (dots == null || dots.isNull(i)) grey else dots.optLong(i).toInt()
+                val start = text.length
+                text.append(DOT)
+                text.setSpan(ForegroundColorSpan(color), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                text.setSpan(RelativeSizeSpan(DOT_SCALE), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                text.append("  ").append(lines.getString(i))
+            }
+            return text
+        }
+
+        private fun showText(views: RemoteViews, text: CharSequence, secondary: Boolean) {
             views.setTextViewText(R.id.widget_lines, if (secondary) "" else text)
             views.setViewVisibility(R.id.widget_lines, if (secondary) View.GONE else View.VISIBLE)
             views.setTextViewText(R.id.widget_empty, if (secondary) text else "")

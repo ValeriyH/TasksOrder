@@ -20,7 +20,7 @@ HomeScreenWidget homeScreenWidget(Ref ref) => ChannelHomeScreenWidget();
 const homeWidgetMaxLines = 8;
 
 /// Version of the cache format, see docs/03 Data Model.md.
-const homeWidgetFormat = 1;
+const homeWidgetFormat = 2;
 
 /// The cache the home-screen widget draws from (T-601, ADR-22), as the JSON
 /// text that goes to the Android side; null while the plan is loading.
@@ -44,6 +44,7 @@ String? homeWidgetPayload(Ref ref) {
       today: plan.today,
       dayStartHour: settings.dayStartHour,
     ),
+    scale: settings.priorityScale,
   );
   return jsonEncode({
     'format': homeWidgetFormat,
@@ -56,18 +57,25 @@ String? homeWidgetPayload(Ref ref) {
 Map<String, Object?> _day(WidgetDay day, AppLocalizations l10n) {
   final titles = day.titles;
   final total = titles.length + day.doneCount;
-  final shown = titles.length > homeWidgetMaxLines
+  final long = titles.length > homeWidgetMaxLines;
+  final shown = long
       ? [
           ...titles.take(homeWidgetMaxLines - 1),
           l10n.focusMore(titles.length - homeWidgetMaxLines + 1),
         ]
       : titles;
+  // The colour of each line's dot; "+N more" is no task and has none.
+  final dots = <int?>[
+    ...day.colors.take(long ? homeWidgetMaxLines - 1 : titles.length),
+    if (long) null,
+  ];
   return {
     'date': day.date.toString(),
     'header': total == 0
         ? l10n.tabToday
         : l10n.widgetHeader(titles.length, total),
     'lines': shown,
+    'dots': dots,
     'empty': titles.isNotEmpty
         ? null
         : day.doneCount > 0

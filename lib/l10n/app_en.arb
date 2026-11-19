@@ -1123,5 +1123,19 @@
   "@onlyDays": {
     "description": "Badge on a task card: the days of the week the task may be planned on, e.g. Only Thu, Fri",
     "placeholders": {"days": {"type": "String"}}
+  },
+  "notesTitle": "Notes",
+  "@notesTitle": {
+    "description": "Header of the open notes block on a task card"
+  },
+  "showNotesA11y": "Show notes: {title}",
+  "@showNotesA11y": {
+    "description": "Screen reader label of the closed notes block on a task card",
+    "placeholders": {"title": {"type": "String"}}
+  },
+  "hideNotesA11y": "Hide notes: {title}",
+  "@hideNotesA11y": {
+    "description": "Screen reader label of the open notes block on a task card",
+    "placeholders": {"title": {"type": "String"}}
   }
 }
