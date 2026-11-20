@@ -155,6 +155,54 @@ take the tasks of group(S) in EDF order until the weight taken >= forced_S, unde
 - Cost: one more pass per distinct set among the due tasks (few in practice), with its own running totals in `_FutureCapacity`. A set whose weekdays are all rest days stops counting after the last override that gives one of them capacity, so "only Sun, due in ten years" does not walk the calendar.
 - In the code: `_Candidate.dayMask` (the set as bits), `_ForceCheck` (a set, a minimum weight, the weight still to place), `_FutureCapacity.between(…, minFree:, mask:)`.
 
+## Turns by waiting (D24, ADR-26; M12, not built yet)
+With the order by priority alone a stream of important tasks holds a low one back for ever, and with capacity 1 one undone task holds today for ever. D24 lets a waiting task rise one level of the ten-level table per day.
+
+```
+waitStart(t) = max(t.waitingSince ?? today, release(t))   // a ghost: its release date
+waited(t, d) = d - waitStart(t)                            // days; only released tasks are compared
+score(t, d)  = effPriority(t, d) - waited(t, d)            // no floor: 0 and below are allowed
+```
+Pool order for the day `d` (replaces the pool ordering under "Inputs and derived values" when built):
+1. Own level 1 (Catastrophic) first. It does not age and nothing overtakes it; among themselves by due date, then age, as now.
+2. `score` ascending.
+3. Own `priority` ascending: at an equal score the more important task goes first (also a boosted task does not overtake the tier's own tasks, as now).
+4. `effDue` ascending, `null` last.
+5. `createdAt` ascending.
+
+- **One level a day** of the ten-level table, whatever the scale: on scale 5 a Low (7) overtakes a High (3) after waiting 4 days longer.
+- **Boost**: the waiting is taken off the boosted level (`effPriority`), not compared with it. When every task waits since the same day, every score moves by the same amount and the order is the order of today. ("The higher of the two" would cancel the boost of a task that has waited as long as the others.)
+- **Cheap**: `score + d = effPriority + waitStart`, so the order of the released tasks changes from day to day only when the boost changes; the pool is re-sorted as rarely as now.
+- **In the forecast** a task placed on `d` is taken as done (as now); the rest keep waiting. A task waits again from the day after it was on a list that has passed (rollover below).
+- **Edits do not reset** the waiting: a new level counts with the days already waited (raising a waiting Low to Normal must not put it later).
+- **Unchanged**: pins, deadline forcing (EDF), the top-level overflow of D21 (own level 1–2), the Focus order (own priority), at risk.
+- **Allowed days** (D23): days the task may not be placed on count as waiting, so "only Sat" comes to its Saturday with a better score.
+
+Examples (owner 2026-11-20; capacity 1 on every day, nothing is ever done):
+| Tasks | Today's list day by day |
+|-------|-------------------------|
+| K 2, N 5, L 10 | K K K K N K K K K N L K K K N K … — N once in 5 days, L once in ~10 |
+| H1, H2, H3 at 2, L at 10 | H1 H2 H3 H1 H2 H3 H1 H2 H3 H1 H2 **L** H3 … — L on days 12, 24, 36 |
+
+With a floor at 1 the second row would be `H1 H2 H1 H2 …` for ever: the two that waited meet at 1 with the same level and the older pair wins every tie, so L and even H3 never get a day.
+
+### What is stored and the rollover
+- `Task.waitingSince` (`LocalDate?`, null reads as today): set to the day of creation (quick add, editor, the successor of a series, which still waits from its `notBefore`). Edits leave it alone.
+- `Settings.agingAsOf` (`LocalDate`): the past days are processed up to it.
+
+At the day rollover and at start, while `agingAsOf < today`:
+```
+for Y in agingAsOf .. today - 1:
+    list(Y) = stored tasks placed on day Y by plan(inputs, today: Y, horizon: 1)
+    for t in list(Y): t.waitingSince = Y + 1
+agingAsOf = today                       // one transaction with the task writes
+```
+- For the last day the app was open the inputs are those of the end of that day: tasks done from the list are no longer active and `completedTodayWeight` of `Y` keeps the list stable (D19), so `list(Y)` is exactly "shown and not done".
+- Days the app was not opened are replayed one by one: nothing could change meanwhile, so the replay is what the user would have seen doing nothing. A gap longer than a year replays its last 366 days.
+- Pinned and forced entries count as shown (harmless: a pin ignores the order, forcing is EDF).
+- The plan, the widget cache and the notifications wait for the pass (`agingAsOf == today`), so no frame shows the old order.
+- Upgrade to schema 7 and a backup older than 7: every active task waits since that day, `agingAsOf` = that day.
+
 ## Focus: a view, not a queue
 `Plan.focus` lists the tasks with `isFocused == true` **or** `dueDate < today`. It is built from the same tasks the day loop places and changes nothing in the plan: no capacity, no deadline math (D17).
 - Order: priority, then `dueDate` (nulls last; overdue therefore first within a priority), then `focusedAt` (nulls last), then `createdAt`.
@@ -179,7 +227,7 @@ take the tasks of group(S) in EDF order until the weight taken >= forced_S, unde
   return min(t.priority, levels[max(0, i - boost)])
   ```
   The steps are levels of the scale in use (ADR-17): on scale 5 Normal (5) becomes High (3), then Critical (2); on scale 10 Elevated (4), then High (3). A boost never lowers a priority, so Catastrophic (1) on scale 5 stays 1.
-- Pool ordering (used whenever "next by priority" is needed), evaluated for the day `d` being filled:
+- Pool ordering (used whenever "next by priority" is needed), evaluated for the day `d` being filled (M12 replaces it with the order of "Turns by waiting"):
   1. `effPriority(t, d)` ascending (1 first)
   2. original `priority` ascending — a boosted task joins a tier but does not overtake that tier's originals
   3. `effDue` ascending, `null` last
@@ -396,6 +444,27 @@ With T-1002 and T-1003 (allowed days, D23), in `test/domain/planner_days_test.da
 59. An overdue "only Sat" task → in `focus` with its `plannedDate` on a Saturday, placed by priority, not at risk.
 60. A large "only Sat" task due Mon 30 Nov, with pins on Sat 28 that leave one free slot there → the heavy check inside the set forces it on Sat 21 (the last Saturday that can hold it), not at risk. Determinism and performance: 500 tasks, a fifth with a set, horizon 90 → same plan twice, under 50 ms.
 
+With M12 (turns by waiting, D24; planned), in `test/domain/planner_turns_test.dart`. Scale 5, capacity 1, today Monday 2026-11-16 unless said otherwise:
+
+61. Every task waits since today → every earlier scenario without a release date or a ghost gives the same plan. Scenarios with `notBefore` or ghosts (those wait from their release) are checked against D24; a changed expectation is updated with a note.
+62. A Normal task waiting since 4 days ago (score 1) and a fresh Critical (2) → the Normal one today.
+63. Equal score: a Critical waiting 1 day (1) and a Low waiting 6 days (1) → the Critical today (own level).
+64. No floor: a Low waiting 9 days (−2) and a Critical waiting 3 days (−1) → the Low today.
+65. Catastrophic: a fresh level 1 and a Low waiting 30 days → level 1 today; two level-1 tasks keep the order by due date, then age.
+66. Boost: a High due in 2 days (boosted to Critical, 2) and a High without a date, both waiting 3 days → the due one first (−1 against 0); with thresholds 0/0 → equal scores, so the due one first by `effDue`.
+67. Release: a Critical with `notBefore` in 3 days next to Low tasks waiting since today → on its release day as now (its score 2 beats 7 − 3); a ghost waits from its own release date.
+68. Allowed days: a Low "only Sat" waiting since two weeks ago and High tasks waiting since today on every day → it takes this Saturday.
+69. Forecast: a Low waiting 6 days (1) and three fresh High tasks → the Low today, then the High tasks; editing the Low to Normal keeps `waitingSince` (score −1), it stays first.
+70. Determinism and performance: 500 tasks with random `waitingSince`, 20 daily series, horizon 90 → same plan twice, under 50 ms.
+
+The rollover (T-1203) in `test/application/turns_rollover_test.dart`, fake clock and an in-memory database:
+
+71. Day Y: K and N on the list, K done, L not on it → N gets `waitingSince = Y + 1`, K (done) and L unchanged; `agingAsOf` = today.
+72. App not opened for three days → each day replayed: the tasks of each replayed list start waiting again the next day.
+73. The owner's rotation (H1, H2, H3 at 2, L at 10, capacity 1 on every day, nothing done) over 36 days of rollovers → L on today's list on days 12, 24, 36.
+74. A second pass on the same day changes nothing; `agingAsOf` after today (clock moved back) → nothing is replayed.
+75. Upgrade from schema 6 and a backup of version 6 → every active task waits since that day.
+
 ## Complexity
 Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomputed once per plan. Effective priority depends on `d`, so the pool is re-sorted per day (T log T). Total O(H × T log T) with H = horizon days. With heavy due tasks (D21) forcing runs once more per heavy weight, with its own running totals of the free room. For H = 90, T = 500 this is trivially fast on a phone.
 
@@ -406,5 +475,5 @@ Per day: forcing is O(T log T) due to sorting; `avail` prefix sums are precomput
 - `notBefore` is a release date (T-703). Set by hand in the editor since T-714 ("Not before").
 - A rule from completion shows no repeats ahead (T-712), so its later load is not in the plan; a window "done within N days" is in the parking lot.
 - The forcing formula with release dates checks the periods that start tomorrow. A cluster of unreleased tasks that cannot fit its own period is not solved earlier; it shows as at risk.
-- Allowed days (D23): a low task with one allowed day a week can be passed over for weeks by tasks of a higher priority that could have gone elsewhere; accepted, as for any low task (parking lot: a share of the slots per priority level).
+- Allowed days (D23): a low task with one allowed day a week can be passed over for weeks by tasks of a higher priority that could have gone elsewhere; as for any low task, turns by waiting (D24, M12) will give it its day.
 - Boost thresholds are global; per-task "lead time" could come later.

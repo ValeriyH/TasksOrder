@@ -19,8 +19,9 @@ Each milestone ends with a walkthrough on the emulator (the phone gets releases 
 | M8 — Task size | 0.6 | Small / normal / large (D21) |
 | M10 — Allowed days | 0.7 | Tasks limited to some weekdays (D23) |
 | M11 — Tuning | 0.8.0, 0.8.1 | Swipe to pin, quick add options, quiet card, notes on the card, widget dots |
+| M12 — Turns by waiting | 0.9 | Planned: a waiting task rises a level a day, an undone one gives way (D24) |
 
-Current release: **0.8.1+16** (2026-11-20). Next: the owner's choice. What each milestone built, and why, is in [[History]].
+Current release: **0.8.1+16** (2026-11-20). Next: M12 (tasks in [[06 Task Backlog]]). What each milestone built, and why, is in [[History]].
 
 ## Cycle
 1. Plan the milestone with the owner (decisions D… in [[01 Brainstorm]], ADRs in [[02 Architecture]]), split it into tasks in [[06 Task Backlog]].

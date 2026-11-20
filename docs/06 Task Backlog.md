@@ -8,12 +8,16 @@ Format: `- [ ] **T-xxx Title** — what / definition of done. _depends:_ …`, g
 
 When a milestone is closed, its tasks leave this file: a short summary goes to [[History]] (tasks one line each, changed decisions), lessons for the toolchain and tests to "Gotchas" in [[02 Architecture]], new ideas to the parking lot below. Closed milestones M0–M11 (T-001 … T-1107) are summarised there.
 
-## Open
-Nothing scheduled; the next milestone is the owner's choice (parking lot or a new need).
+## M12 — Turns by waiting (v0.9)
+A waiting task rises one level a day and a task shown on today's list starts again from its own level (D24, ADR-26). Spec and test table: "Turns by waiting" in [[04 Planner Algorithm]] (scenarios 61–75).
+
+- [ ] **T-1201 Planner: order by waiting** — `Task.waitingSince` in the domain (`LocalDate?`, null = today; copied by `copyWith`, not by the successor); the pool order of "Turns by waiting": level-1 tier, `score = effPriority − waited` without a floor, own level, `effDue`, age; ghosts and tasks with `notBefore` wait from their release; re-sort only when the boost changes (`score + d` is constant). Tests: scenarios 61–70 in `test/domain/planner_turns_test.dart`; the earlier planner tests stay green (61). The pool ordering bullet under "Inputs and derived values" is replaced by a reference to the new section.
+- [ ] **T-1202 Data: schema 7 and backup 7** — `tasks.waiting_since TEXT` (nullable), `settings.aging_as_of TEXT`; the migration fills both with the local date of the upgrade for active tasks (a task does not start from `createdAt`, or every old task would jump to the top). Backup `waitingSince` (left out when null) and `agingAsOf`; version 7; versions ≤ 6 read with "waits since the restore day". New tasks get `waitingSince` = the day of creation (quick add, editor, successor of a series); edits keep it. Tests: `SchemaVerifier` 6 → 7, backup round trip and old versions, scenario 75. [[03 Data Model]] updated. _depends:_ T-1201
+- [ ] **T-1203 Day rollover pass** — replay `agingAsOf .. today − 1` (`plan(today: Y)` with horizon 1, at most 366 days), set `waitingSince = Y + 1` for the stored tasks on each list, `agingAsOf = today`, one transaction; runs at start and when `todayProvider` changes; `planProvider`, the widget cache and the notifications wait for `agingAsOf == today`. Tests: scenarios 71–74 with a fake clock. "Day rollover" in the key flows of [[02 Architecture]] no longer says "no writes". _depends:_ T-1202
+- [ ] **T-1204 Docs and release 0.9.0** — both user guides (why a Low task can come before a Critical one; Catastrophic never gives way; a pin is still the way to say "this day"), [[09 Changelog]], version, [[Home]] status; D24 / ADR-26 / the planner section lose "planned". Walkthrough on the emulator: move the clock over several days (`adb root`, `auto_time 0`) and check that a task left undone gives way and a Low one gets its day; release APK over 0.8.1, uk and en. _depends:_ T-1203
 
 ## Parking lot (not scheduled)
 Planner:
-- A share of the slots per priority level against starvation of low tasks, "speculative push" (owner 2026-11-16, preliminary): something more important always exists, so a low task never gets its turn; e.g. of a run of slots High gets 10, Normal 5, Low 1. For all tasks; it would also cover a low task with one allowed day a week (D23). Needs its own brainstorm
 - A Critical large task added during the day takes today and pushes the tasks already shown there to tomorrow (today's list is sticky only for completions, D3); the owner may want today's list kept as it is (M8 retro)
 - Places with opening days shared by several tasks ("the office: Thu, Fri"), on top of the allowed days of D23
 - Tags / projects, subtasks; grouping for the parts of a job split by hand (a task is done within one day, D21). Owner's suggestion: mark the tasks of a group with a tag; tasks of a group keep their own order, and the 2nd task of a group cannot be placed before the 1st

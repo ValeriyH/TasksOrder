@@ -5,7 +5,7 @@ updated: 2026-11-20
 ---
 # 01 Brainstorm
 
-The product: what it is for, what it does today and the decisions it rests on. Decisions keep their numbers (D1–D23); replaced ones are in [[Superseded decisions]], the story of how each came about in [[History]].
+The product: what it is for, what it does today and the decisions it rests on. Decisions keep their numbers (D1–D24); replaced ones are in [[Superseded decisions]], the story of how each came about in [[History]].
 
 ## Problem
 People collect far more tasks than they can do. Classic to-do apps show the whole pile, which creates guilt and decision fatigue. The user wants to **dump everything in** without thinking, and let the app say: *"today, do these N things"*.
@@ -100,6 +100,8 @@ Colours are computed, not stored: `PriorityLabels.color(level, scale)` goes by t
 
 **D23 — Allowed days.** A task can carry a set of weekdays ("only Thu and Fri"); it is placed only on those days, competes by priority there, and after a missed day simply lands on the next allowed one (nothing stored, nothing in Focus). With a due date it is forced on its last allowed day before the date; overdue → Focus as usual. A pin wins (a past pin moves to the nearest allowed day). It can be ticked on any day; repeats carry the set. No banners. _Why:_ offices with opening days and weekend chores; pins and weekday repeats describe one week or make a series out of one job.
 
+**D24 — Turns by waiting (planned, M12).** A task that waits for a slot rises one level of the ten-level table per day, whatever the scale; a task that was on today's list goes back to its own level the next day, done or not. The priority fill orders by `level − days waited` (lower first, no floor: it may go to 0 and below); at an equal value the task with the higher own level goes first. Level 1 (Catastrophic) does not take part: it never ages and nothing overtakes it ("when the roof leaks, the yard can wait"). Pins, deadline forcing and Focus do not change; editing a task does not reset its waiting. Result: a Low task overtakes a High one only after waiting 4 days longer than it (the difference of levels), so it gets a day even when High tasks keep coming; a task left undone on today's list keeps its own level while the others rise, so it makes room for them now and then instead of holding the slot. Details in [[04 Planner Algorithm]]. _Why:_ (owner 2026-11-20) high-priority tasks crowded out the low ones (starvation), and one undone task with capacity 1 blocked the queue. A penalty for undone tasks solved only the second; a floor at level 1 brought starvation back (all that waited meet at 1, the order is static again: three High tasks rotating at the floor keep a Low out for ever, and even the third High).
+
 ## Glossary
 - **Capacity** — how many normal tasks the user wants on a day; a day override replaces it for one date.
 - **Slot / weight** — one normal task of capacity; weights are in half-slots (small 1, normal 2, large 4).
@@ -113,5 +115,6 @@ Colours are computed, not stored: `PriorityLabels.color(level, scale)` goes by t
 - **Pinned** — fixed to a date by the user ("Do on this day").
 - **Not before** — the first day the planner may place a task on (snooze; also set for the next instance of a series).
 - **Allowed days** — the weekdays a task may be planned on (D23).
+- **Waiting** — days since a task was last on today's list (or became available); each day of waiting raises it one level in the priority fill (D24, planned).
 - **Horizon** — how many days ahead the planner fills (default 90); tasks that do not fit are **Later**.
 - **Series / instance / ghost** — a recurring task over time / one stored task of it (at most one active) / a future repeat computed by the planner, not stored (D20).
